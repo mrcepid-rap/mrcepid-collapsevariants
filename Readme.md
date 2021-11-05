@@ -12,6 +12,8 @@ https://documentation.dnanexus.com/.
         + [Docker](#docker)
         + [Resource Files](#resource-files)
 - [Methodology](#methodology)
+    * [1. Filtering With BCFTools Filtering Expressions](#1-filtering-with-bcftools-filtering-expressions)
+    * [2. Generating Outputs](#2-generating-outputs)
 - [Running on DNANexus](#running-on-dnanexus)
     * [Inputs](#inputs)
     * [Outputs](#outputs)
