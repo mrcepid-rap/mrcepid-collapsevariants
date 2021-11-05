@@ -1,0 +1,72 @@
+{
+  "name": "mrcepid-collapsevariants",
+  "title": "CollapseVariants",
+  "summary": "Generates dummy input files for various association testing software",
+  "dxapi": "1.0.0",
+  "version": "0.0.1",
+  "inputSpec": [
+    {
+      "name": "input_vcf",
+      "label": "input vcf.gz file",
+      "class": "file",
+      "optional": false,
+      "patterns": [
+        "*.vcf.gz"
+      ],
+      "help": "Input VCF file from mrcepid-annotatecadd."
+    },
+    {
+      "name": "filtering_expression",
+      "label": "filtering expression to INCLUDE variants (bcftools -i)",
+      "class": "string",
+      "optional": false,
+      "help": "This must be a bcftools compatible filtering expression like that used for -i. See bcftools documentation for more information."
+    },
+    {
+      "name": "file_prefix",
+      "label": "name to append to beginning of output files.",
+      "class": "string",
+      "optional": false,
+      "help": "This should be a brief descriptor of the type of variants this command is aggregating. i.e. if aggregating PTVs, PTV would be an acceptable parameter."
+    }
+  ],
+  "outputSpec": [
+    {
+      "name": "output_tarball",
+      "label": "VCF-specific tar file with files for associations",
+      "class": "file",
+      "optional": false,
+      "patterns": [
+        "*.tar.gz"
+      ],
+      "help": "This will include resulting filtered files that are provided as input to mrcepid-mergecollapsevariants"
+    }
+  ],
+  "access": {
+    "network": [
+      "*"
+    ]
+  },
+  "runSpec": {
+    "timeoutPolicy": {
+      "*": {
+        "hours": 12
+      }
+    },
+    "interpreter": "python3",
+    "file": "src/mrcepid-collapsevariants.py",
+    "distribution": "Ubuntu",
+    "release": "20.04",
+    "version": "0",
+    "execDepends": []
+  },
+  "regionalOptions": {
+    "aws:eu-west-2": {
+      "systemRequirements": {
+        "*": {
+          "instanceType": "mem1_ssd1_v2_x2"
+        }
+      }
+    }
+  }
+}
