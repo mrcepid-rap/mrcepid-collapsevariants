@@ -23,7 +23,7 @@ https://documentation.dnanexus.com/.
 ## Introduction
 
 This applet generates raw data necessary to perform rare variant burden testing using [bcftools](https://samtools.github.io/bcftools/bcftools.html)
-or [plink2](https://www.cog-genomics.org/plink/2.0/). Please see these two tool's resppective documentation for more
+or [plink2](https://www.cog-genomics.org/plink/2.0/). Please see these two tool's respective documentation for more
 information on how individual commands used in this applet work.
 
 This README makes use of DNANexus file and project naming conventions. Where applicable, an object available on the DNANexus
@@ -42,7 +42,7 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 
 ### Background
 
-Downstream of this applet, we have impleted four tools / methods for rare variant burden testing:
+Downstream of this applet, we have implemented four tools / methods for rare variant burden testing:
 
 * [BOLT](https://alkesgroup.broadinstitute.org/BOLT-LMM/BOLT-LMM_manual.html)
 * [SAIGE-GENE](https://github.com/weizhouUMICH/SAIGE/wiki/Genetic-association-tests-using-SAIGE)
@@ -50,7 +50,7 @@ Downstream of this applet, we have impleted four tools / methods for rare varian
 * GLMs – vanilla linear/logistic models implemented with python's [statsmodels module](https://www.statsmodels.org/stable/index.html)
 
 These four tools / methods require very different input files to run. The purpose of this applet is to generate inputs 
-that are compatible with each of these tools input requirements. This tool is part (1) of a two step process (in bold):
+that are compatible with each of these tools input requirements. This tool is part (1) of a two-step process (in bold):
 
 1. **Generate initial files from each VCF filtered/annotated by [mrcepid-filterbcf](https://github.com/mrcepid-rap/mrcepid-filterbcf) 
    and [mrcepid-annotatecadd](https://github.com/mrcepid-rap/mrcepid-annotatecadd)**
@@ -68,10 +68,9 @@ launched by DNANexus. The Dockerfile used to build dependencies is available as 
 
 https://github.com/mrcepid-rap/dockerimages/blob/main/filterbcf.Dockerfile
 
-This Docker image is built off of a 20.04 Ubuntu distribution with miniconda3 pre-installed available via [dockerhub](https://hub.docker.com/r/continuumio/miniconda3).
-This was done to remove issues with installing miniconda3 via Dockerfile which is a dependancy of CADD. This image is
-very light-weight and only provides basic OS installation and miniconda3. Other basic software (e.g. wget, make, and gcc)
-need to be installed manually. For more details on how to build a Docker image for use on the UKBiobank RAP, please see:
+This Docker image is built off of the primary 20.04 Ubuntu distribution available via [dockerhub](https://hub.docker.com/layers/ubuntu/library/ubuntu/20.04/images/sha256-644e9b64bee38964c4d39b8f9f241b894c00d71a932b5a20e1e8ee8e06ca0fbd?context=explore).
+This image is very light-weight and only provides basic OS installation. Other basic software (e.g. wget, make, and gcc) need
+to be installed manually. For more details on how to build a Docker image for use on the UKBiobank RAP, please see:
 
 https://github.com/mrcepid-rap#docker-images
 
@@ -87,7 +86,7 @@ to acquire other resources (e.g. wget). See the referenced Dockerfile for more i
 
 #### Resource Files
 
-This app does not have any external dependencies.
+This applet does not have any external dependencies.
 
 ## Methodology
 
@@ -198,10 +197,9 @@ organisational documentation on how to download and build this app on the DNANex
 https://github.com/mrcepid-rap
 
 Running this command is fairly straightforward using the DNANexus SDK toolkit. For the input vcf (provided with the flag
-`-iinput_vcf`) one can use a list of file hashes of output VCFs from `mrcepid-filterbcf`:
+`-iinput_vcf`) one can use a file hash from the VCF output of `mrcepid-annotatecadd`:
 
 ```commandline
-# Using file hash
 dx run mrcepid-collapsevariants --priority low --destination filtered_vcfs/ -iinput_vcf=file-A12345 \
         -ifiltering_expression='FILTER="PASS" & AF<0.001 & LOFTEE="HC" & PARSED_CSQ="PTV"' \
         -ifile_prefix="PTV"
@@ -219,4 +217,4 @@ the app (at `dxapp.json`) so setting an instance type is unnecessary. This curre
 
 #### Batch Running
 
-t.b.d. A fast way of collating multiple VCF files together as an array needs to be determined.
+t.b.d. A fast way of performing filtering for a large number of VCF files
