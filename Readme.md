@@ -161,12 +161,40 @@ they are mainly intermediate and not used by any other applets / tools.
 
 |input|description             |
 |---- |------------------------|
-|input_vcf  | Input vcf file from [mrcepid-annotatecadd](https://github.com/mrcepid-rap/mrcepid-filterbcf) to annotate with CADD |
+|input_vcfs  | Input vcf file from [mrcepid-annotatecadd](https://github.com/mrcepid-rap/mrcepid-annotatecadd) to filter for variants according to `filtering_expression` |
 |filtering_expression | [bcftools](https://samtools.github.io/bcftools/bcftools.html) compatible filtering expression. See [above](#1-filtering-with-bcftools-filtering-expressions) |
 |file_prefix | descriptive file prefix for output name |
+|threads| Number of threads available to this instance [**36**] |
 
 **BIG Note:** The value provided to `file_prefix` **MUST** be identical for all VCF files that you wish to merge and test during
 rare variant burden testing.
+
+`input_vcfs` is a file list that **MUST** contain DNANexus file hash keys (e.g. like file-1234567890ABCDEFGHIJ). A simple
+way to generate such a list is with the following bash/perl one-liner:
+
+```commandline
+dx ls -l filtered_vcfs/ukb23148_c7_b*_v1_chunk*cadd.bcf | perl -ane 'chomp $_; if ($F[6] =~ /^\((\S+)\)$/) {print "$1\n";}' > collapse_list.txt
+```
+
+This command will:
+
+1. Find all filtered vcf files on chromosome 7 and print in dna nexus "long" format which includes a column for file hash (column 7)
+2. Extract the file hash using a perl one-liner and print one file hash per line
+
+The final input file will look something like:
+
+```text
+file-1234567890ABCDEFGHIJ
+file-2345678901ABCDEFGHIJ
+file-3456789012ABCDEFGHIJ
+file-4567890123ABCDEFGHIJ
+```
+
+This file then needs to be uploaded to the DNANexus platform, so it can be provided as input:
+
+```commandline
+dx upload collapse_list.txt
+```
 
 ### Outputs
 
@@ -200,7 +228,7 @@ Running this command is fairly straightforward using the DNANexus SDK toolkit. F
 `-iinput_vcf`) one can use a file hash from the VCF output of `mrcepid-annotatecadd`:
 
 ```commandline
-dx run mrcepid-collapsevariants --priority low --destination filtered_vcfs/ -iinput_vcf=file-A12345 \
+dx run mrcepid-collapsevariants --priority low --destination filtered_vcfs/ -iinput_vcfs=file-A12345 \
         -ifiltering_expression='FILTER="PASS" & AF<0.001 & LOFTEE="HC" & PARSED_CSQ="PTV"' \
         -ifile_prefix="PTV"
 ```
@@ -217,4 +245,32 @@ the app (at `dxapp.json`) so setting an instance type is unnecessary. This curre
 
 #### Batch Running
 
-t.b.d. A fast way of performing filtering for a large number of VCF files
+It is easier to implement batch running manually, rather than use built-in DNANexus batch functionality. In brief, first
+generate a list of all files that need to be run through the process as outlined [above](#inputs):
+
+```commandline
+dx ls -l filtered_vcfs/ukb23148_c7_b*_v1_chunk*cadd.bcf | perl -ane 'chomp $_; if ($F[6] =~ /^\((\S+)\)$/) {print "$1\n";}' > collapse_list.txt
+```
+
+Then, simply use the *NIX default split command to generate a set of individual files that can work through all the files
+found above on individual instances:
+
+```commandline
+split -a 1 -l 35 collapse_list.txt collapse_list_
+```
+
+A few important notes on the above:
+1. We set the number of files per-list to 35 (using `-l 35`) because our default instance has 35 cores and requires 2 
+   cores per file. This means we should be able to run a total of 35 files at a time, but we need a core to be able to 
+   monitor these processes, thus why we do 35 files.
+2. We CAN set the number of files to greater than 35, but this means other files need to finish processing before others
+   can start, meaning runtime will be longer than expected.
+3. This will create files named bcf_list_a, bcf_list_b, bcf_list_c, etc.
+
+Then we upload to dna nexus, and generate a set of commands that will then run this applet:
+
+```commandline
+dx upload collapse_list_* --destination batch_lists/
+dx ls -l batch_lists/collapse_list_* | \ 
+    perl -ane 'chomp $_; if ($F[6] =~ /^\((\S+)\)$/) {print "dx run mrcepid-collapsevariants --priority low --yes --brief --destination filtered_vcfs/ -iinput_vcfs=$1 -ifiltering_expression='\''FILTER=\"PASS\" \& AF<0.0001 \& LOFTEE=\"HC\" \& PARSED_CSQ=\"PTV\"'\'' -ifile_prefix=\"PTV\";\n";}' | bash
+```

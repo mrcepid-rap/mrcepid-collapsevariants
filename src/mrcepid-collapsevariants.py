@@ -13,7 +13,8 @@ import csv
 import json
 import tarfile
 import glob
-
+from concurrent import futures
+from concurrent.futures import ThreadPoolExecutor
 
 # This function runs a command on an instance, either with or without calling the docker instance we downloaded
 # By default, commands are not run via Docker, but can be changed by setting is_docker = True
@@ -27,7 +28,6 @@ def run_cmd(cmd: str, is_docker: bool = False) -> None:
               "egardner413/mrcepid-filtering " + cmd
 
     # Standard python calling external commands protocol
-    print(cmd)
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = proc.communicate()
 
@@ -40,19 +40,47 @@ def run_cmd(cmd: str, is_docker: bool = False) -> None:
         raise dxpy.AppError("Failed to run properly...")
 
 
+# Utility function to delete files no longer needed from the AWS instance to save space
+def purge_file(file: str) -> None:
+
+    cmd = "rm " + file
+    run_cmd(cmd)
+
+
+# This is a helper function to upload a local file and then remove it from the instance.
+# This is different than other applets I have written since CADD takes up so much space.
+# I don't want to have to use a massive instance costing lots of £s!
+def generate_linked_dx_file(file: str) -> dxpy.DXFile:
+
+    linked_file = dxpy.upload_local_file(file)
+    purge_file(file)
+    return linked_file
+
+
 # Runs a filtering expression provided by the user to INCLUDE (-i) a subset of variants from the associated filtered VCF
 # file.
 # The expression MUST be in a format parseable by bcftools -i and must be formated to INCLUDE the desired variants –
 # there is currently no option to use an exclusion format (-e)
-def run_filtering(expression: str) -> None:
+def run_filtering(vcfprefix: str, expression: str) -> None:
 
     # Simple bcftools view command that includes variants in the filtering expression and just outputs a new "filtered"
     # bcf file
-    cmd = "bcftools view -i \'" + expression + "\' -Ob -o /test/variants.filtered.bcf /test/variants.vcf.gz"
+    cmd = "bcftools view -i \'" + expression + "\' -Ob -o /test/" + vcfprefix + ".filtered.bcf /test/" + vcfprefix + ".bcf"
     run_cmd(cmd, True)
-    # Just to get the samples present in the file for later functions – not used here
-    cmd = "bcftools query -l /test/variants.filtered.bcf > samples.txt"
+
+
+def check_for_variants(vcfprefix: str) -> int:
+
+    cmd = "bcftools view -H -o /test/" + vcfprefix + ".vcf /test/" + vcfprefix + ".filtered.bcf"
     run_cmd(cmd, True)
+    check_vcf = open(vcfprefix + '.vcf')
+    var_count = 0
+    for line in check_vcf:
+        var_count += 1
+    check_vcf.close()
+    purge_file(vcfprefix + '.vcf')
+
+    return var_count
 
 
 # Generate input format files that can be provided to BOLT
@@ -69,22 +97,22 @@ def parse_filters_BOLT(vcfprefix: str, file_prefix: str) -> None:
     # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
     # 1. Sample ID: UKBB eid format
     # 2. The actual genotype (0/1 or 1/1 in this case)
-    # 3. The ENSG ID so we know what gene this value is derived for
-    cmd = "bcftools query -i \'GT=\"alt\"\'  -f \'[%SAMPLE\\t%GT\\t%ENSG\\n]\' -o /test/parsed.txt /test/variants.filtered.bcf"
+    # 3. The ENST ID so we know what gene this value is derived for
+    cmd = "bcftools query -i \'GT=\"alt\"\'  -f \'[%SAMPLE\\t%GT\\t%ENST\\n]\' -o /test/" + vcfprefix + ".parsed.txt /test/" + vcfprefix + ".filtered.bcf"
     run_cmd(cmd, True)
     # This is just a list-format of the above file's header so we can read it in below with index-able columns
-    header = ['sample', 'genotype', 'ENSG']
+    header = ['sample', 'genotype', 'ENST']
 
     # Now we are going to read this file in and parse the genotype information into the dictionary we created above (samples)
-    filtered_variants = csv.DictReader(open('parsed.txt', 'r', newline= '\n'), fieldnames=header, delimiter="\t", quoting = csv.QUOTE_NONE)
+    filtered_variants = csv.DictReader(open(vcfprefix + '.parsed.txt', 'r', newline= '\n'), fieldnames=header, delimiter="\t", quoting = csv.QUOTE_NONE)
     for var in filtered_variants:
         # IF the gene is already present for this individual, increment based on genotype
         # ELSE the gene is NOT already present for this individual, instantiate a new level in the samples dict and set
         # according to current genotype
-        if var['ENSG'] in samples[var['sample']]:
-            samples[var['sample']][var['ENSG']] += 1 if var['genotype'] == '0/1' else 2
+        if var['ENST'] in samples[var['sample']]:
+            samples[var['sample']][var['ENST']] += 1 if var['genotype'] == '0/1' else 2
         else:
-            samples[var['sample']][var['ENSG']] = 1 if var['genotype'] == '0/1' else 2
+            samples[var['sample']][var['ENST']] = 1 if var['genotype'] == '0/1' else 2
 
     # Output this in json format for easy parsing by the next applet in this workflow (mrcepid-mergecollapsevariants)
     # This will allow for easy merging of .json files across multiple VCF files
@@ -104,8 +132,8 @@ def parse_filters_REGENIE(vcfprefix: str, file_prefix: str) -> None:
     #                           software so we change it here
     # --new-id-max-allele-len : Due to InDels, the new var-ids can have names that are too long for standard plink
     #                           output. My hope is 100 characters is enough, but this could break at some point...
-    cmd = "plink2 --bcf /test/variants.filtered.bcf --out /test/" + vcfprefix + "." + file_prefix + \
-          ".REGENIE --make-pgen --set-all-var-ids @:#:\$r:\$a --new-id-max-allele-len 100"
+    cmd = "plink2 --bcf /test/" + vcfprefix + ".filtered.bcf --out /test/" + vcfprefix + "." + file_prefix + \
+          ".REGENIE --make-pgen --threads 1 --set-all-var-ids @:#:\$r:\$a --new-id-max-allele-len 100 --vcf-half-call \'m\'"
     run_cmd(cmd, True)
 
     # Make annotation file:
@@ -113,8 +141,8 @@ def parse_filters_REGENIE(vcfprefix: str, file_prefix: str) -> None:
     # file is used later by mrcepid-mergecollapsevariants
     # Note the column in the bcftools query -f of %CHROM:%POS:%REF:%ALT – this is the same format as done for the above
     # plink2 command to keep things consistent for later
-    cmd = "bcftools query -f '%CHROM\t%POS\t%CHROM:%POS:%REF:%ALT\t%ENSG\t%PARSED_CSQ\n' " \
-          "-o /test/" + vcfprefix + "." + file_prefix + ".REGENIE.annotation.txt /test/variants.filtered.bcf"
+    cmd = "bcftools query -f '%CHROM\t%POS\t%CHROM:%POS:%REF:%ALT\t%ENST\t%PARSED_CSQ\n' " \
+          "-o /test/" + vcfprefix + "." + file_prefix + ".REGENIE.annotation.txt /test/" + vcfprefix + ".filtered.bcf"
     run_cmd(cmd, True)
 
 
@@ -128,12 +156,82 @@ def parse_filters_STAAR(vcfprefix: str, file_prefix: str) -> None:
     # sample ID (row) x var ID (col). So each row of the file generated by the below command is one cell in the
     # resulting matrix
     cmd = "bcftools query -i \'GT=\"alt\"\'  -f '[%SAMPLE\t%CHROM:%POS:%REF:%ALT\t%GT\n]' " \
-          "-o /test/" + vcfprefix + "." + file_prefix + ".STAAR.matrix.txt /test/variants.filtered.bcf"
+          "-o /test/" + vcfprefix + "." + file_prefix + ".STAAR.matrix.txt /test/" + vcfprefix + ".filtered.bcf"
     run_cmd(cmd, True)
 
 
+# Helper thread for running separate BCFs through the collapsing process (functions as a future)
+def filter_vcf(vcf: str, filtering_expression: str, file_prefix: str) -> None:
+
+    # Ingest the filtered VCF file into this instance
+    try:
+        vcf = dxpy.DXFile(vcf.rstrip())
+        print("Processing bcf: " + vcf.describe()['name'])
+        vcfprefix = vcf.describe()['name'].rstrip(".bcf") # Get a prefix name for all files
+        dxpy.download_dxfile(vcf.get_id(), vcfprefix + ".bcf")
+
+        # Run filtering according to the user-provided filtering expression
+        run_filtering(vcfprefix, filtering_expression)
+
+        # Need to check if any qualifying variants were identified:
+        num_variants = check_for_variants(vcfprefix)
+        print("%s %i %s: %s.%s" % ("Found", num_variants, "variants in file", vcfprefix, "bcf"))
+
+        # outputs are stored in a single tar file for ease of I/O
+        output_tarball = vcfprefix + "." + file_prefix + ".tar.gz"
+        tar = tarfile.open(output_tarball, "w:gz")
+
+        # If there are no variants we need to create an empty dummy file to signify that this process completed BUT
+        # no variants were found
+        if num_variants == 0:
+            cmd = "touch " + vcfprefix + ".dummy"
+            run_cmd(cmd)
+            tar.add(vcfprefix + ".dummy")
+            purge_file(vcfprefix + ".dummy")
+
+            # Purge files that we no longer need:
+            purge_file(vcfprefix + ".bcf")
+            purge_file(vcfprefix + ".filtered.bcf")
+
+        else:
+            # Here we are then taking the file generated by run_filtering() and generating various text/plink/vcf files
+            # that will be used as part of mrcepid-mergecollapsevariants to generated a merged set of variants we want to
+            # test across all VCF files
+            # JUST TO BE CLEAR – the names of the functions here are not THAT important. e.g. files generated in the function
+            # parse_filters_REGENIE() will be used for other tools. It was just for me (Eugene Gardner) to keep things
+            # organised when writing this function
+            parse_filters_BOLT(vcfprefix, file_prefix) # BOLT
+            parse_filters_REGENIE(vcfprefix, file_prefix) # REGENIE
+            parse_filters_STAAR(vcfprefix, file_prefix) # STAAR
+
+            # Purge files that we no longer need:
+            purge_file(vcfprefix + ".bcf")
+            purge_file(vcfprefix + ".filtered.bcf")
+            purge_file(vcfprefix + ".parsed.txt")
+
+            # Here we are taking all of the files generated by the various functions above and adding them to a single tar
+            # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
+            for file in glob.glob(vcfprefix + "." + file_prefix + ".*"):
+                if ".tar.gz" not in file: # Don't want to remove the tar itself... yet...
+                    tar.add(file)
+                    purge_file(file)
+
+        tar.close()
+        print("Finished bcf: " + vcf.describe()['name'])
+        return generate_linked_dx_file(output_tarball)
+
+    except Exception as err:
+        # Do this as a form of error tracking:
+        output_tarball = vcfprefix + "." + file_prefix + ".ERROR.tar.gz"
+        cmd = "touch " + output_tarball
+        run_cmd(cmd)
+        print("Error in bcf: " + vcf.describe()['name'])
+        print(Exception, err)
+        return(generate_linked_dx_file(output_tarball))
+
+
 @dxpy.entry_point('main')
-def main(input_vcf, filtering_expression, file_prefix):
+def main(input_vcfs, filtering_expression, file_prefix, threads):
 
     # For logging purposes output the filtering expression provided by the user
     print("Current Filtering Expression:")
@@ -143,34 +241,45 @@ def main(input_vcf, filtering_expression, file_prefix):
     cmd = "docker pull egardner413/mrcepid-filtering:latest"
     run_cmd(cmd)
 
-    # Injest the filtered VCF file into this instance
-    vcf = dxpy.DXFile(input_vcf)
-    vcfprefix = vcf.describe()['name'].rstrip(".vcf.gz") # Get a prefix name for all files
-    dxpy.download_dxfile(vcf.get_id(), "variants.vcf.gz")
+    # Get a list of samples that we are going to use:
+    samples_file = dxpy.DXFile('file-G6g569QJJv8XFyvb9Gf20JV7')
+    dxpy.download_dxfile(samples_file.get_id(), "samples.txt")
 
-    # Run filtering according to the user-provided filtering expression
-    run_filtering(filtering_expression)
+    # Now build a thread worker that contains as many threads, divided by 4 that have been requested
+    # Loop through each VCF and do CADD annotation
+    input_vcfs = dxpy.DXFile(input_vcfs)
+    dxpy.download_dxfile(input_vcfs.get_id(), "vcf_list.txt") # Actually download the file
+    input_vcf_reader = open("vcf_list.txt", 'r')
 
-    # Here we are then taking the file generated by run_filtering() and generating various text/plink/vcf files
-    # that will be used as part of mrcepid-mergecollapsevariants to generated a merged set of variants we want to
-    # test across all VCF files
-    # JUST TO BE CLEAR – the names of the functions here are not THAT important. e.g. files generated in the function
-    # parse_filters_REGENIE() will be used for other tools. It was just for me (Eugene Gardner) to keep things
-    # organised when writing this function
-    parse_filters_BOLT(vcfprefix, file_prefix) # BOLT
-    parse_filters_REGENIE(vcfprefix, file_prefix) # REGENIE
-    parse_filters_STAAR(vcfprefix, file_prefix) # STAAR
+    # Now build a thread worker that contains as many threads
+    # instance takes a thread and 1 thread for monitoring
+    available_workers = threads - 1
+    executor = ThreadPoolExecutor(max_workers=available_workers)
 
-    # Here we are taking all of the files generated by the various functions above and adding them to a single tar
-    # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
-    output_tarball = vcfprefix + "." + file_prefix + ".tar.gz"
-    tar = tarfile.open(output_tarball, "w:gz")
-    for file in glob.glob(vcfprefix + "." + file_prefix + ".*"):
-        tar.add(file)
-    output_tarball.close()
+    # And launch the requested threads
+    future_pool = []
+    for input_vcf in input_vcf_reader:
+        future_pool.append(executor.submit(filter_vcf,
+                                           vcf = input_vcf,
+                                           filtering_expression = filtering_expression,
+                                           file_prefix = file_prefix))
+
+    input_vcf_reader.close()
+    print("All threads submitted...")
+
+    # And gather the resulting futures
+    result_pool = []
+    for future in futures.as_completed(future_pool):
+        try:
+            result_pool.append(future.result())
+        except Exception as err:
+            print("A thread failed...")
+            print(Exception, err)
+
+    print("All threads completed...")
 
     # Set output
-    output = {'output_tarball': dxpy.dxlink(dxpy.upload_local_file(output_tarball))}
+    output = {'output_tarballs': [dxpy.dxlink(result) for result in result_pool]}
 
     return output
 

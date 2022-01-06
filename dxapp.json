@@ -6,14 +6,14 @@
   "version": "0.0.1",
   "inputSpec": [
     {
-      "name": "input_vcf",
-      "label": "input vcf.gz file",
+      "name": "input_vcfs",
+      "label": "list of input .bcf file(s)",
       "class": "file",
       "optional": false,
       "patterns": [
-        "*.vcf.gz"
+        "*.txt"
       ],
-      "help": "Input VCF file from mrcepid-annotatecadd."
+      "help": "List of input BCF files from mrcepid-annotatecadd."
     },
     {
       "name": "filtering_expression",
@@ -28,13 +28,21 @@
       "class": "string",
       "optional": false,
       "help": "This should be a brief descriptor of the type of variants this command is aggregating. i.e. if aggregating PTVs, PTV would be an acceptable parameter."
+    },
+    {
+      "name": "threads",
+      "label": "number of threads available to this instance",
+      "class": "int",
+      "optional": true,
+      "default": 36,
+      "help": "Number of threads available to this instance."
     }
   ],
   "outputSpec": [
     {
-      "name": "output_tarball",
+      "name": "output_tarballs",
       "label": "VCF-specific tar file with files for associations",
-      "class": "file",
+      "class": "array:file",
       "optional": false,
       "patterns": [
         "*.tar.gz"
@@ -64,7 +72,7 @@
     "aws:eu-west-2": {
       "systemRequirements": {
         "*": {
-          "instanceType": "mem1_ssd1_v2_x2"
+          "instanceType": "mem1_ssd1_v2_x36"
         }
       }
     }
