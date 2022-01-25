@@ -13,6 +13,7 @@ import csv
 import json
 import tarfile
 import glob
+import os
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 
@@ -86,13 +87,6 @@ def check_for_variants(vcfprefix: str) -> int:
 # Generate input format files that can be provided to BOLT
 def parse_filters_BOLT(vcfprefix: str, file_prefix: str) -> None:
 
-    # Get all possible samples and place into a dictionary indexed by sample ID to store genotype-level information
-    samples_file = open('samples.txt', 'r', newline='\n')
-    samples = dict()
-    for sample in samples_file:
-        sample = sample.rstrip()
-        samples[sample] = {'eid': sample}
-
     # Get out BCF file into a tab-delimited format that we can parse for BOLT.
     # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
     # 1. Sample ID: UKBB eid format
@@ -103,16 +97,20 @@ def parse_filters_BOLT(vcfprefix: str, file_prefix: str) -> None:
     # This is just a list-format of the above file's header so we can read it in below with index-able columns
     header = ['sample', 'genotype', 'ENST']
 
+    samples = {}
     # Now we are going to read this file in and parse the genotype information into the dictionary we created above (samples)
     filtered_variants = csv.DictReader(open(vcfprefix + '.parsed.txt', 'r', newline= '\n'), fieldnames=header, delimiter="\t", quoting = csv.QUOTE_NONE)
     for var in filtered_variants:
         # IF the gene is already present for this individual, increment based on genotype
         # ELSE the gene is NOT already present for this individual, instantiate a new level in the samples dict and set
         # according to current genotype
-        if var['ENST'] in samples[var['sample']]:
-            samples[var['sample']][var['ENST']] += 1 if var['genotype'] == '0/1' else 2
+        if var['sample'] in samples:
+            if var['ENST'] in samples[var['sample']]:
+                samples[var['sample']][var['ENST']] += 1 if var['genotype'] == '0/1' else 2
+            else:
+                samples[var['sample']][var['ENST']] = 1 if var['genotype'] == '0/1' else 2
         else:
-            samples[var['sample']][var['ENST']] = 1 if var['genotype'] == '0/1' else 2
+            samples[var['sample']] = {var['ENST']: 1 if var['genotype'] == '0/1' else 2}
 
     # Output this in json format for easy parsing by the next applet in this workflow (mrcepid-mergecollapsevariants)
     # This will allow for easy merging of .json files across multiple VCF files
@@ -231,7 +229,10 @@ def filter_vcf(vcf: str, filtering_expression: str, file_prefix: str) -> None:
 
 
 @dxpy.entry_point('main')
-def main(input_vcfs, filtering_expression, file_prefix, threads):
+def main(input_vcfs, filtering_expression, file_prefix):
+
+    threads = os.cpu_count()
+    print('Number of threads available: %i' % threads)
 
     # For logging purposes output the filtering expression provided by the user
     print("Current Filtering Expression:")

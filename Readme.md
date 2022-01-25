@@ -161,10 +161,9 @@ they are mainly intermediate and not used by any other applets / tools.
 
 |input|description             |
 |---- |------------------------|
-|input_vcfs  | Input vcf file from [mrcepid-annotatecadd](https://github.com/mrcepid-rap/mrcepid-annotatecadd) to filter for variants according to `filtering_expression` |
+|input_vcfs  | Input vcf file(s) from [mrcepid-annotatecadd](https://github.com/mrcepid-rap/mrcepid-annotatecadd) to filter for variants according to `filtering_expression` |
 |filtering_expression | [bcftools](https://samtools.github.io/bcftools/bcftools.html) compatible filtering expression. See [above](#1-filtering-with-bcftools-filtering-expressions) |
 |file_prefix | descriptive file prefix for output name |
-|threads| Number of threads available to this instance [**36**] |
 
 **BIG Note:** The value provided to `file_prefix` **MUST** be identical for all VCF files that you wish to merge and test during
 rare variant burden testing.
@@ -195,6 +194,23 @@ This file then needs to be uploaded to the DNANexus platform, so it can be provi
 ```commandline
 dx upload collapse_list.txt
 ```
+
+#### File Coordinate Reference
+
+We also provide a list of all bcf chunks in the file: `coordinates.files.tsv.gz (file-G7YGYPjJJv8kz6QvP41q5KYg)` in `project-G6BJF50JJv8p4PjGB9yy7YQ2`. 
+This file has the following rows:
+
+1. chrom – chunk chromosome
+2. start - coordinate of the first variant in this chunk
+3. end - coordinate of the last variant in this chunk
+4. chunk_prefix – chunk prefix for all files for this chunk (regex `/ukb23148_c[0-9XY]{1,2}_b\d+_v1_chunk\d/`)
+5. bcf_dxpy – DNA Nexus file hash for the bcf file
+6. bcf_indx_dxpy – DNA Nexus file hash for the bcf index (.csi) file
+7. vep_dxpy – DNA Nexus file hash for the variant VEP annotation file
+8. vep_index_dxpy – DNA Nexus file hash for the variant VEP annotation index (.tbi) file
+
+This file is tab-delimited and tabix-indexed (.tbi) to enable searching for desired file-chunk(s). One can query this 
+coordinates file to generate a list as described above for specific genetic regions.
 
 ### Outputs
 

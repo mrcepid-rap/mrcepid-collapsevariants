@@ -28,14 +28,6 @@
       "class": "string",
       "optional": false,
       "help": "This should be a brief descriptor of the type of variants this command is aggregating. i.e. if aggregating PTVs, PTV would be an acceptable parameter."
-    },
-    {
-      "name": "threads",
-      "label": "number of threads available to this instance",
-      "class": "int",
-      "optional": true,
-      "default": 36,
-      "help": "Number of threads available to this instance."
     }
   ],
   "outputSpec": [
