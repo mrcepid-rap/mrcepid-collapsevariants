@@ -10,12 +10,21 @@
 import dxpy
 import subprocess
 import csv
-import json
 import tarfile
 import glob
 import os
+import gzip
+import pandas as pd
+import numpy as np
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
+
+
+CHROMOSOMES = list(range(1,23)) # Is 0 based on the right coordinate...? (So does 1..22)
+CHROMOSOMES.extend(['X'])
+CHROMOSOMES = list(map(str, CHROMOSOMES))
+LOG_FILE = open('run.log', 'w')
+
 
 # This function runs a command on an instance, either with or without calling the docker instance we downloaded
 # By default, commands are not run via Docker, but can be changed by setting is_docker = True
@@ -26,7 +35,8 @@ def run_cmd(cmd: str, is_docker: bool = False) -> None:
         # Docker instance named /test/. This allows us to run commands on files stored on the AWS instance within Docker
         cmd = "docker run " \
               "-v /home/dnanexus:/test " \
-              "egardner413/mrcepid-filtering " + cmd
+              "-v /usr/bin/:/prog " \
+              "egardner413/mrcepid-associationtesting " + cmd
 
     # Standard python calling external commands protocol
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -41,246 +51,504 @@ def run_cmd(cmd: str, is_docker: bool = False) -> None:
         raise dxpy.AppError("Failed to run properly...")
 
 
-# Utility function to delete files no longer needed from the AWS instance to save space
-def purge_file(file: str) -> None:
+# This function handles ALL external dependencies
+def ingest_data() -> None:
 
-    cmd = "rm " + file
+    cmd = "docker pull egardner413/mrcepid-associationtesting:latest"
+    run_cmd(cmd)
+    print("Docker loaded")
+
+    # Import the VEP index of variants
+    vep_index = dxpy.DXFile('file-G857Z4QJJv8x7GXfJ3y5v1qV')
+    dxpy.download_dxfile(vep_index.get_id(), "450k_vep.sorted.tsv.gz")
+
+    # Ingest all filtered bgen files:
+    dxpy.download_folder('project-G6BJF50JJv8p4PjGB9yy7YQ2',
+                         'filtered_bgen/',
+                         folder = "/filtered_bgen/")
+
+
+# This gets information relating to included variants in bgen format files (per-gene)
+def check_bgen_stats(parsed_variants: pd.DataFrame) -> int:
+
+    LOG_FILE.write("{s:{c}^{n}}\n".format(s='Overall Statistics',n=30,c='-'))
+    total_sites = parsed_variants['CHROM'].count() # Assign as a variable so I can return it below for further checking
+    LOG_FILE.write("{0:50}: {val}\n".format("Total number of variants", val=total_sites))
+    LOG_FILE.write("{0:50}: {val:0.2f}\n".format("Maximum missingness", val=parsed_variants['F_MISSING'].max() * 100))
+    LOG_FILE.write("{0:50}: {val:0.3e}\n".format("Maximum Allele Frequency", val=parsed_variants['AF'].max(skipna=True)))
+    LOG_FILE.write("{0:50}: {val:0.2f}\n".format("Minimum CADD Score", val=parsed_variants['CADD'].min(skipna=True)))
+    LOG_FILE.write("{0:50}: {val:0.2f}\n".format("Minimum REVEL Score", val=parsed_variants['REVEL'].min(skipna=True)))
+    LOG_FILE.write("{0:50}: {val}\n".format("Number of NA REVEL Scores", val=parsed_variants[parsed_variants['REVEL'].isna()]['CHROM'].count()))
+    LOG_FILE.write("{0:50}: {val}\n".format("Total number of PASS variants", val=parsed_variants[parsed_variants['FILTER'] == "PASS"]['CHROM'].count()))
+    LOG_FILE.write("{0:50}: {val}\n".format("Total number of non-PASS variants", val=parsed_variants[parsed_variants['FILTER'] != "PASS"]['CHROM'].count()))
+
+    # LOFTEE:
+    for key, value in parsed_variants['LOFTEE'].value_counts().iteritems():
+        key = "Number of LOFTEE %s" % key
+        LOG_FILE.write("{0:50}: {val}\n".format(key, val = value))
+    LOG_FILE.write("\n")
+
+    # Parsed Consequences:
+    LOG_FILE.write("{s:{c}^{n}}\n".format(s='Consequence statistics',n=30,c='-'))
+    for key, value in parsed_variants['PARSED_CSQ'].value_counts().iteritems():
+        key = "Number of Parsed Consequence – %s" % key
+        LOG_FILE.write("{0:50}: {val}\n".format(key, val = value))
+
+    # VEP Consequences:
+    for key, value in parsed_variants['CSQ'].value_counts().iteritems():
+        key = "Number of VEP Consequence - %s" % key
+        LOG_FILE.write("{0:130}: {val}\n".format(key, val = value))
+    LOG_FILE.write("\n")
+
+    return total_sites
+
+
+# This gets information relating to included variants in bcf format files (per-variant)
+def check_vcf_stats(poss_indv: list, genotypes: dict) -> pd.DataFrame:
+
+    sample_table = pd.DataFrame(data={'sample_id': poss_indv})
+    geno_dict = {'sample_id': [], 'ac': [], 'ac_gene': []}
+    for sample in genotypes:
+        samp_total = 0
+        gene_total = 0
+        for gene in genotypes[sample]:
+            samp_total += genotypes[sample][gene]
+            gene_total += 1
+        geno_dict['sample_id'].append(sample)
+        geno_dict['ac'].append(samp_total)
+        geno_dict['ac_gene'].append(gene_total)
+
+    found_genotypes = pd.DataFrame.from_dict(geno_dict)
+    sample_table = pd.merge(sample_table, found_genotypes, on='sample_id', how="left")
+    sample_table['ac'] = np.where(sample_table['ac'] >= 1, sample_table['ac'], 0)
+    sample_table['ac_gene'] = np.where(sample_table['ac_gene'] >= 1, sample_table['ac_gene'], 0)
+
+    return sample_table
+
+
+# Runs a filtering expression provided by the user to filter to a subset of variants from the associated filtered VCF
+# file. The expression MUST be in a format parsable by pandas.query
+def generate_filtering_snplist(expression: str) -> int:
+
+    variant_index = pd.read_csv(gzip.open('450k_vep.sorted.tsv.gz', 'rt'), sep = "\t")
+    variant_index = variant_index.set_index('varID')
+    variant_index = variant_index.query(expression)
+
+    total_sites = check_bgen_stats(variant_index)
+
+    # Now prep a list of variants to include in any analysis. We need two files:
+    # 1. Assigns a variant to a gene (gene_id_file)
+    # 2. Just includes variant IDs (snp_id_file)
+    snp_id_file = open('include_snps.txt', 'w')
+    gene_id_file = open('snp_ENST.txt', 'w')
+    gene_id_file.write("varID\tCHROM\tPOS\tENST\n")
+    for row in variant_index.iterrows():
+        snp_id_file.write(row[0] + "\n")
+        gene_id_file.write("%s\t%s\t%i\t%s\n" % (row[0], row[1]['CHROM'].strip('chr'), row[1]['POS'], row[1]['ENST']))
+    snp_id_file.close()
+    gene_id_file.close()
+
+    return total_sites
+
+
+# This runs the per-chromosome side of filtering
+def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str) -> int:
+
+    # Simple bgenix command that includes variants from the filtering expression and just outputs a new "filtered"
+    # bgen file
+    cmd = "bgenix -g /test/" + bgenprefix + ".bgen -incl-rsids /test/include_snps.txt > " + file_prefix + "." + chromosome + ".bgen"
+    run_cmd(cmd, True)
+
+    cmd = "cp " + bgenprefix + ".sample " + file_prefix + "." + chromosome + ".sample"
     run_cmd(cmd)
 
-
-# This is a helper function to upload a local file and then remove it from the instance.
-# This is different than other applets I have written since CADD takes up so much space.
-# I don't want to have to use a massive instance costing lots of £s!
-def generate_linked_dx_file(file: str) -> dxpy.DXFile:
-
-    linked_file = dxpy.upload_local_file(file)
-    purge_file(file)
-    return linked_file
-
-
-# Runs a filtering expression provided by the user to INCLUDE (-i) a subset of variants from the associated filtered VCF
-# file.
-# The expression MUST be in a format parseable by bcftools -i and must be formated to INCLUDE the desired variants –
-# there is currently no option to use an exclusion format (-e)
-def run_filtering(vcfprefix: str, expression: str) -> None:
-
-    # Simple bcftools view command that includes variants in the filtering expression and just outputs a new "filtered"
-    # bcf file
-    cmd = "bcftools view -i \'" + expression + "\' -Ob -o /test/" + vcfprefix + ".filtered.bcf /test/" + vcfprefix + ".bcf"
+    cmd = "bgenix -index -g /test/" + file_prefix + "." + chromosome + ".bgen"
     run_cmd(cmd, True)
 
-
-def check_for_variants(vcfprefix: str) -> int:
-
-    cmd = "bcftools view -H -o /test/" + vcfprefix + ".vcf /test/" + vcfprefix + ".filtered.bcf"
+    # This just helps to get the total number of variants:
+    cmd = "bgenix -list -g /test/" + file_prefix + "." + chromosome + ".bgen > " + file_prefix + "." + chromosome + ".snps"
     run_cmd(cmd, True)
-    check_vcf = open(vcfprefix + '.vcf')
-    var_count = 0
-    for line in check_vcf:
-        var_count += 1
-    check_vcf.close()
-    purge_file(vcfprefix + '.vcf')
 
-    return var_count
+    total_vars = 0
+    with open(file_prefix + "." + chromosome + '.snps') as snp_file:
+        for line in snp_file:
+            line = line.rstrip()
+            if '#' not in line and 'alternate_ids' not in line:
+                total_vars+=1
+        snp_file.close()
+
+    return total_vars
+
+
+# Generate input format files that can be provided to SAIGE
+def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> dict:
+
+    # Easier to run SAIGE with a BCF file as I already have that pipeline set up
+    cmd = "plink2 --memory 9000 --threads 1 --bgen /test/" + file_prefix + "." + chromosome + ".bgen 'ref-last' " \
+                 "--sample /test/" + file_prefix + "." + chromosome + ".sample " \
+                 "--export bcf " \
+                 "--out /test/" + file_prefix + "." + chromosome + ".SAIGE"
+    run_cmd(cmd, True)
+
+    # and index...
+    cmd = "bcftools index /test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
+    run_cmd(cmd, True)
+
+    # Need to make the SAIGE groupFile. I can use the file 'snp_ENST.txt' created above to generate this...
+    genes = {}
+    snp_gene_map = {}
+    snp_reader = csv.DictReader(open('snp_ENST.txt', 'r'), delimiter = "\t")
+    for snp in snp_reader:
+        if snp['CHROM'] == chromosome:
+            snp_gene_map[snp['varID']] = snp['ENST']
+            if snp['ENST'] in genes:
+                genes[snp['ENST']]['varIDs'].append(snp['varID'])
+                genes[snp['ENST']]['poss'].append(int(snp['POS']))
+            else:
+                genes[snp['ENST']] = {'CHROM': snp['CHROM'], 'poss': [int(snp['POS'])], 'varIDs': [snp['varID']]}
+
+    for gene in genes:
+        min_pos = min(genes[gene]['poss'])
+        genes[gene]['min_poss'] = min_pos
+
+    with open(file_prefix + "." +  chromosome + '.SAIGE.groupFile.txt', 'w') as output_setfile_SAIGE:
+        for gene in genes:
+            id_string = "\t".join(["{0}:{1}_{2}/{3}".format(*item2) for item2 in [item.split(":") for item in genes[gene]['varIDs']]])
+            output_setfile_SAIGE.write("%s\t%s\n" % (gene, id_string))
+        output_setfile_SAIGE.close()
+
+    os.remove(file_prefix + "." + chromosome + ".SAIGE.log")
+
+    return genes, snp_gene_map
 
 
 # Generate input format files that can be provided to BOLT
-def parse_filters_BOLT(vcfprefix: str, file_prefix: str) -> None:
+def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: dict, snp_gene_map: dict) -> pd.DataFrame:
 
     # Get out BCF file into a tab-delimited format that we can parse for BOLT.
     # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
     # 1. Sample ID: UKBB eid format
     # 2. The actual genotype (0/1 or 1/1 in this case)
     # 3. The ENST ID so we know what gene this value is derived for
-    cmd = "bcftools query -i \'GT=\"alt\"\'  -f \'[%SAMPLE\\t%GT\\t%ENST\\n]\' -o /test/" + vcfprefix + ".parsed.txt /test/" + vcfprefix + ".filtered.bcf"
+    cmd = "bcftools query -i \'GT=\"alt\"'  -f \'[%SAMPLE\\t%ID\\t%GT\\n]\' -o /test/" + file_prefix + "." + chromosome + ".parsed.txt /test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
     run_cmd(cmd, True)
     # This is just a list-format of the above file's header so we can read it in below with index-able columns
-    header = ['sample', 'genotype', 'ENST']
+    header = ['sample', 'varID', 'genotype']
 
     samples = {}
     # Now we are going to read this file in and parse the genotype information into the dictionary we created above (samples)
-    filtered_variants = csv.DictReader(open(vcfprefix + '.parsed.txt', 'r', newline= '\n'), fieldnames=header, delimiter="\t", quoting = csv.QUOTE_NONE)
+    # This dictionary has a structure like:
+    # {'sample1': {'gene1': 1}, 'sample3': {'gene2': 1}}
+    # Note that only samples with a qualifying variant are listed
+    filtered_variants = csv.DictReader(open(file_prefix + "." + chromosome + '.parsed.txt', 'r', newline= '\n'),
+                                       fieldnames=header,
+                                       delimiter="\t",
+                                       quoting = csv.QUOTE_NONE)
     for var in filtered_variants:
         # IF the gene is already present for this individual, increment based on genotype
         # ELSE the gene is NOT already present for this individual, instantiate a new level in the samples dict and set
         # according to current genotype
+        ENST = snp_gene_map[var['varID']]
         if var['sample'] in samples:
-            if var['ENST'] in samples[var['sample']]:
-                samples[var['sample']][var['ENST']] += 1 if var['genotype'] == '0/1' else 2
+            if ENST in samples[var['sample']]:
+                samples[var['sample']][ENST] += 1 if (var['genotype'] == '0/1') else 2
             else:
-                samples[var['sample']][var['ENST']] = 1 if var['genotype'] == '0/1' else 2
+                samples[var['sample']][ENST] = 1 if (var['genotype'] == '0/1') else 2
         else:
-            samples[var['sample']] = {var['ENST']: 1 if var['genotype'] == '0/1' else 2}
+            samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
 
-    # Output this in json format for easy parsing by the next applet in this workflow (mrcepid-mergecollapsevariants)
-    # This will allow for easy merging of .json files across multiple VCF files
-    output = open(vcfprefix + "." + file_prefix + '.BOLT.json', 'w')
-    json.dump(samples, output) # This just dumps the json/dict (samples) into the file provided by output
-    output.close()
+    # We have to write this first into plink .ped format and then convert to bgen for input into BOLT
+    # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
+    # will be a set of genes, and if an individual has a qualifying variant within that gene, setting it to that value
+    output_map = open(file_prefix + "." + chromosome + '.BOLT.map', 'w')
+    output_ped = open(file_prefix + "." + chromosome + '.BOLT.ped', 'w')
+    output_fam = open(file_prefix + "." + chromosome + '.BOLT.fam', 'w')
 
+    # Make map file (just list of genes with the chromosome and start position of that gene):
+    for gene in genes:
+        output_map.write("%s %s 0 %i\n" % (genes[gene]['CHROM'],
+                                           gene,
+                                           genes[gene]['min_poss']))
 
-# Generate input format files that can be provided to REGENIE
-# BIG NOTE: REGENIE is not yet implemented in this workflow, but the file format required for REGENIE is helpful for
-# other tools that I need to run (e.g. SAIGE and GLM), so have retained
-def parse_filters_REGENIE(vcfprefix: str, file_prefix: str) -> None:
+    # Make ped / fam files:
+    # ped files are coded with dummy genotypes of A A as a ref individual and A C as a carrier
 
-    # Create a rare variant plink file. Important parameters explained:
-    # --bcf                   : the filtered bcf file that we created above using run_filtering()
-    # --set-all-var-ids       : The naming convention of variants in the BCF file is not compatible with downstream
-    #                           software so we change it here
-    # --new-id-max-allele-len : Due to InDels, the new var-ids can have names that are too long for standard plink
-    #                           output. My hope is 100 characters is enough, but this could break at some point...
-    cmd = "plink2 --bcf /test/" + vcfprefix + ".filtered.bcf --out /test/" + vcfprefix + "." + file_prefix + \
-          ".REGENIE --make-pgen --threads 1 --set-all-var-ids @:#:\$r:\$a --new-id-max-allele-len 100 --vcf-half-call \'m\'"
+    # We first need a list of samples we expect to be in this file. We can get this from the REGENIE .psam
+    poss_indv = [] # This is just to help us make sure we have the right numbers later
+    sample_file = csv.DictReader(open(file_prefix + "." + chromosome + '.sample', 'r', newline='\n'),
+                                 delimiter=" ",
+                                 quoting=csv.QUOTE_NONE)
+    for sample in sample_file:
+        if sample['ID'] != "0": # This gets rid of the weird header row in bgen sample files...
+            sample = sample['ID']
+            poss_indv.append(sample)
+            output_ped.write("%s %s 0 0 0 -9 " % (sample, sample))
+            output_fam.write("%s %s 0 0 0 -9\n" % (sample, sample))
+            genes_processed = 0
+            for gene in genes:
+                genes_processed += 1 # This is a helper value to make sure we end rows on a carriage return (\n)
+                if sample in samples:
+                    if gene in samples[sample]:
+                        if genes_processed == len(genes):
+                            output_ped.write("A C\n")
+                        else:
+                            output_ped.write("A C ")
+                    else:
+                        if genes_processed == len(genes):
+                            output_ped.write("A A\n")
+                        else:
+                            output_ped.write("A A ")
+                else:
+                    if genes_processed == len(genes):
+                        output_ped.write("A A\n")
+                    else:
+                        output_ped.write("A A ")
+
+    output_ped.close()
+    output_map.close()
+    output_fam.close()
+
+    # And convert to bgen
+    # Have to use OG plink to get into .bed format first
+    cmd = 'plink --threads 1 --memory 9000 --make-bed --file /test/' + file_prefix + "." + chromosome + '.BOLT --out /test/' + file_prefix + "." + chromosome + '.BOLT'
+    run_cmd(cmd, True)
+    # And then use plink2 to make a bgen file
+    cmd = "plink2 --threads 1 --memory 9000 --export bgen-1.2 'bits='8 --bfile /test/" + file_prefix + "." + chromosome + ".BOLT --out /test/" + file_prefix + "." + chromosome + ".BOLT"
     run_cmd(cmd, True)
 
-    # Make annotation file:
-    # REGENIE and other tools require a separate annotation file that states the GENE and estimated consequence. This
-    # file is used later by mrcepid-mergecollapsevariants
-    # Note the column in the bcftools query -f of %CHROM:%POS:%REF:%ALT – this is the same format as done for the above
-    # plink2 command to keep things consistent for later
-    cmd = "bcftools query -f '%CHROM\t%POS\t%CHROM:%POS:%REF:%ALT\t%ENST\t%PARSED_CSQ\n' " \
-          "-o /test/" + vcfprefix + "." + file_prefix + ".REGENIE.annotation.txt /test/" + vcfprefix + ".filtered.bcf"
-    run_cmd(cmd, True)
+    # Purge unecessary intermediate files to save space on the AWS instance:
+    os.remove(file_prefix + "." + chromosome + '.BOLT.ped')
+    os.remove(file_prefix + "." + chromosome + '.BOLT.map')
+    os.remove(file_prefix + "." + chromosome + '.BOLT.fam')
+    os.remove(file_prefix + "." + chromosome + '.BOLT.bed')
+    os.remove(file_prefix + "." + chromosome + '.BOLT.bim')
+    os.remove(file_prefix + "." + chromosome + '.BOLT.log')
+    os.remove(file_prefix + "." + chromosome + '.BOLT.nosex')
+
+    # Finally run a check on all the data we printed:
+    return check_vcf_stats(poss_indv, samples)
 
 
 # Generate input format files that can be provided to STAAR
-def parse_filters_STAAR(vcfprefix: str, file_prefix: str) -> None:
+def parse_filters_STAAR(file_prefix: str, chromosome: str) -> None:
 
-    # STAAR requires me to make a "matrix" with rows of IDs and Columns of individual variants:
-    # rows can be pulled from the pfam file generated by parse_filtered_REGENIE
-    # columns can be pulled from the same file as REGENIE annotation
-    # The actual "insides" (i.e. matrix[i][j]) print here. Here doing it in sparse matrix format where I just give the
-    # sample ID (row) x var ID (col). So each row of the file generated by the below command is one cell in the
-    # resulting matrix
-    cmd = "bcftools query -i \'GT=\"alt\"\'  -f '[%SAMPLE\t%CHROM:%POS:%REF:%ALT\t%GT\n]' " \
-          "-o /test/" + vcfprefix + "." + file_prefix + ".STAAR.matrix.txt /test/" + vcfprefix + ".filtered.bcf"
+    # STAAR requires me to make a "matrix" with rows of sample IDs and Columns of individual variants:
+    # rows can be pulled from the sample file from the raw .bgen
+    # columns can be pulled from the raw .bgen file
+    # The actual "insides" (i.e. matrix[i][j]) are printed in parse_filters_BOLT (file name like:
+    # file_prefix + "." + chromosome + ".parsed.txt). Doing it in sparse matrix format where I just give the
+    # sample ID (row) x var ID (col). So each row of the file generated in parse_filters_BOLT
+
+    # First create a dictionary of sample row numbers
+    # This is the raw .sample file that accompanies the bgen file
+    samples = {}
+    samples_dict_file = file_prefix + "." + chromosome + '.samples.tsv'
+    col_num = 1
+    with open(samples_dict_file, 'w') as samples_dict_writer:
+        samples_dict_writer.write('sampID\trow\n')
+        sample_file = csv.DictReader(open(file_prefix + "." + chromosome + '.sample', 'r', newline='\n'),
+                                     delimiter=" ",
+                                     quoting=csv.QUOTE_NONE)
+        for sample in sample_file:
+            if sample['ID'] != "0": # This gets rid of the wierd header row in bgen sample files...
+                samples[sample['ID']] = col_num
+                samples_dict_writer.write('%s\t%i\n' % (sample['ID'], col_num))
+                col_num+=1
+        samples_dict_writer.close()
+
+    # ... Then a dictionary of variant column IDs
+    # This file is also saved for runassociationtesting
+    variants = {}
+    variants_dict_file = file_prefix + "." + chromosome + '.variants_table.STAAR.tsv'
+    row_num = 1
+    with open(variants_dict_file, 'w') as variants_dict_writer:
+        variants_file = open('snp_ENST.txt', 'r', newline='\n')
+        variants_dict_writer.write('varID\tchrom\tpos\tENST\tcolumn\n')
+        variants_csv = csv.DictReader(variants_file,
+                                      delimiter="\t",
+                                      quoting=csv.QUOTE_NONE)
+        for var in variants_csv:
+            if var['CHROM'] == chromosome:
+                variants[var['varID']] = row_num
+                variants_dict_writer.write('%s\t%s\t%s\t%s\t%i\n' % (var['varID'], var['CHROM'], var['POS'], var['ENST'], row_num))
+                row_num += 1
+        variants_dict_writer.close()
+
+    # Need to get the file length of this file...
+    # This code is janky AF
+    proc = subprocess.Popen("wc -l " + file_prefix + "." + chromosome + ".parsed.txt", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = proc.communicate()
+    file_length = stdout.decode('utf-8')
+    file_length = file_length.strip(' ').split(' ')[0]
+
+    # And format it to R spec
+    sparse_matrix = csv.DictReader(open(file_prefix + "." + chromosome + '.parsed.txt', 'r'), delimiter="\t",quoting=csv.QUOTE_NONE,fieldnames=['sample', 'varID', 'genotype'])
+    matrix_file = file_prefix + "." + chromosome + '.STAAR.matrix.R.txt'
+    with open(matrix_file, 'w') as matrix_file_writer:
+        # Write the header in %MatrixMarket format
+        matrix_file_writer.write('%%MatrixMarket matrix coordinate integer general\n')
+        matrix_file_writer.write('%i %i %s\n' % ((col_num-1), (row_num-1), file_length)) # -1 because of how the iterator above works...
+        # Write the individual cells in the matrix
+        for row in sparse_matrix:
+            gt_val = 1 if row['genotype'] == '0/1' else 2
+            matrix_file_writer.write('%s %s %s\n' % (samples[row['sample']], variants[row['varID']], gt_val))
+        matrix_file_writer.close()
+
+    # And then run the R script `buildSTAARmatrix.R` to properly attach row and column names and save in .RDS format
+    # for quick read/write in later parts of the pipeline.
+    # See the script itself for how it works, but it takes 4 inputs:
+    # 1. Samples dict (samples_dict_file above) – the row names of our final matrix
+    # 2. Variants dict (variants_dict_file above) – the column names of our final matrix
+    # 3. Matrix file (matrix_file above) – the cells in our final matrix, formatted in %MatrixMarket format for easy read
+    # 4. Out file – The name of the .rds file for final output
+    # And generates one output:
+    # 1. A .rds file (named by out file) that can be read back into STAAR during mrcepid-runassociationtesting
+    cmd = "Rscript /prog/buildSTAARmatrix.R /test/%s /test/%s /test/%s /test/%s" % \
+          (samples_dict_file, variants_dict_file, matrix_file, file_prefix + '.' + chromosome + '.STAAR.matrix.rds')
     run_cmd(cmd, True)
+
+    # Remove intermediate files so they aren't stored in the final tar:
+    os.remove(samples_dict_file)
+    os.remove(matrix_file)
 
 
 # Helper thread for running separate BCFs through the collapsing process (functions as a future)
-def filter_vcf(vcf: str, filtering_expression: str, file_prefix: str) -> None:
+def filter_bgen(chromosome: str, file_prefix: str) -> tuple:
 
     # Ingest the filtered VCF file into this instance
-    try:
-        vcf = dxpy.DXFile(vcf.rstrip())
-        print("Processing bcf: " + vcf.describe()['name'])
-        vcfprefix = vcf.describe()['name'].rstrip(".bcf") # Get a prefix name for all files
-        dxpy.download_dxfile(vcf.get_id(), vcfprefix + ".bcf")
 
-        # Run filtering according to the user-provided filtering expression
-        run_filtering(vcfprefix, filtering_expression)
+    print("Processing bgen: " + chromosome + ".filtered.bgen")
+    bgenprefix = "filtered_bgen/chr" + chromosome + ".filtered" # Get a prefix name for all files
 
-        # Need to check if any qualifying variants were identified:
-        num_variants = check_for_variants(vcfprefix)
-        print("%s %i %s: %s.%s" % ("Found", num_variants, "variants in file", vcfprefix, "bcf"))
+    # Run filtering according to the user-provided filtering expression
+    # Also gets the total number of variants retained for this chromosome
+    num_variants = run_filtering(bgenprefix, chromosome, file_prefix)
+    print("%s %i %s: %s.%s" % ("Identified", num_variants, "variants that match the given filtering expression in file", file_prefix + "." + chromosome, "bgen"))
 
-        # outputs are stored in a single tar file for ease of I/O
-        output_tarball = vcfprefix + "." + file_prefix + ".tar.gz"
-        tar = tarfile.open(output_tarball, "w:gz")
+    # If there are no variants we need to create an empty dummy file to signify that this process completed BUT
+    # no variants were found
+    if num_variants == 0:
+        print ("No files found for chromosome " + chromosome + ", excluding from final files...")
+        return num_variants, chromosome, pd.DataFrame()
+    else:
+        # Here we are then taking the file generated by run_filtering() and generating various text/plink/vcf files
+        # that will be used as part of mrcepid-mergecollapsevariants to generated a merged set of variants we want to
+        # test across all VCF files
+        # JUST TO BE CLEAR – the names of the functions here are not THAT important. e.g. files generated in the function
+        # parse_filters_BOLT() will be used for other tools. It was just for me (Eugene Gardner) to keep things
+        # organised when writing this code
+        genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome)
+        sample_table = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map) # BOLT
+        try:
+            parse_filters_STAAR(file_prefix, chromosome) # STAAR
+        except Exception:
+            print("STAAR chr %s failed to merge, trying again..." % chromosome)
+            parse_filters_STAAR(file_prefix, chromosome) # STAAR
 
-        # If there are no variants we need to create an empty dummy file to signify that this process completed BUT
-        # no variants were found
-        if num_variants == 0:
-            cmd = "touch " + vcfprefix + ".dummy"
-            run_cmd(cmd)
-            tar.add(vcfprefix + ".dummy")
-            purge_file(vcfprefix + ".dummy")
+        # Purge files that we no longer need:
+        os.remove(file_prefix + "." + chromosome + ".bgen")
+        os.remove(file_prefix + "." + chromosome + ".bgen.bgi")
+        os.remove(file_prefix + "." + chromosome + ".sample")
+        os.remove(file_prefix + "." + chromosome + ".parsed.txt")
+        os.remove(file_prefix + "." + chromosome + ".snps")
 
-            # Purge files that we no longer need:
-            purge_file(vcfprefix + ".bcf")
-            purge_file(vcfprefix + ".filtered.bcf")
-
-        else:
-            # Here we are then taking the file generated by run_filtering() and generating various text/plink/vcf files
-            # that will be used as part of mrcepid-mergecollapsevariants to generated a merged set of variants we want to
-            # test across all VCF files
-            # JUST TO BE CLEAR – the names of the functions here are not THAT important. e.g. files generated in the function
-            # parse_filters_REGENIE() will be used for other tools. It was just for me (Eugene Gardner) to keep things
-            # organised when writing this function
-            parse_filters_BOLT(vcfprefix, file_prefix) # BOLT
-            parse_filters_REGENIE(vcfprefix, file_prefix) # REGENIE
-            parse_filters_STAAR(vcfprefix, file_prefix) # STAAR
-
-            # Purge files that we no longer need:
-            purge_file(vcfprefix + ".bcf")
-            purge_file(vcfprefix + ".filtered.bcf")
-            purge_file(vcfprefix + ".parsed.txt")
-
-            # Here we are taking all of the files generated by the various functions above and adding them to a single tar
-            # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
-            for file in glob.glob(vcfprefix + "." + file_prefix + ".*"):
-                if ".tar.gz" not in file: # Don't want to remove the tar itself... yet...
-                    tar.add(file)
-                    purge_file(file)
-
-        tar.close()
-        print("Finished bcf: " + vcf.describe()['name'])
-        return generate_linked_dx_file(output_tarball)
-
-    except Exception as err:
-        # Do this as a form of error tracking:
-        output_tarball = vcfprefix + "." + file_prefix + ".ERROR.tar.gz"
-        cmd = "touch " + output_tarball
-        run_cmd(cmd)
-        print("Error in bcf: " + vcf.describe()['name'])
-        print(Exception, err)
-        return(generate_linked_dx_file(output_tarball))
+        print("Finished bgen: chr" + chromosome + ".filtered.bgen")
+        return num_variants, chromosome, sample_table
 
 
 @dxpy.entry_point('main')
-def main(input_vcfs, filtering_expression, file_prefix):
+def main(filtering_expression, file_prefix):
 
     threads = os.cpu_count()
     print('Number of threads available: %i' % threads)
+
+    ingest_data()
 
     # For logging purposes output the filtering expression provided by the user
     print("Current Filtering Expression:")
     print(filtering_expression)
 
-    # Bring our docker image into our environment so that we can run commands we need:
-    cmd = "docker pull egardner413/mrcepid-filtering:latest"
-    run_cmd(cmd)
-
-    # Get a list of samples that we are going to use:
-    samples_file = dxpy.DXFile('file-G6g569QJJv8XFyvb9Gf20JV7')
-    dxpy.download_dxfile(samples_file.get_id(), "samples.txt")
-
-    # Now build a thread worker that contains as many threads, divided by 4 that have been requested
-    # Loop through each VCF and do CADD annotation
-    input_vcfs = dxpy.DXFile(input_vcfs)
-    dxpy.download_dxfile(input_vcfs.get_id(), "vcf_list.txt") # Actually download the file
-    input_vcf_reader = open("vcf_list.txt", 'r')
+    # First generate a list of ALL variants genome-wide that we want to retain:
+    total_sites = generate_filtering_snplist(filtering_expression)
 
     # Now build a thread worker that contains as many threads
     # instance takes a thread and 1 thread for monitoring
     available_workers = threads - 1
     executor = ThreadPoolExecutor(max_workers=available_workers)
 
-    # And launch the requested threads
+    # Now loop through each chromosome and do the actual filtering...
+    # ...launch the requested threads
     future_pool = []
-    for input_vcf in input_vcf_reader:
-        future_pool.append(executor.submit(filter_vcf,
-                                           vcf = input_vcf,
-                                           filtering_expression = filtering_expression,
+    for chromosome in CHROMOSOMES:
+        future_pool.append(executor.submit(filter_bgen,
+                                           chromosome = chromosome,
                                            file_prefix = file_prefix))
 
-    input_vcf_reader.close()
     print("All threads submitted...")
 
     # And gather the resulting futures
-    result_pool = []
+    per_chromosome_total_sites = 0
+    sample_tables = []
+    LOG_FILE.write("{s:{c}^{n}}\n".format(s='Per-chromosome totals',n=30,c='-'))
     for future in futures.as_completed(future_pool):
         try:
-            result_pool.append(future.result())
+            per_chromosome_total, chromosome, sample_table = future.result()
+            sample_tables.append(sample_table)
+            per_chromosome_total_sites += per_chromosome_total
+            chrom_string = "Total sites on chr%s" % chromosome
+            LOG_FILE.write("{0:50}: {val}\n".format(chrom_string, val=per_chromosome_total))
         except Exception as err:
             print("A thread failed...")
             print(Exception, err)
+            raise dxpy.AppError("A thread failed...")
+    LOG_FILE.write("\n")
+
+    LOG_FILE.write("{s:{c}^{n}}\n".format(s='Genome-wide totals',n=30,c='-'))
+    LOG_FILE.write("{0:50}: {val}\n".format("Total sites expected from filtering expression", val=total_sites))
+    LOG_FILE.write("{0:50}: {val}\n".format("Total sites extracted from all chromosomes", val=per_chromosome_total_sites))
+    LOG_FILE.write("{0:50}: {val}\n".format("Total expected and total extracted match", val=(total_sites == per_chromosome_total_sites)))
+    LOG_FILE.write("\n")
+
+    # Concatenate and sum sample tables:
+    master_sample_table = pd.concat(sample_tables).groupby(['sample_id']).sum().reset_index()
+    LOG_FILE.write("{s:{c}^{n}}\n".format(s='Per-individual totals',n=30,c='-'))
+    LOG_FILE.write("{0:50}: {val}\n".format("Median number of alleles per indv", val=master_sample_table['ac'].median()))
+    LOG_FILE.write("{0:50}: {val}\n".format("Median number of genes affected per indv", val=master_sample_table['ac_gene'].median()))
+    LOG_FILE.write("{0:50}: {val:0.3f}\n".format("Mean number of alleles per indv", val=master_sample_table['ac'].mean()))
+    LOG_FILE.write("{0:50}: {val:0.3f}\n".format("Mean number of genes affected per indv", val=master_sample_table['ac_gene'].mean()))
+    LOG_FILE.write("{0:50}: {val}\n".format("Max number of alleles", val=master_sample_table['ac'].max()))
+    LOG_FILE.write("{0:50}: {val}\n".format("Number of individuals with at least 1 allele", val=pd.value_counts(master_sample_table['ac'] > 0)[True]))
+    LOG_FILE.write("\n")
+
+    LOG_FILE.write("{s:{c}^{n}}\n".format(s='AC Histogram',n=30,c='-'))
+    LOG_FILE.write("AC_bin\tcount\n")
+    ac_counts = master_sample_table.value_counts('ac')
+    ac_counts = ac_counts.sort_index()
+    for ac, count in ac_counts.iteritems():
+        LOG_FILE.write("{a}\t{c}\n".format(a=ac, c=count))
 
     print("All threads completed...")
 
+    print("Closing LOG file...")
+    LOG_FILE.close()
+    log_file_name = file_prefix + ".log"
+    os.rename('run.log', log_file_name)
+    linked_log_file = dxpy.upload_local_file(log_file_name)
+
+    # Here we are taking all of the files generated by the various functions above and adding them to a single tar
+    # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
+    print("Generating final tarball...")
+    output_tarball = file_prefix + ".tar.gz"
+    tar = tarfile.open(output_tarball, "w:gz")
+    for file in glob.glob(file_prefix + ".*"):
+        if ".tar.gz" not in file: # Don't want to remove the tar itself... yet...
+            tar.add(file)
+            os.remove(file)
+    tar.close()
+
     # Set output
-    output = {'output_tarballs': [dxpy.dxlink(result) for result in result_pool]}
+    output = {'output_tarball': dxpy.dxlink(dxpy.upload_local_file(output_tarball)),
+              'log_file': dxpy.dxlink(linked_log_file)}
 
     return output
 
