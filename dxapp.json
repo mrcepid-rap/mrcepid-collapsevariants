@@ -6,21 +6,11 @@
   "version": "0.0.1",
   "inputSpec": [
     {
-      "name": "input_vcfs",
-      "label": "list of input .bcf file(s)",
-      "class": "file",
-      "optional": false,
-      "patterns": [
-        "*.txt"
-      ],
-      "help": "List of input BCF files from mrcepid-annotatecadd."
-    },
-    {
       "name": "filtering_expression",
-      "label": "filtering expression to INCLUDE variants (bcftools -i)",
+      "label": "filtering expression to filter variants (must be compatible with pandas.query())",
       "class": "string",
       "optional": false,
-      "help": "This must be a bcftools compatible filtering expression like that used for -i. See bcftools documentation for more information."
+      "help": "This must be a pandas.query() compatible filtering expression. See pandas documentation for more information."
     },
     {
       "name": "file_prefix",
@@ -32,14 +22,24 @@
   ],
   "outputSpec": [
     {
-      "name": "output_tarballs",
+      "name": "output_tarball",
       "label": "VCF-specific tar file with files for associations",
-      "class": "array:file",
+      "class": "file",
       "optional": false,
       "patterns": [
         "*.tar.gz"
       ],
-      "help": "This will include resulting filtered files that are provided as input to mrcepid-mergecollapsevariants"
+      "help": "This will include resulting filtered files that are provided as input to mrcepid-runassociationtesting"
+    },
+    {
+      "name": "log_file",
+      "label": "Log file for this collapsing run",
+      "class": "file",
+      "optional": false,
+      "patterns": [
+        "*.log"
+      ],
+      "help": "Log file with information on this job"
     }
   ],
   "access": {
@@ -58,13 +58,18 @@
     "distribution": "Ubuntu",
     "release": "20.04",
     "version": "0",
-    "execDepends": []
+    "execDepends": [
+      {"name": "pandas",
+        "package_manager": "pip"},
+      {"name": "numpy",
+        "package_manager": "pip"}
+    ]
   },
   "regionalOptions": {
     "aws:eu-west-2": {
       "systemRequirements": {
         "*": {
-          "instanceType": "mem1_ssd1_v2_x36"
+          "instanceType": "mem3_ssd1_v2_x32"
         }
       }
     }
