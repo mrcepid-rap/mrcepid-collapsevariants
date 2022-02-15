@@ -43,6 +43,7 @@
     }
   ],
   "access": {
+    "allProjects": "VIEW",
     "network": [
       "*"
     ]
