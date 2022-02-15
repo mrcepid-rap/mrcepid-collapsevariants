@@ -59,7 +59,8 @@ def ingest_data() -> None:
     print("Docker loaded")
 
     # Import the VEP index of variants
-    vep_index = dxpy.DXFile('file-G857Z4QJJv8x7GXfJ3y5v1qV')
+    vep_index = dxpy.DXFile('file-G857Z4QJJv8x7GXfJ3y5v1qV',
+                            project='project-G6BJF50JJv8p4PjGB9yy7YQ2')
     dxpy.download_dxfile(vep_index.get_id(), "450k_vep.sorted.tsv.gz")
 
     # Ingest all filtered bgen files:
