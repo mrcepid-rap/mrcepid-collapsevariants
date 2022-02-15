@@ -169,16 +169,27 @@ https://github.com/mrcepid-rap/mrcepid-runassociationtesting
 |filtering_expression | [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) compatible filtering expression. See [above](#1-filtering-with-pandas-query-expressions) |
 |file_prefix | descriptive file prefix for output name |
 
+**BIG NOTE**: The name given to 'file_prefix' will be used by the next step in this analysis pipeline as a column in the 
+final tab-delimited output files provided for each tool. These columns are derived by splitting `file_prefix` on "-". For 
+example, if `file_prefix` is "PTV-HC", where "PTV" is the type of variant and "HC" is the LoFTee setting used to filter PTVs,
+two columns in the final associationtesting output will be PTV and HC. As many "dashes" as desired can be included to derive
+multiple columns of information (e.g. "MISSENSE-CADD_25-REVEL_07-MAF_01-POPALL" will result in 5 additional columns in the
+output of associationtesting). 
+
+**BIG NOTE**: As part of the naming process, associationtesting searches for a special case: where the second column includes
+either the keywords "MAF" or "AC" (e.g. "HC_PTV-MAF_01"). This will result in associationtesting naming additional columns
+"MASK" and "MAF" rather than generic names.
 
 ### Outputs
 
 |output                 | description       |
 |-----------------------|-------------------|
 |output_tarball         |  Output tarball containing filtered and processed variant counts  |
+|log_file               |  Output logfile containing statistics for each 
 
-output_tarball is named based on the value of `file_prefix` like:
+The output_tarball and logfile are named based on the value of `file_prefix` like:
 
-`PTV.tar.gz`
+`PTV.tar.gz` and `PTV.log`
 
 While I am not going into detail about the format of the files contained in this tar file, I list here the files for 
 record-keeping purposes. All files have a standard prefix identical to that of the tarball with an extra descriptor, with
@@ -191,6 +202,9 @@ one set of files for each chromosome:
 * <file_prefix>.<chr>.SAIGE.groupFile.txt – TSV file of variants assigned to each gene. See the [SAIGE documentation](https://github.com/weizhouUMICH/SAIGE/wiki/Genetic-association-tests-using-SAIGE) for more details.
 * <file_prefix>.<chr>.STAAR.matrix.rds - STAAR-ready matrix sample - variant - genotype sets in R .rds format
 * <file_prefix>.<chr>.variants_table.STAAR.tsv - per-variant annotations for STAAR
+
+The `.log` file contains information on total number of variants, number of variants per-participant, annotations, and a 
+histogram of allele counts. Please see this file for more information. 
 
 ### Command line example
 
