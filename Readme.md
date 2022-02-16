@@ -164,10 +164,11 @@ https://github.com/mrcepid-rap/mrcepid-runassociationtesting
 
 ### Inputs
 
-|input|description             |
-|---- |------------------------|
-|filtering_expression | [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) compatible filtering expression. See [above](#1-filtering-with-pandas-query-expressions) |
-|file_prefix | descriptive file prefix for output name |
+| input| description              |
+| ---- | ------------------------ |
+| filtering_expression | [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) compatible filtering expression. See [above](#1-filtering-with-pandas-query-expressions) |
+| file_prefix | descriptive file prefix for output name |
+| bgen_index | index of bgen information and corresponding annotations **[project-G6BJF50JJv8p4PjGB9yy7YQ2:file-G86GJ3jJJv8fbXVB9PQ2pjz6]**. |
 
 **BIG NOTE**: The name given to 'file_prefix' will be used by the next step in this analysis pipeline as a column in the 
 final tab-delimited output files provided for each tool. These columns are derived by splitting `file_prefix` on "-". For 

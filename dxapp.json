@@ -18,6 +18,32 @@
       "class": "string",
       "optional": false,
       "help": "This should be a brief descriptor of the type of variants this command is aggregating. i.e. if aggregating PTVs, PTV would be an acceptable parameter."
+    },
+    {
+      "name": "bgen_index",
+      "label": "list of bgen files to collapse on",
+      "class": "file",
+      "optional": true,
+      "help": "list of bgen files and associated index/annotation",
+      "default": {
+        "$dnanexus_link": {
+          "project": "project-G6BJF50JJv8p4PjGB9yy7YQ2",
+          "id": "file-G86GJ3jJJv8fbXVB9PQ2pjz6"
+        }
+      }
+    },
+    {
+      "name": "genetic_data_folder",
+      "label": "folder containing genetic data",
+      "class": "file",
+      "optional": true,
+      "help": "list of bgen files and associated index/annotation",
+      "default": {
+        "$dnanexus_link": {
+          "project": "project-G6BJF50JJv8p4PjGB9yy7YQ2",
+          "id": "file-G86GJ3jJJv8fbXVB9PQ2pjz6"
+        }
+      }
     }
   ],
   "outputSpec": [

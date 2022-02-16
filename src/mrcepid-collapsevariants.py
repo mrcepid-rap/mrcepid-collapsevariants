@@ -52,21 +52,26 @@ def run_cmd(cmd: str, is_docker: bool = False) -> None:
 
 
 # This function handles ALL external dependencies
-def ingest_data() -> None:
+def ingest_data(bgen_index: dict) -> dict:
 
     cmd = "docker pull egardner413/mrcepid-associationtesting:latest"
     run_cmd(cmd)
     print("Docker loaded")
 
-    # Import the VEP index of variants
-    vep_index = dxpy.DXFile('file-G857Z4QJJv8x7GXfJ3y5v1qV',
-                            project='project-G6BJF50JJv8p4PjGB9yy7YQ2')
-    dxpy.download_dxfile(vep_index.get_id(), "450k_vep.sorted.tsv.gz")
+    # Ingest the INDEX of bgen files:
+    bgen_dict = {}
+    bgen_index = dxpy.DXFile(bgen_index)
+    dxpy.download_dxfile(bgen_index.get_id(), "bgen_locs.tsv")
+    # and load it into a dict:
+    os.mkdir("filtered_bgen/") # For downloading later...
+    bgen_index_csv = csv.DictReader(open("bgen_locs.tsv", "r"), delimiter="\t")
+    for chrom in bgen_index_csv:
+        bgen_dict[chrom['chrom']] = {'index': chrom['bgen_index_dxid'], 'sample': chrom['sample_dxid'], 'bgen': chrom['bgen_dxid'], 'vep': chrom['vep_dxid']}
+        # but download the vep index because of how we generate the SNP list:
+        vep = dxpy.DXFile(chrom['vep_dxid'])
+        dxpy.download_dxfile(vep.get_id(), "filtered_bgen/chr" + chrom['chrom'] + ".filtered.vep.tsv.gz")
 
-    # Ingest all filtered bgen files:
-    dxpy.download_folder('project-G6BJF50JJv8p4PjGB9yy7YQ2',
-                         'filtered_bgen/',
-                         folder = "/filtered_bgen/")
+    return bgen_dict
 
 
 # This gets information relating to included variants in bgen format files (per-gene)
@@ -131,7 +136,12 @@ def check_vcf_stats(poss_indv: list, genotypes: dict) -> pd.DataFrame:
 # file. The expression MUST be in a format parsable by pandas.query
 def generate_filtering_snplist(expression: str) -> int:
 
-    variant_index = pd.read_csv(gzip.open('450k_vep.sorted.tsv.gz', 'rt'), sep = "\t")
+    variant_index = []
+    # Open all chromosome indicies and load them into a list
+    for chromosome in CHROMOSOMES:
+        variant_index.append(pd.read_csv(gzip.open("filtered_bgen/chr" + chromosome + ".filtered.vep.tsv.gz", 'rt'), sep = "\t"))
+
+    variant_index = pd.concat(variant_index)
     variant_index = variant_index.set_index('varID')
     variant_index = variant_index.query(expression)
 
@@ -144,6 +154,8 @@ def generate_filtering_snplist(expression: str) -> int:
     gene_id_file = open('snp_ENST.txt', 'w')
     gene_id_file.write("varID\tCHROM\tPOS\tENST\n")
     for row in variant_index.iterrows():
+        # row[0] in this context is the varID since it is the 'index' in the pandas DataFrame
+        # All other information is stored in a dictionary that is list element [1]
         snp_id_file.write(row[0] + "\n")
         gene_id_file.write("%s\t%s\t%i\t%s\n" % (row[0], row[1]['CHROM'].strip('chr'), row[1]['POS'], row[1]['ENST']))
     snp_id_file.close()
@@ -413,13 +425,20 @@ def parse_filters_STAAR(file_prefix: str, chromosome: str) -> None:
     os.remove(matrix_file)
 
 
-# Helper thread for running separate BCFs through the collapsing process (functions as a future)
-def filter_bgen(chromosome: str, file_prefix: str) -> tuple:
+# Helper thread for running separate BGENs through the collapsing process (functions as a future)
+def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, expression: str) -> tuple:
 
-    # Ingest the filtered VCF file into this instance
-
+    # Ingest the filtered BGEN file into this instance
     print("Processing bgen: " + chromosome + ".filtered.bgen")
     bgenprefix = "filtered_bgen/chr" + chromosome + ".filtered" # Get a prefix name for all files
+
+    # Download the requisite files for this chromosome according to the index dict:
+    bgen_index = dxpy.DXFile(chrom_bgen_index['index'])
+    bgen_sample = dxpy.DXFile(chrom_bgen_index['sample'])
+    bgen = dxpy.DXFile(chrom_bgen_index['bgen'])
+    dxpy.download_dxfile(bgen_index.get_id(), bgenprefix + ".bgen.bgi")
+    dxpy.download_dxfile(bgen_sample.get_id(), bgenprefix + ".sample")
+    dxpy.download_dxfile(bgen.get_id(), bgenprefix + ".bgen")
 
     # Run filtering according to the user-provided filtering expression
     # Also gets the total number of variants retained for this chromosome
@@ -458,12 +477,13 @@ def filter_bgen(chromosome: str, file_prefix: str) -> tuple:
 
 
 @dxpy.entry_point('main')
-def main(filtering_expression, file_prefix):
+def main(filtering_expression, file_prefix, bgen_index):
 
     threads = os.cpu_count()
     print('Number of threads available: %i' % threads)
 
-    ingest_data()
+    # This loads all data EXCEPT bgen files so we can parallelise downloading that data
+    bgen_dict = ingest_data(bgen_index)
 
     # For logging purposes output the filtering expression provided by the user
     print("Current Filtering Expression:")
@@ -481,9 +501,12 @@ def main(filtering_expression, file_prefix):
     # ...launch the requested threads
     future_pool = []
     for chromosome in CHROMOSOMES:
+        chrom_bgen_index = bgen_dict[chromosome]
         future_pool.append(executor.submit(filter_bgen,
                                            chromosome = chromosome,
-                                           file_prefix = file_prefix))
+                                           file_prefix = file_prefix,
+                                           chrom_bgen_index = chrom_bgen_index,
+                                           expression = filtering_expression))
 
     print("All threads submitted...")
 
