@@ -20,6 +20,18 @@
       "help": "This should be a brief descriptor of the type of variants this command is aggregating. i.e. if aggregating PTVs, PTV would be an acceptable parameter."
     },
     {
+      "name": "mask_type",
+      "label": "Create a 'dominant' or 'recessive' mask [dominant]?",
+      "class": "string",
+      "optional": true,
+      "default": "dominant",
+      "choices": [
+        "dominant",
+        "recessive"
+      ],
+      "help": "Create a 'dominant', 'recessive', or 'compound_het' mask [dominant]?"
+    },
+    {
       "name": "bgen_index",
       "label": "list of bgen files to collapse on",
       "class": "file",

@@ -194,7 +194,7 @@ def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str) -> int:
 
 
 # Generate input format files that can be provided to SAIGE
-def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> dict:
+def parse_filters_SAIGE(file_prefix: str, chromosome: str, mask_type: str) -> dict:
 
     # Easier to run SAIGE with a BCF file as I already have that pipeline set up
     cmd = "plink2 --memory 9000 --threads 1 --bgen /test/" + file_prefix + "." + chromosome + ".bgen 'ref-last' " \
@@ -202,6 +202,15 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> dict:
                  "--export bcf " \
                  "--out /test/" + file_prefix + "." + chromosome + ".SAIGE"
     run_cmd(cmd, True)
+
+    # if we are using a recessive 'mask_type', we need to do additional filtering:
+    if mask_type == "recessive":
+        cmd = "bcftools filter --threads 1 -Ob -i 'GT=\"AA\"' -S 0 " \
+                "-o /test/" + file_prefix + "." + chromosome + ".recessive.SAIGE.bcf " \
+                "/test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
+        run_cmd(cmd, True)
+        os.rename(file_prefix + "." + chromosome + ".recessive.SAIGE.bcf",
+                  file_prefix + "." + chromosome + ".SAIGE.bcf")
 
     # and index...
     cmd = "bcftools index /test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
@@ -236,7 +245,7 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> dict:
 
 
 # Generate input format files that can be provided to BOLT
-def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: dict, snp_gene_map: dict) -> pd.DataFrame:
+def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: dict, snp_gene_map: dict, mask_type: str) -> pd.DataFrame:
 
     # Get out BCF file into a tab-delimited format that we can parse for BOLT.
     # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
@@ -343,7 +352,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: dict, snp_gene_
 
 
 # Generate input format files that can be provided to STAAR
-def parse_filters_STAAR(file_prefix: str, chromosome: str) -> None:
+def parse_filters_STAAR(file_prefix: str, chromosome: str, mask_type: str) -> None:
 
     # STAAR requires me to make a "matrix" with rows of sample IDs and Columns of individual variants:
     # rows can be pulled from the sample file from the raw .bgen
@@ -426,7 +435,7 @@ def parse_filters_STAAR(file_prefix: str, chromosome: str) -> None:
 
 
 # Helper thread for running separate BGENs through the collapsing process (functions as a future)
-def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, expression: str) -> tuple:
+def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, mask_type: str) -> tuple:
 
     # Ingest the filtered BGEN file into this instance
     print("Processing bgen: " + chromosome + ".filtered.bgen")
@@ -457,13 +466,13 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, expre
         # JUST TO BE CLEAR – the names of the functions here are not THAT important. e.g. files generated in the function
         # parse_filters_BOLT() will be used for other tools. It was just for me (Eugene Gardner) to keep things
         # organised when writing this code
-        genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome)
-        sample_table = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map) # BOLT
+        genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome, mask_type)
+        sample_table = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map, mask_type) # BOLT
         try:
-            parse_filters_STAAR(file_prefix, chromosome) # STAAR
+            parse_filters_STAAR(file_prefix, chromosome, mask_type) # STAAR
         except Exception:
             print("STAAR chr %s failed to merge, trying again..." % chromosome)
-            parse_filters_STAAR(file_prefix, chromosome) # STAAR
+            parse_filters_STAAR(file_prefix, chromosome, mask_type) # STAAR
 
         # Purge files that we no longer need:
         os.remove(file_prefix + "." + chromosome + ".bgen")
@@ -477,7 +486,7 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, expre
 
 
 @dxpy.entry_point('main')
-def main(filtering_expression, file_prefix, bgen_index):
+def main(filtering_expression, file_prefix, bgen_index, mask_type):
 
     threads = os.cpu_count()
     print('Number of threads available: %i' % threads)
@@ -506,7 +515,7 @@ def main(filtering_expression, file_prefix, bgen_index):
                                            chromosome = chromosome,
                                            file_prefix = file_prefix,
                                            chrom_bgen_index = chrom_bgen_index,
-                                           expression = filtering_expression))
+                                           mask_type = mask_type))
 
     print("All threads submitted...")
 
