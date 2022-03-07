@@ -31,19 +31,6 @@
           "id": "file-G86GJ3jJJv8fbXVB9PQ2pjz6"
         }
       }
-    },
-    {
-      "name": "genetic_data_folder",
-      "label": "folder containing genetic data",
-      "class": "file",
-      "optional": true,
-      "help": "list of bgen files and associated index/annotation",
-      "default": {
-        "$dnanexus_link": {
-          "project": "project-G6BJF50JJv8p4PjGB9yy7YQ2",
-          "id": "file-G86GJ3jJJv8fbXVB9PQ2pjz6"
-        }
-      }
     }
   ],
   "outputSpec": [
