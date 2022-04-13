@@ -9,8 +9,20 @@
       "name": "filtering_expression",
       "label": "filtering expression to filter variants (must be compatible with pandas.query())",
       "class": "string",
-      "optional": false,
+      "optional": true,
+      "default": null,
       "help": "This must be a pandas.query() compatible filtering expression. See pandas documentation for more information."
+    },
+    {
+      "name": "snplist",
+      "label": "list of varIDs to use as a custom mask",
+      "class": "file",
+      "optional": true,
+      "default": null,
+      "patterns": [
+        "*.snps"
+      ],
+      "help": "list of varIDs to use as a custom mask. MUST be one variant ID per-line in the format 1:1234:A:T."
     },
     {
       "name": "file_prefix",
