@@ -35,7 +35,7 @@
       "name": "bgen_index",
       "label": "list of bgen files to collapse on",
       "class": "file",
-      "optional": false,
+      "optional": true,
       "help": "list of bgen files and associated index/annotation",
       "default": {
         "$dnanexus_link": {
