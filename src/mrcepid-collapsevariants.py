@@ -13,6 +13,7 @@ import csv
 import tarfile
 import glob
 import os
+import shutil
 import gzip
 import pandas as pd
 import numpy as np
@@ -52,7 +53,7 @@ def run_cmd(cmd: str, is_docker: bool = False) -> None:
 
 
 # This function handles ALL external dependencies
-def ingest_data(bgen_index: dict) -> dict:
+def ingest_data(bgen_index: dict, snplist: dict) -> tuple:
 
     cmd = "docker pull egardner413/mrcepid-associationtesting:latest"
     run_cmd(cmd)
@@ -71,7 +72,13 @@ def ingest_data(bgen_index: dict) -> dict:
         vep = dxpy.DXFile(chrom['vep_dxid'])
         dxpy.download_dxfile(vep.get_id(), "filtered_bgen/chr" + chrom['chrom'] + ".filtered.vep.tsv.gz")
 
-    return bgen_dict
+    found_snps = False
+    if snplist is not None:
+        snplist = dxpy.DXFile(snplist)
+        dxpy.download_dxfile(snplist, 'snp_list.snps')
+        found_snps = True
+
+    return bgen_dict, found_snps
 
 
 # This gets information relating to included variants in bgen format files (per-gene)
@@ -134,7 +141,7 @@ def check_vcf_stats(poss_indv: list, genotypes: dict) -> pd.DataFrame:
 
 # Runs a filtering expression provided by the user to filter to a subset of variants from the associated filtered VCF
 # file. The expression MUST be in a format parsable by pandas.query
-def generate_filtering_snplist(expression: str) -> int:
+def generate_filtering_snplist(expression: str, found_snps: bool) -> tuple:
 
     variant_index = []
     # Open all chromosome indicies and load them into a list
@@ -143,7 +150,41 @@ def generate_filtering_snplist(expression: str) -> int:
 
     variant_index = pd.concat(variant_index)
     variant_index = variant_index.set_index('varID')
-    variant_index = variant_index.query(expression)
+    if expression is not None:
+        variant_index = variant_index.query(expression)
+    elif found_snps:
+        LOG_FILE.write("Variants not Found:\n")
+        with open('snp_list.snps', 'r') as snplist:
+            snps = []
+            not_found = []
+            for snp in snplist:
+                snp = snp.rstrip()
+                if snp in variant_index.index:
+                    snps.append(snp)
+                else:
+                    not_found.append(snp)
+                    LOG_FILE.write(snp + "\n")
+            snplist.close()
+        LOG_FILE.write("\n")
+
+        if len(snps) == 0:
+            raise dxpy.AppError("No SNPs remain after using SNPlist!")
+        else:
+            # Print to logfile variants that we found...
+            LOG_FILE.write("Variants found:\n")
+            for snp in snps:
+                LOG_FILE.write(snp + "\n")
+            LOG_FILE.write("\n")
+
+        LOG_FILE.write("{0:50}: {val}\n".format("Total variants found", val = len(snps)))
+        LOG_FILE.write("\n")
+
+        # And extract variants here
+        variant_index = variant_index.loc[snps]
+
+        # Here we create a fake 'GENE' to collapse on later to make the process of generating a mask easier. We also use
+        # this gene ID to notify runassociationtesting that we are doing a SNP-based mask
+        variant_index['ENST'] = 'ENST00000000000'
 
     total_sites = check_bgen_stats(variant_index)
 
@@ -161,7 +202,12 @@ def generate_filtering_snplist(expression: str) -> int:
     snp_id_file.close()
     gene_id_file.close()
 
-    return total_sites
+    # Get chromosomes we want to actually run to save time downstream:
+    chromosomes = variant_index['CHROM'].value_counts()
+    chromosomes = chromosomes.index.to_list()
+    chromosomes = [str.replace(chrom, "chr", "") for chrom in chromosomes]
+
+    return total_sites, chromosomes
 
 
 # This runs the per-chromosome side of filtering
@@ -194,7 +240,7 @@ def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str) -> int:
 
 
 # Generate input format files that can be provided to SAIGE
-def parse_filters_SAIGE(file_prefix: str, chromosome: str, mask_type: str) -> dict:
+def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> tuple:
 
     # Easier to run SAIGE with a BCF file as I already have that pipeline set up
     cmd = "plink2 --memory 9000 --threads 1 --bgen /test/" + file_prefix + "." + chromosome + ".bgen 'ref-last' " \
@@ -202,15 +248,6 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, mask_type: str) -> di
                  "--export bcf " \
                  "--out /test/" + file_prefix + "." + chromosome + ".SAIGE"
     run_cmd(cmd, True)
-
-    # if we are using a recessive 'mask_type', we need to do additional filtering:
-    if mask_type == "recessive":
-        cmd = "bcftools filter --threads 1 -Ob -i 'GT=\"AA\"' -S 0 " \
-                "-o /test/" + file_prefix + "." + chromosome + ".recessive.SAIGE.bcf " \
-                "/test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
-        run_cmd(cmd, True)
-        os.rename(file_prefix + "." + chromosome + ".recessive.SAIGE.bcf",
-                  file_prefix + "." + chromosome + ".SAIGE.bcf")
 
     # and index...
     cmd = "bcftools index /test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
@@ -245,7 +282,7 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, mask_type: str) -> di
 
 
 # Generate input format files that can be provided to BOLT
-def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: dict, snp_gene_map: dict, mask_type: str) -> pd.DataFrame:
+def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: dict, snp_gene_map: dict) -> pd.DataFrame:
 
     # Get out BCF file into a tab-delimited format that we can parse for BOLT.
     # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
@@ -352,7 +389,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: dict, snp_gene_
 
 
 # Generate input format files that can be provided to STAAR
-def parse_filters_STAAR(file_prefix: str, chromosome: str, mask_type: str) -> None:
+def parse_filters_STAAR(file_prefix: str, chromosome: str) -> None:
 
     # STAAR requires me to make a "matrix" with rows of sample IDs and Columns of individual variants:
     # rows can be pulled from the sample file from the raw .bgen
@@ -390,7 +427,7 @@ def parse_filters_STAAR(file_prefix: str, chromosome: str, mask_type: str) -> No
                                       delimiter="\t",
                                       quoting=csv.QUOTE_NONE)
         for var in variants_csv:
-            if var['CHROM'] == chromosome:
+            if var['CHROM'] == chromosome or chromosome == 'SNP':
                 variants[var['varID']] = row_num
                 variants_dict_writer.write('%s\t%s\t%s\t%s\t%i\n' % (var['varID'], var['CHROM'], var['POS'], var['ENST'], row_num))
                 row_num += 1
@@ -435,7 +472,7 @@ def parse_filters_STAAR(file_prefix: str, chromosome: str, mask_type: str) -> No
 
 
 # Helper thread for running separate BGENs through the collapsing process (functions as a future)
-def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, mask_type: str) -> tuple:
+def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict) -> tuple:
 
     # Ingest the filtered BGEN file into this instance
     print("Processing bgen: " + chromosome + ".filtered.bgen")
@@ -466,18 +503,17 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, mask_
         # JUST TO BE CLEAR – the names of the functions here are not THAT important. e.g. files generated in the function
         # parse_filters_BOLT() will be used for other tools. It was just for me (Eugene Gardner) to keep things
         # organised when writing this code
-        genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome, mask_type)
-        sample_table = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map, mask_type) # BOLT
+        genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome)
+        sample_table = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map) # BOLT
         try:
-            parse_filters_STAAR(file_prefix, chromosome, mask_type) # STAAR
+            parse_filters_STAAR(file_prefix, chromosome) # STAAR
         except Exception:
             print("STAAR chr %s failed to merge, trying again..." % chromosome)
-            parse_filters_STAAR(file_prefix, chromosome, mask_type) # STAAR
+            parse_filters_STAAR(file_prefix, chromosome) # STAAR
 
         # Purge files that we no longer need:
         os.remove(file_prefix + "." + chromosome + ".bgen")
         os.remove(file_prefix + "." + chromosome + ".bgen.bgi")
-        os.remove(file_prefix + "." + chromosome + ".sample")
         os.remove(file_prefix + "." + chromosome + ".parsed.txt")
         os.remove(file_prefix + "." + chromosome + ".snps")
 
@@ -485,21 +521,80 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict, mask_
         return num_variants, chromosome, sample_table
 
 
+def merge_across_snplist(valid_chromosomes: list, file_prefix: str):
+
+    # First generate a list of vcfs that we are going to mash together and get variant names:
+    cmd = "bcftools concat -Ob -o /test/" + file_prefix + "." + "SNP.SAIGE.pre.bcf "
+    variant_IDs = ['ENST00000000000']
+    snp_gene_map = {}
+    for chrom in valid_chromosomes:
+        cmd += "/test/" + file_prefix + "." + chrom + ".SAIGE.bcf "
+        with open(file_prefix + "." + chrom + ".SAIGE.groupFile.txt", 'r') as group_file:
+            for line in group_file:
+                line = line.rstrip()
+                variants = line.split("\t")
+                variant_IDs.extend(variants[1:len(variants)])
+                for variant in variants[1:len(variants)]:
+                    bolt_format_ID = variant.replace('_',':').replace('/',':')
+                    snp_gene_map[bolt_format_ID] = 'ENST00000000000'
+
+    # Combine with bcftools concat
+    run_cmd(cmd, True)
+    # Make sure sorted properly...
+    cmd = "bcftools sort -Ob -o /test/" + file_prefix + ".SNP.SAIGE.bcf /test/" + file_prefix + ".SNP.SAIGE.pre.bcf"
+    run_cmd(cmd, True)
+    os.remove(file_prefix + ".SNP.SAIGE.pre.bcf")
+    # And index:
+    cmd = "bcftools index /test/" + file_prefix + ".SNP.SAIGE.bcf"
+    run_cmd(cmd, True)
+
+    # Write new groupFile:
+    with open(file_prefix + ".SNP.SAIGE.groupFile.txt", "w") as snp_groupfile:
+        snp_groupfile.write("\t".join(variant_IDs))
+        snp_groupfile.close()
+
+    # Trick the already made BOLT code above to build a new merged BOLT file:
+    genes = {}
+    genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}
+    shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix + ".SNP.sample")
+    parse_filters_BOLT(file_prefix, 'SNP', genes, snp_gene_map, 'na')
+
+    # Trick the already made STAAR code above to build a new merged set of STAAR files
+    parse_filters_STAAR(file_prefix, 'SNP', 'na')
+
+    # Delete old files to avoid confusion:
+    for chrom in valid_chromosomes:
+        os.remove(file_prefix + "." + chrom + ".SAIGE.bcf")
+        os.remove(file_prefix + "." + chrom + ".SAIGE.bcf.csi")
+        os.remove(file_prefix + "." + chrom + ".SAIGE.groupFile.txt")
+        os.remove(file_prefix + "." + chrom + ".BOLT.bgen")
+        os.remove(file_prefix + "." + chrom + ".BOLT.sample")
+        os.remove(file_prefix + "." + chrom + ".STAAR.matrix.rds")
+        os.remove(file_prefix + "." + chrom + ".variants_table.STAAR.tsv")
+
+
 @dxpy.entry_point('main')
-def main(filtering_expression, file_prefix, bgen_index, mask_type):
+def main(filtering_expression, snplist, file_prefix, bgen_index):
+
+    if filtering_expression is None and snplist is None:
+        raise dxpy.AppError("Either filtering_expression or snplist must be provided... quitting!")
+    elif filtering_expression is not None and snplist is not None:
+        raise dxpy.AppError("Both filtering_expression and snplist cannot be provided... quitting!")
+    elif filtering_expression is not None:
+        # For logging purposes output the filtering expression provided by the user
+        print("Current Filtering Expression:")
+        print(filtering_expression)
+    else:
+        print("Using provided SNPlist to generate a mask...")
 
     threads = os.cpu_count()
     print('Number of threads available: %i' % threads)
 
     # This loads all data EXCEPT bgen files so we can parallelise downloading that data
-    bgen_dict = ingest_data(bgen_index)
-
-    # For logging purposes output the filtering expression provided by the user
-    print("Current Filtering Expression:")
-    print(filtering_expression)
+    bgen_dict, found_snps = ingest_data(bgen_index, snplist)
 
     # First generate a list of ALL variants genome-wide that we want to retain:
-    total_sites = generate_filtering_snplist(filtering_expression)
+    total_sites, valid_chromosomes = generate_filtering_snplist(filtering_expression, found_snps)
 
     # Now build a thread worker that contains as many threads
     # instance takes a thread and 1 thread for monitoring
@@ -509,13 +604,12 @@ def main(filtering_expression, file_prefix, bgen_index, mask_type):
     # Now loop through each chromosome and do the actual filtering...
     # ...launch the requested threads
     future_pool = []
-    for chromosome in CHROMOSOMES:
+    for chromosome in valid_chromosomes:
         chrom_bgen_index = bgen_dict[chromosome]
         future_pool.append(executor.submit(filter_bgen,
                                            chromosome = chromosome,
                                            file_prefix = file_prefix,
-                                           chrom_bgen_index = chrom_bgen_index,
-                                           mask_type = mask_type))
+                                           chrom_bgen_index = chrom_bgen_index))
 
     print("All threads submitted...")
 
@@ -561,6 +655,15 @@ def main(filtering_expression, file_prefix, bgen_index, mask_type):
         LOG_FILE.write("{a}\t{c}\n".format(a=ac, c=count))
 
     print("All threads completed...")
+
+    # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
+    if found_snps:
+        print("Making merged SNP files for burden testing...")
+        merge_across_snplist(valid_chromosomes, file_prefix)
+
+    # Because of how I manage the SNP version of this app, I have to delete the sample files here:
+    for chrom in valid_chromosomes:
+        os.remove(file_prefix + "." + chrom + ".sample")
 
     print("Closing LOG file...")
     LOG_FILE.close()
