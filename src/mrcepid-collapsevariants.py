@@ -557,10 +557,10 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str):
     genes = {}
     genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}
     shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix + ".SNP.sample")
-    parse_filters_BOLT(file_prefix, 'SNP', genes, snp_gene_map, 'na')
+    parse_filters_BOLT(file_prefix, 'SNP', genes, snp_gene_map)
 
     # Trick the already made STAAR code above to build a new merged set of STAAR files
-    parse_filters_STAAR(file_prefix, 'SNP', 'na')
+    parse_filters_STAAR(file_prefix, 'SNP')
 
     # Delete old files to avoid confusion:
     for chrom in valid_chromosomes:
