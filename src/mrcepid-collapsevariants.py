@@ -574,19 +574,20 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str):
 
 
 @dxpy.entry_point('main')
-def main(filtering_expression, snplist, file_prefix, bgen_index):
-
-    if filtering_expression is None and snplist is None:
-        raise dxpy.AppError("Either filtering_expression or snplist must be provided... quitting!")
-    elif filtering_expression is not None and snplist is not None:
-        raise dxpy.AppError("Both filtering_expression and snplist cannot be provided... quitting!")
-    elif filtering_expression is not None:
-        # For logging purposes output the filtering expression provided by the user
+def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
+    if filtering_expression is not None and snplist is None and genelist is None:
+              # For logging purposes output the filtering expression provided by the user
         print("Current Filtering Expression:")
         print(filtering_expression)
-    else:
+    elif filtering_expression is not None and snplist is None and genelist is not None:
+        print("Gene list provided together with filtering expression, will filter for variant classes of interest in gene set")
+        print("Current Filtering Expression:")
+        print(filtering_expression)
+    elif filtering_expression is None and snplist is not None and genelist is None:
         print("Using provided SNPlist to generate a mask...")
-
+    else:
+        raise dxpy.AppError("Incorrect input provided...quitting!")
+        
     threads = os.cpu_count()
     print('Number of threads available: %i' % threads)
 
