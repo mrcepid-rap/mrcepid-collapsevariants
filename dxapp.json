@@ -3,7 +3,7 @@
   "title": "CollapseVariants",
   "summary": "Generates dummy input files for various association testing software",
   "dxapi": "1.0.0",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "inputSpec": [
     {
       "name": "filtering_expression",
@@ -23,6 +23,17 @@
         "*.snps"
       ],
       "help": "list of varIDs to use as a custom mask. MUST be one variant ID per-line in the format 1:1234:A:T."
+    },
+    {
+      "name": "genelist",
+      "label": "list of gene symbols to use as a custom mask",
+      "class": "file",
+      "optional": true,
+      "default": null,
+      "patterns": [
+        "*.genes"
+      ],
+      "help": "list of gene symbols to use as a custom mask. MUST be one gene symbol per line. Please note that a filtering expression needs to be provided"
     },
     {
       "name": "file_prefix",

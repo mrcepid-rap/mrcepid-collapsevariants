@@ -558,11 +558,11 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict) -> tu
         return num_variants, chromosome, sample_table
 
 
-def merge_across_snplist(valid_chromosomes: list, file_prefix: str): # pass whether gene or snp list
+def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes: bool): # pass whether gene or snp list
 
     # First generate a list of vcfs that we are going to mash together and get variant names:
     cmd = "bcftools concat -Ob -o /test/" + file_prefix + "." + "SNP.SAIGE.pre.bcf "
-    variant_IDs = ['ENST00000000000']
+    variant_IDs = ['ENST99999999999' if found_genes else 'ENST00000000000']  #1st ENST replacement
     snp_gene_map = {}
     for chrom in valid_chromosomes:
         cmd += "/test/" + file_prefix + "." + chrom + ".SAIGE.bcf "
@@ -574,6 +574,8 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str): # pass whet
                 for variant in variants[1:len(variants)]:
                     bolt_format_ID = variant.replace('_',':').replace('/',':')
                     snp_gene_map[bolt_format_ID] = 'ENST00000000000'
+                    if found_genes:                                     # 2nd ENST replacement
+                        snp_gene_map[bolt_format_ID] = 'ENST99999999999'
 
     # Combine with bcftools concat
     run_cmd(cmd, True)
@@ -592,7 +594,10 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str): # pass whet
 
     # Trick the already made BOLT code above to build a new merged BOLT file:
     genes = {}
-    genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}
+    genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}             # 3rd ENST replacement
+    if found_genes:                                                 
+        genes['ENST99999999999'] = genes['ENST00000000000']
+        del genes['ENST00000000000']
     shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix + ".SNP.sample")
     parse_filters_BOLT(file_prefix, 'SNP', genes, snp_gene_map)
 
