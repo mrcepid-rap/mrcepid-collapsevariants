@@ -702,7 +702,7 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
     # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
     if found_snps or found_genes: # run for gene list as well, add 
         print("Making merged SNP files for burden testing...")
-        merge_across_snplist(valid_chromosomes, file_prefix)
+        merge_across_snplist(valid_chromosomes, file_prefix, found_genes) # fix made, upload and rebuild
 
     # Because of how I manage the SNP version of this app, I have to delete the sample files here:
     for chrom in valid_chromosomes:
