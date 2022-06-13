@@ -560,8 +560,14 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict) -> tu
 
 def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes: bool): # pass whether gene or snp list
 
+    # file prefix to distinguish output from gene list or snp list
+    if found_genes:
+        tar_type = "GENE"
+    else:
+        tar_type = "SNP"
+
     # First generate a list of vcfs that we are going to mash together and get variant names:
-    cmd = "bcftools concat -Ob -o /test/" + file_prefix + "." + "SNP.SAIGE.pre.bcf "
+    cmd = "bcftools concat -Ob -o /test/" + file_prefix + "." + tar_type + ".SAIGE.pre.bcf " 
     variant_IDs = ['ENST99999999999' if found_genes else 'ENST00000000000']  #1st ENST replacement
     snp_gene_map = {}
     for chrom in valid_chromosomes:
@@ -580,15 +586,15 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
     # Combine with bcftools concat
     run_cmd(cmd, True)
     # Make sure sorted properly...
-    cmd = "bcftools sort -Ob -o /test/" + file_prefix + ".SNP.SAIGE.bcf /test/" + file_prefix + ".SNP.SAIGE.pre.bcf"
+    cmd = "bcftools sort -Ob -o /test/" + file_prefix + "." + tar_type + ".SAIGE.bcf /test/" + file_prefix + "." + tar_type + ".SAIGE.pre.bcf"
     run_cmd(cmd, True)
-    os.remove(file_prefix + ".SNP.SAIGE.pre.bcf")
+    os.remove(file_prefix + "." + tar_type + ".SAIGE.pre.bcf")
     # And index:
-    cmd = "bcftools index /test/" + file_prefix + ".SNP.SAIGE.bcf"
+    cmd = "bcftools index /test/" + file_prefix + "." + tar_type + ".SAIGE.bcf"
     run_cmd(cmd, True)
-
+   
     # Write new groupFile:
-    with open(file_prefix + ".SNP.SAIGE.groupFile.txt", "w") as snp_groupfile:
+    with open(file_prefix + "." + tar_type + ".SAIGE.groupFile.txt", "w") as snp_groupfile:
         snp_groupfile.write("\t".join(variant_IDs))
         snp_groupfile.close()
 
@@ -598,11 +604,11 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
     if found_genes:                                                 
         genes['ENST99999999999'] = genes['ENST00000000000']
         del genes['ENST00000000000']
-    shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix + ".SNP.sample")
-    parse_filters_BOLT(file_prefix, 'SNP', genes, snp_gene_map)
+    shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix +  "." + tar_type + ".sample")
+    parse_filters_BOLT(file_prefix, tar_type, genes, snp_gene_map)
 
     # Trick the already made STAAR code above to build a new merged set of STAAR files
-    parse_filters_STAAR(file_prefix, 'SNP')
+    #parse_filters_STAAR(file_prefix, tar_type)
 
     # Delete old files to avoid confusion:
     for chrom in valid_chromosomes:
@@ -611,8 +617,8 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
         os.remove(file_prefix + "." + chrom + ".SAIGE.groupFile.txt")
         os.remove(file_prefix + "." + chrom + ".BOLT.bgen")
         os.remove(file_prefix + "." + chrom + ".BOLT.sample")
-        os.remove(file_prefix + "." + chrom + ".STAAR.matrix.rds")
-        os.remove(file_prefix + "." + chrom + ".variants_table.STAAR.tsv")
+        #os.remove(file_prefix + "." + chrom + ".STAAR.matrix.rds")
+        #os.remove(file_prefix + "." + chrom + ".variants_table.STAAR.tsv")
 
 
 @dxpy.entry_point('main')
