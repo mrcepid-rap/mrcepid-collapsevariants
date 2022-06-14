@@ -464,7 +464,7 @@ def parse_filters_STAAR(file_prefix: str, chromosome: str) -> None:
                                       delimiter="\t",
                                       quoting=csv.QUOTE_NONE)
         for var in variants_csv:
-            if var['CHROM'] == chromosome or chromosome == 'SNP':
+            if var['CHROM'] == chromosome or chromosome == 'SNP' or chromosome == 'GENE':
                 variants[var['varID']] = row_num
                 variants_dict_writer.write('%s\t%s\t%s\t%s\t%i\n' % (var['varID'], var['CHROM'], var['POS'], var['ENST'], row_num))
                 row_num += 1
@@ -608,7 +608,7 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
     parse_filters_BOLT(file_prefix, tar_type, genes, snp_gene_map)
 
     # Trick the already made STAAR code above to build a new merged set of STAAR files
-    #parse_filters_STAAR(file_prefix, tar_type)
+    parse_filters_STAAR(file_prefix, tar_type)
 
     # Delete old files to avoid confusion:
     for chrom in valid_chromosomes:
@@ -617,8 +617,8 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
         os.remove(file_prefix + "." + chrom + ".SAIGE.groupFile.txt")
         os.remove(file_prefix + "." + chrom + ".BOLT.bgen")
         os.remove(file_prefix + "." + chrom + ".BOLT.sample")
-        #os.remove(file_prefix + "." + chrom + ".STAAR.matrix.rds")
-        #os.remove(file_prefix + "." + chrom + ".variants_table.STAAR.tsv")
+        os.remove(file_prefix + "." + chrom + ".STAAR.matrix.rds")
+        os.remove(file_prefix + "." + chrom + ".variants_table.STAAR.tsv")
 
 
 @dxpy.entry_point('main')
