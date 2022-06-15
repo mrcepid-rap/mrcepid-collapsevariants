@@ -8,6 +8,7 @@ https://documentation.dnanexus.com/.
 
 - [Introduction](#introduction)
     * [Background](#background)
+    * [Changelog](#changelog)
     * [Dependencies](#dependencies)
         + [Docker](#docker)
         + [Resource Files](#resource-files)
@@ -39,6 +40,11 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 ```
 
 **Note:** This README pertains to data included as part of the DNANexus project "MRC - Variant Filtering" (project-G2XK5zjJXk83yZ598Z7BpGPk)
+
+### Changelog
+
+* v1.0.0
+  * Initial numbered release. Changes going forward will be tracked in this section of the documentation
 
 ### Background
 

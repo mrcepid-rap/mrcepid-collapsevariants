@@ -3,7 +3,7 @@
   "title": "CollapseVariants",
   "summary": "Generates dummy input files for various association testing software",
   "dxapi": "1.0.0",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "inputSpec": [
     {
       "name": "filtering_expression",
