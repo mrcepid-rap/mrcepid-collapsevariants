@@ -600,10 +600,11 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
 
     # Trick the already made BOLT code above to build a new merged BOLT file:
     genes = {}
-    genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}             # 3rd ENST replacement
+    
     if found_genes:                                                 
-        genes['ENST99999999999'] = genes['ENST00000000000']
-        del genes['ENST00000000000']
+        genes['ENST99999999999'] = {'CHROM': 1, 'min_poss': 1}
+    else:
+        genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}
     shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix +  "." + tar_type + ".sample")
     parse_filters_BOLT(file_prefix, tar_type, genes, snp_gene_map)
 
