@@ -53,7 +53,7 @@ def run_cmd(cmd: str, is_docker: bool = False) -> None:
 
 
 # This function handles ALL external dependencies
-def ingest_data(bgen_index: dict, snplist: dict, genelist :dict) -> tuple:
+def ingest_data(bgen_index: dict, snplist: dict) -> tuple:
 
     cmd = "docker pull egardner413/mrcepid-associationtesting:latest"
     run_cmd(cmd)
@@ -77,14 +77,8 @@ def ingest_data(bgen_index: dict, snplist: dict, genelist :dict) -> tuple:
         snplist = dxpy.DXFile(snplist)
         dxpy.download_dxfile(snplist, 'snp_list.snps')
         found_snps = True
-    
-    found_genes = False
-    if genelist is not None:
-        genelist = dxpy.DXFile(genelist)
-        dxpy.download_dxfile(genelist, 'gene_list.genes')
-        found_genes = True
 
-    return bgen_dict, found_snps, found_genes
+    return bgen_dict, found_snps
 
 
 # This gets information relating to included variants in bgen format files (per-gene)
@@ -147,7 +141,7 @@ def check_vcf_stats(poss_indv: list, genotypes: dict) -> pd.DataFrame:
 
 # Runs a filtering expression provided by the user to filter to a subset of variants from the associated filtered VCF
 # file. The expression MUST be in a format parsable by pandas.query
-def generate_filtering_snplist(expression: str, found_snps: bool, found_genes: bool) -> tuple:
+def generate_filtering_snplist(expression: str, found_snps: bool) -> tuple:
 
     variant_index = []
     # Open all chromosome indicies and load them into a list
@@ -156,35 +150,8 @@ def generate_filtering_snplist(expression: str, found_snps: bool, found_genes: b
 
     variant_index = pd.concat(variant_index)
     variant_index = variant_index.set_index('varID')
-
-    if expression is not None and found_genes:
-        my_genelist_file = open("gene_list.genes", "r")
-        genelist = my_genelist_file.readlines()
-        genelist = [gene.rstrip() for gene in genelist]
-
-        variant_index = variant_index.query("SYMBOL == @genelist")
-        all_genelist = list(variant_index["SYMBOL"].unique())
-        found_genes_symbol_present = list(set.intersection(set(genelist), set(all_genelist)))
-
+    if expression is not None:
         variant_index = variant_index.query(expression)
-        variant_index["ENST"] = "ENST99999999999" # note that this will need to be changed to ENST9....
-
-        found_genes = []
-        LOG_FILE.write("{s:{c}^{n}}\n".format(s='Per-gene stats',n=30,c='-'))
-        for key, value in variant_index['SYMBOL'].value_counts().iteritems():
-            found_genes.append(key)
-            LOG_FILE.write("{0:130}: {val}\n".format(key, val=value))
-        LOG_FILE.write("\n")
-
-        for gene in genelist:
-            if gene not in found_genes_symbol_present:
-                print("Asked for gene – " + gene + " – gene symbol was not found in the variant index.")
-            elif gene not in found_genes:
-                print("Asked for gene – " + gene + " – no variants in this gene remain after application of filtering expression.")
-
-    elif expression is not None:
-        variant_index = variant_index.query(expression)
-
     elif found_snps:
         LOG_FILE.write("Variants not Found:\n")
         with open('snp_list.snps', 'r') as snplist:
@@ -218,12 +185,8 @@ def generate_filtering_snplist(expression: str, found_snps: bool, found_genes: b
         # Here we create a fake 'GENE' to collapse on later to make the process of generating a mask easier. We also use
         # this gene ID to notify runassociationtesting that we are doing a SNP-based mask
         variant_index['ENST'] = 'ENST00000000000'
-    
-
 
     total_sites = check_bgen_stats(variant_index)
-
-
 
     # Now prep a list of variants to include in any analysis. We need two files:
     # 1. Assigns a variant to a gene (gene_id_file)
@@ -464,7 +427,7 @@ def parse_filters_STAAR(file_prefix: str, chromosome: str) -> None:
                                       delimiter="\t",
                                       quoting=csv.QUOTE_NONE)
         for var in variants_csv:
-            if var['CHROM'] == chromosome or chromosome == 'SNP' or chromosome == 'GENE':
+            if var['CHROM'] == chromosome or chromosome == 'SNP':
                 variants[var['varID']] = row_num
                 variants_dict_writer.write('%s\t%s\t%s\t%s\t%i\n' % (var['varID'], var['CHROM'], var['POS'], var['ENST'], row_num))
                 row_num += 1
@@ -558,17 +521,11 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict) -> tu
         return num_variants, chromosome, sample_table
 
 
-def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes: bool): # pass whether gene or snp list
-
-    # file prefix to distinguish output from gene list or snp list
-    if found_genes:
-        tar_type = "GENE"
-    else:
-        tar_type = "SNP"
+def merge_across_snplist(valid_chromosomes: list, file_prefix: str):
 
     # First generate a list of vcfs that we are going to mash together and get variant names:
-    cmd = "bcftools concat -Ob -o /test/" + file_prefix + "." + tar_type + ".SAIGE.pre.bcf " 
-    variant_IDs = ['ENST99999999999' if found_genes else 'ENST00000000000']  #1st ENST replacement
+    cmd = "bcftools concat -Ob -o /test/" + file_prefix + "." + "SNP.SAIGE.pre.bcf "
+    variant_IDs = ['ENST00000000000']
     snp_gene_map = {}
     for chrom in valid_chromosomes:
         cmd += "/test/" + file_prefix + "." + chrom + ".SAIGE.bcf "
@@ -580,36 +537,30 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
                 for variant in variants[1:len(variants)]:
                     bolt_format_ID = variant.replace('_',':').replace('/',':')
                     snp_gene_map[bolt_format_ID] = 'ENST00000000000'
-                    if found_genes:                                     # 2nd ENST replacement
-                        snp_gene_map[bolt_format_ID] = 'ENST99999999999'
 
     # Combine with bcftools concat
     run_cmd(cmd, True)
     # Make sure sorted properly...
-    cmd = "bcftools sort -Ob -o /test/" + file_prefix + "." + tar_type + ".SAIGE.bcf /test/" + file_prefix + "." + tar_type + ".SAIGE.pre.bcf"
+    cmd = "bcftools sort -Ob -o /test/" + file_prefix + ".SNP.SAIGE.bcf /test/" + file_prefix + ".SNP.SAIGE.pre.bcf"
     run_cmd(cmd, True)
-    os.remove(file_prefix + "." + tar_type + ".SAIGE.pre.bcf")
+    os.remove(file_prefix + ".SNP.SAIGE.pre.bcf")
     # And index:
-    cmd = "bcftools index /test/" + file_prefix + "." + tar_type + ".SAIGE.bcf"
+    cmd = "bcftools index /test/" + file_prefix + ".SNP.SAIGE.bcf"
     run_cmd(cmd, True)
-   
+
     # Write new groupFile:
-    with open(file_prefix + "." + tar_type + ".SAIGE.groupFile.txt", "w") as snp_groupfile:
+    with open(file_prefix + ".SNP.SAIGE.groupFile.txt", "w") as snp_groupfile:
         snp_groupfile.write("\t".join(variant_IDs))
         snp_groupfile.close()
 
     # Trick the already made BOLT code above to build a new merged BOLT file:
     genes = {}
-    
-    if found_genes:                                                 
-        genes['ENST99999999999'] = {'CHROM': 1, 'min_poss': 1}
-    else:
-        genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}
-    shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix +  "." + tar_type + ".sample")
-    parse_filters_BOLT(file_prefix, tar_type, genes, snp_gene_map)
+    genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}
+    shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix + ".SNP.sample")
+    parse_filters_BOLT(file_prefix, 'SNP', genes, snp_gene_map)
 
     # Trick the already made STAAR code above to build a new merged set of STAAR files
-    parse_filters_STAAR(file_prefix, tar_type)
+    parse_filters_STAAR(file_prefix, 'SNP')
 
     # Delete old files to avoid confusion:
     for chrom in valid_chromosomes:
@@ -623,28 +574,27 @@ def merge_across_snplist(valid_chromosomes: list, file_prefix: str, found_genes:
 
 
 @dxpy.entry_point('main')
-def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
-    if filtering_expression is not None and snplist is None and genelist is None:
-              # For logging purposes output the filtering expression provided by the user
+def main(filtering_expression, snplist, file_prefix, bgen_index):
+
+    if filtering_expression is None and snplist is None:
+        raise dxpy.AppError("Either filtering_expression or snplist must be provided... quitting!")
+    elif filtering_expression is not None and snplist is not None:
+        raise dxpy.AppError("Both filtering_expression and snplist cannot be provided... quitting!")
+    elif filtering_expression is not None:
+        # For logging purposes output the filtering expression provided by the user
         print("Current Filtering Expression:")
         print(filtering_expression)
-    elif filtering_expression is not None and snplist is None and genelist is not None:
-        print("Gene list provided together with filtering expression, will filter for variant classes of interest in gene set")
-        print("Current Filtering Expression:")
-        print(filtering_expression)
-    elif filtering_expression is None and snplist is not None and genelist is None:
-        print("Using provided SNPlist to generate a mask...")
     else:
-        raise dxpy.AppError("Incorrect input provided...quitting!")
+        print("Using provided SNPlist to generate a mask...")
 
     threads = os.cpu_count()
     print('Number of threads available: %i' % threads)
 
     # This loads all data EXCEPT bgen files so we can parallelise downloading that data
-    bgen_dict, found_snps, found_genes = ingest_data(bgen_index, snplist, genelist)
+    bgen_dict, found_snps = ingest_data(bgen_index, snplist)
 
     # First generate a list of ALL variants genome-wide that we want to retain:
-    total_sites, valid_chromosomes = generate_filtering_snplist(filtering_expression, found_snps, found_genes)
+    total_sites, valid_chromosomes = generate_filtering_snplist(filtering_expression, found_snps)
 
     # Now build a thread worker that contains as many threads
     # instance takes a thread and 1 thread for monitoring
@@ -707,9 +657,9 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
     print("All threads completed...")
 
     # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
-    if found_snps or found_genes: # run for gene list as well, add 
+    if found_snps:
         print("Making merged SNP files for burden testing...")
-        merge_across_snplist(valid_chromosomes, file_prefix, found_genes) # fix made, upload and rebuild
+        merge_across_snplist(valid_chromosomes, file_prefix)
 
     # Because of how I manage the SNP version of this app, I have to delete the sample files here:
     for chrom in valid_chromosomes:
