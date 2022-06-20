@@ -56,7 +56,7 @@ Downstream of this applet, we have implemented four tools / methods for rare var
 * GLMs – vanilla linear/logistic models implemented with python's [statsmodels module](https://www.statsmodels.org/stable/index.html)
 
 These four tools / methods require very different input files to run. The purpose of this applet is to generate inputs 
-that are compatible with each of these tools input requirements. For more information on the format of these inpit files, 
+that are compatible with each of these tools input requirements. For more information on the format of these input files, 
 please see the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) documentation.
 
 ### Dependencies
@@ -102,6 +102,7 @@ This applet has two major steps:
 1. Select variants from a filtered and annotated VCF file using either:
    1. a [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) filtering expression 
    2. A list of variant IDs
+   3. A list of HGNC gene symbols (one per line) combined with a filtering expression (see i.)
 2. Generate various output files in varying formats per-chromosome to be fed into
    [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
 
@@ -183,6 +184,26 @@ be generated. This is to allow [mrcepid-runassociationtesting](https://github.co
 to recognise that we are running collapsed SNPs rather than per-GENE tests.
 
 **Big Note** – Masks generated with a SNP-list are currently only compatible with the phewas and extract modes of 
+[mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
+
+#### iii. Filtering with HGNC gene symbols + query expression
+
+Another option is to provide a list HGNC gene symbols **combined** with a pandas query expression to create a custom mask. The relevant parameter to specify the gene list is `genelist`. As with the SNP list input we create a single 'GENE' which here has the ID ENST99999999999. Many considerations for the SNP list input also apply to gene list input (e.g. maximum number of underlying variants etc.).
+Gene IDs are checked against the HGNC gene symbols reported in the VEP annotation files, example input would look like this:
+
+```text
+ATM 
+ATR 
+BRCA1 
+```
+The rules for the generation of the pandas query expression that is passed with the `filtering_expression` parameter are the same as outlined in i. If a gene list is provided without a filtering expression, the applet/app will throw an error. Very briefly, this is because testing for any variants in a gene would include many common variants and would not answer a biologically meaningful question.
+
+The applet will also provide information on which gene symbols were not found in the VEP files and flag cases where no variants remained after the application of the filtering expression.
+
+The output from the gene list input will be very similar to the files generated when using a SNP list. The key difference is that prefix 'SNP' will be replaced by 'GENE'. This is to allow [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting)
+to recognise that we are running a collapse gene list ather than per-GENE tests.
+
+**Big Note** – As with a SNP list mask generated with a gene list combined with a filtering expression are currently only compatible with the phewas and extract modes of 
 [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
 
 ### 2. Generating Outputs
