@@ -7,19 +7,22 @@ https://documentation.dnanexus.com/.
 ### Table of Contents
 
 - [Introduction](#introduction)
-    * [Background](#background)
-    * [Changelog](#changelog)
-    * [Dependencies](#dependencies)
-        + [Docker](#docker)
-        + [Resource Files](#resource-files)
+  * [Changelog](#changelog)
+  * [Background](#background)
+  * [Dependencies](#dependencies)
+    + [Docker](#docker)
+    + [Resource Files](#resource-files)
 - [Methodology](#methodology)
-    * [1. Filtering With Pandas Query Expressions](#1-filtering-with-pandas-query-expressions)
-    * [2. Generating Outputs](#2-generating-outputs)
+  * [1. Filtering Variants](#1-filtering-variants)
+    + [i. Filtering With Pandas Query Expressions](#i-filtering-with-pandas-query-expressions)
+    + [ii. Filtering with Variant IDs](#ii-filtering-with-variant-ids)
+    + [iii. Filtering with HGNC gene symbols + query expression](#iii-filtering-with-hgnc-gene-symbols---query-expression)
+  * [2. Generating Outputs](#2-generating-outputs)
 - [Running on DNANexus](#running-on-dnanexus)
-    * [Inputs](#inputs)
-    * [Outputs](#outputs)
-    * [Command line example](#command-line-example)
-        + [Batch Running](#batch-running)
+  * [Inputs](#inputs)
+  * [Outputs](#outputs)
+  * [Command line example](#command-line-example)
+    + [Batch Running](#batch-running)
 
 ## Introduction
 
