@@ -110,5 +110,8 @@
         }
       }
     }
-  }
+  },
+  "authorizedUsers": [
+    "org-mrc_epid_group_1_2"
+  ]
 }
