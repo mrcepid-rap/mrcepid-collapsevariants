@@ -4,12 +4,12 @@ from typing import Tuple
 
 from ..collapse_resources import *
 
+
 class SAIGEParser:
 
     def __init__(self, file_prefix: str, chromosome: str):
 
         self.genes, self.snp_gene_map = self.parse_filters_SAIGE(file_prefix, chromosome)
-
 
     # Generate input format files that can be provided to SAIGE
     @staticmethod

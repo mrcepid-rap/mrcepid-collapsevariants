@@ -30,7 +30,7 @@ class CollapseLOGGER:
         write_string = f'{text:{self._spacer}^{self._header_width}}\n'
         self._write(write_string)
 
-    def write_int(self, text: str, number: int, is_vep: bool) -> None:
+    def write_int(self, text: str, number: int, is_vep: bool = False) -> None:
 
         write_string = f'{text:{self._vep_width if is_vep else self._line_width}}: {number}\n'
         self._write(write_string)

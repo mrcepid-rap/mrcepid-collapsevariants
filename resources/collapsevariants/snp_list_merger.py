@@ -59,7 +59,10 @@ class SNPMerger:
             genes['ENST99999999999'] = {'CHROM': 1, 'min_poss': 1}
         else:
             genes['ENST00000000000'] = {'CHROM': 1, 'min_poss': 1}
-        shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix +  "." + tar_type + ".sample")
+
+        # This copy is slightly dodgy, as it assumes at least one chromosome has come through in the variable
+        # 'chrom' from the loop above
+        shutil.copy(file_prefix + "." + chrom + ".sample", file_prefix + "." + tar_type + ".sample")
         BOLTParser(file_prefix, tar_type, genes, snp_gene_map)
 
         # Trick the already made STAAR code above to build a new merged set of STAAR files

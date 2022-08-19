@@ -46,6 +46,10 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 
 ### Changelog
 
+* v1.1.0
+  * Did a major refactor of the codebase to implement object-oriented style for code maintainability.
+  * Code is functionally identical to the user
+
 * v1.0.0
   * Initial numbered release. Changes going forward will be tracked in this section of the documentation
 

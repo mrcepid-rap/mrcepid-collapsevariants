@@ -69,7 +69,7 @@ class STAARParser:
         with open(matrix_file, 'w') as matrix_file_writer:
             # Write the header in %MatrixMarket format
             matrix_file_writer.write('%%MatrixMarket matrix coordinate integer general\n')
-            matrix_file_writer.write('%i %i %s\n' % ((col_num-1), (row_num-1), file_length)) # -1 because of how the iterator above works...
+            matrix_file_writer.write('%i %i %s\n' % ((col_num-1), (row_num-1), file_length))  # -1 because of how the iterator above works...
             # Write the individual cells in the matrix
             for row in sparse_matrix:
                 gt_val = 1 if row['genotype'] == '0/1' else 2

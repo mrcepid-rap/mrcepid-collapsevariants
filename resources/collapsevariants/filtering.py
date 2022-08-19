@@ -4,7 +4,7 @@ class Filter:
 
     def __init__(self, bgenprefix: str, chromosome: str, file_prefix: str):
 
-        self.numvariants = self._run_filtering(bgenprefix, chromosome, file_prefix)
+        self.num_variants = self._run_filtering(bgenprefix, chromosome, file_prefix)
 
     # This runs the per-chromosome side of filtering
     @staticmethod

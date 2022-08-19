@@ -8,8 +8,8 @@
 #   http://autodoc.dnanexus.com/bindings/python/current/
 
 import sys
-import tarfile
 import glob
+import tarfile
 from concurrent import futures
 from concurrent.futures import ThreadPoolExecutor
 
@@ -162,10 +162,10 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
     # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
     if ingested_data.found_snps or ingested_data.found_genes: # run for gene list as well, add
         print("Making merged SNP files for burden testing...")
-        SNPMerger(snp_list_generator.valid_chromosomes, file_prefix, ingested_data.found_genes)
+        SNPMerger(snp_list_generator.chromosomes, file_prefix, ingested_data.found_genes)
 
     # Because of how I manage the SNP version of this app, I have to delete the sample files here:
-    for chrom in snp_list_generator.valid_chromosomes:
+    for chrom in snp_list_generator.chromosomes:
         os.remove(file_prefix + "." + chrom + ".sample")
 
     print("Closing LOG file...")
