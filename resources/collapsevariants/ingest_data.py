@@ -40,7 +40,7 @@ class IngestData:
 
     # Ingest the INDEX of bgen files and download VEP indices
     @staticmethod
-    def _ingest_bgen_index(bgen_index: dict) -> dict[str:BGENIndex]:
+    def _ingest_bgen_index(bgen_index: dict) -> dict:
 
         bgen_dict = {}
         bgen_index = dxpy.DXFile(bgen_index)

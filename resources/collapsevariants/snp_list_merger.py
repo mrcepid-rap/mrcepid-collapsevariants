@@ -3,6 +3,7 @@ import shutil
 from tool_parsers.bolt_parser import *
 from tool_parsers.staar_parser import *
 
+
 class SNPMerger:
 
     def __init__(self, valid_chromosomes: list, file_prefix: str, found_genes: bool):

@@ -2,7 +2,7 @@ import os
 import csv
 from typing import Tuple
 
-from ..collapse_resources import *
+from collapsevariants.collapse_resources import *
 
 
 class SAIGEParser:

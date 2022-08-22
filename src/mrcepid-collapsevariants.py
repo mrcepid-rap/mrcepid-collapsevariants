@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor
 # We have to do this to get modules to run properly on DNANexus while still enabling easy editing in PyCharm
 sys.path.append('/')
 sys.path.append('/collapsevariants/')
+sys.path.append('/collapsevariants/tool_parsers/')
 
 # DO NOT move this. It MUST come after the above 'sys.path.append' code to make sure packages run properly
 from collapsevariants.ingest_data import *
@@ -86,6 +87,7 @@ def filter_bgen(chromosome: str, file_prefix: str, chrom_bgen_index: dict) -> tu
 @dxpy.entry_point('main')
 def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
 
+    # Set up our logfile
     LOG_FILE = CollapseLOGGER(file_prefix)
 
     # This loads all data
@@ -164,7 +166,8 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
         print("Making merged SNP files for burden testing...")
         SNPMerger(snp_list_generator.chromosomes, file_prefix, ingested_data.found_genes)
 
-    # Because of how I manage the SNP version of this app, I have to delete the sample files here:
+    # Because of how I manage the SNP version of this app, I have to delete the sample files here to ensure they are
+    # not included in the final tarball:
     for chrom in snp_list_generator.chromosomes:
         os.remove(file_prefix + "." + chrom + ".sample")
 

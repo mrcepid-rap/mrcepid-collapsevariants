@@ -1,7 +1,7 @@
 import os
 import csv
 
-from ..collapse_resources import *
+from collapsevariants.collapse_resources import *
 
 
 class STAARParser:

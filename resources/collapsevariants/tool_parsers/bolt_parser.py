@@ -4,14 +4,14 @@ from typing import Tuple
 import pandas as pd
 import numpy as np
 
-from ..collapse_resources import *
+from collapsevariants.collapse_resources import *
 
 
 class BOLTParser:
 
     def __init__(self, file_prefix: str, chromosome: str, genes: dict, snp_gene_map: dict):
 
-        self.poss_indiv, self.samples = self._parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map)
+        self.poss_indv, self.samples = self._parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map)
         self.sample_table = self._check_vcf_stats(self.poss_indv, self.samples)
 
     # Generate input format files that can be provided to BOLT

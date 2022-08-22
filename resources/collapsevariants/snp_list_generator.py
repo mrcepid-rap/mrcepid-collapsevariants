@@ -24,7 +24,8 @@ class SNPListGenerator:
         self.total_sites = self._check_bgen_stats()
 
     # Load the entire variant index stored in the .vep tsv files
-    def _load_variant_index(self) -> pd.DataFrame:
+    @staticmethod
+    def _load_variant_index() -> pd.DataFrame:
 
         variant_index = []
         # Open all chromosome indicies and load them into a list
@@ -34,7 +35,7 @@ class SNPListGenerator:
                 pd.read_csv(gzip.open("filtered_bgen/chr" + chromosome + ".filtered.vep.tsv.gz", 'rt'), sep="\t",
                             dtype={'SIFT': str, 'POLYPHEN': str}))
 
-        variant_index = pd.concat(self.variant_index)
+        variant_index = pd.concat(variant_index)
         variant_index = variant_index.set_index('varID')
 
         return variant_index
