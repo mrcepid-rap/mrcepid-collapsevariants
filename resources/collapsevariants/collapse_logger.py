@@ -37,7 +37,7 @@ class CollapseLOGGER:
 
     def write_float(self, text: str, number: float) -> None:
 
-        write_string = f'{text:{self._line_width}}: {number:0.2f}\n'
+        write_string = f'{text:{self._line_width}}: {number:0.3f}\n'
         self._write(write_string)
 
     def write_scientific(self, text: str, number: float) -> None:
