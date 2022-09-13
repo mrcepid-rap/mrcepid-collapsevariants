@@ -20,9 +20,9 @@ https://documentation.dnanexus.com/.
   * [2. Generating Outputs](#2-generating-outputs)
 - [Running on DNANexus](#running-on-dnanexus)
   * [Inputs](#inputs)
+    + [BGEN Index Format](#bgen-index-format)
   * [Outputs](#outputs)
   * [Command line example](#command-line-example)
-    + [Batch Running](#batch-running)
 
 ## Introduction
 
@@ -45,6 +45,10 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 **Note:** This README pertains to data included as part of the DNANexus project "MRC - Variant Filtering" (project-G2XK5zjJXk83yZ598Z7BpGPk)
 
 ### Changelog
+
+* v1.1.0
+  * Did a major refactor of the codebase to implement object-oriented style for code maintainability.
+  * Code is functionally identical to the user
 
 * v1.0.0
   * Initial numbered release. Changes going forward will be tracked in this section of the documentation
@@ -224,13 +228,13 @@ https://github.com/mrcepid-rap/mrcepid-runassociationtesting
 
 ### Inputs
 
-| input                | description                                                                                                                   |
-|----------------------|-------------------------------------------------------------------------------------------------------------------------------|
-| filtering_expression | [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) compatible filtering expression.     |
-| snplist              | A list of SNPids to generate a mask.                                                                                          |
-| genelist             | A list of HGNC gene symbols to generate a mask.                                                                                          |
-| file_prefix          | descriptive file prefix for output name                                                                                       |
-| bgen_index           | index of bgen information and corresponding annotations **[project-G6BJF50JJv8p4PjGB9yy7YQ2:file-G86GJ3jJJv8fbXVB9PQ2pjz6]**. |
+| input                  | description                                                                                                               |
+|------------------------|---------------------------------------------------------------------------------------------------------------------------|
+| filtering_expression   | [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) compatible filtering expression. |
+| snplist                | A file containing a list of SNPids to generate a mask.                                                                    |
+| genelist               | A file containing a list of HGNC gene symbols to generate a mask.                                                         |
+| file_prefix            | descriptive file prefix for output name                                                                                   |
+| bgen_index             | index of bgen information and corresponding annotations.                                                                  |
 
 **BIG NOTE**: The name given to 'file_prefix' will be used by the next step in this analysis pipeline as a column in the 
 final tab-delimited output files provided for each tool. These columns are derived by splitting `file_prefix` on "-". For 
@@ -242,6 +246,19 @@ output of associationtesting).
 **BIG NOTE**: As part of the naming process, associationtesting searches for a special case: where the second column includes
 either the keywords "MAF" or "AC" (e.g. "HC_PTV-MAF_01"). This will result in associationtesting naming additional columns
 "MASK" and "MAF" rather than generic names.
+
+#### BGEN Index Format
+
+The BGEN index must follow a strict format and is a required option:
+
+```
+chrom   vep   bgen    index   sample
+chr1    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
+```
+
+A more detailed description of what this file looks like and how to make it is included in the following repository:
+
+https://github.com/mrcepid-rap/QC_workflow
 
 ### Outputs
 
@@ -300,7 +317,8 @@ Running this command is fairly straightforward using the DNANexus SDK toolkit:
 ```commandline
 dx run app-mrcepid-collapsevariants --priority low --destination collapsed_variants/
         -ifiltering_expression='FILTER=="PASS" & AF<=0.001 & LOFTEE=="HC" & PARSED_CSQ=="PTV"' \
-        -ifile_prefix="HC_PTV-MAF_01"
+        -ifile_prefix="HC_PTV-MAF_01" \
+        -ibgen_index=file-1234567890ABCDEFGH
 ```
 
 2. If using a SNP list:
@@ -308,7 +326,8 @@ dx run app-mrcepid-collapsevariants --priority low --destination collapsed_varia
 ```commandline
 dx run app-mrcepid-collapsevariants --priority low --destination collapsed_variants/
         -isnplist=file-G9B297QJJv8Q3KVP3yJ2v945 \
-        -ifile_prefix="Xchr_SNPs"
+        -ifile_prefix="Xchr_SNPs" \
+        -ibgen_index=file-1234567890ABCDEFGH
 ```
 
 3. If using a gene list combined with a filtering expression:
@@ -317,10 +336,9 @@ dx run app-mrcepid-collapsevariants --priority low --destination collapsed_varia
 dx run app-mrcepid-collapsevariants --priority low --destination collapsed_variants/ \
         -ifiltering_expression='FILTER=="PASS" & AF<=0.001 & LOFTEE=="HC" & PARSED_CSQ=="PTV" & CADD>25 & gnomAD_AF < 0.001' \
         -igenelist=file-GBk2pf8JZGX713bjBZ61v72B \
-        -ifile_prefix="brca1_brca2_atr"
-
+        -ifile_prefix="brca1_brca2_atr" \
+        -ibgen_index=file-1234567890ABCDEFGH
 ```
-
 
 Brief I/O information can also be retrieved on the command line:
 
@@ -331,7 +349,3 @@ dx run mrcepid-collapsevariants --help
 I have set a sensible (and tested) default for compute resources on DNANexus that is baked into the json used for building 
 the app (at `dxapp.json`) so setting an instance type is unnecessary. This current default is for a mem3_ssd1_v2_x32 instance
 (32 CPUs, 256 Gb RAM, 1200Gb storage). If necessary to adjust compute resources, one can provide a flag like `--instance-type mem1_ssd1_v2_x4`.
-
-#### Batch Running
-
-This tool is not compatible with batch running. All processes are parallelised internally.
