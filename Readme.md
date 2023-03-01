@@ -46,6 +46,10 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 
 ### Changelog
 
+* v1.2.0
+  * Updated the codebase to implement general_utilities
+  * Modernised the code-base to be more in line with runassociationtesting's style
+
 * v1.1.0
   * Did a major refactor of the codebase to implement object-oriented style for code maintainability.
   * Code is functionally identical to the user
@@ -253,7 +257,7 @@ The BGEN index must follow a strict format and is a required option:
 
 ```
 chrom   vep_dxid   bgen_dxid    bgen_index_dxid   sample_dxid
-chr1    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
+1    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
 ```
 
 A more detailed description of what this file looks like and how to make it is included in the following repository:

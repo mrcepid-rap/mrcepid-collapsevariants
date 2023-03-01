@@ -1,7 +1,8 @@
-import os
 import csv
+import subprocess
+from pathlib import Path
 
-from collapsevariants.collapse_resources import *
+from general_utilities.association_resources import run_cmd
 
 
 class STAARParser:
@@ -24,56 +25,59 @@ class STAARParser:
         # First create a dictionary of sample row numbers
         # This is the raw .sample file that accompanies the bgen file
         samples = {}
-        samples_dict_file = file_prefix + "." + chromosome + '.samples.tsv'
+        samples_dict_file = Path(f'{file_prefix}.{chromosome}.samples.tsv')
         col_num = 1
-        with open(samples_dict_file, 'w') as samples_dict_writer:
+        with samples_dict_file.open('w') as samples_dict_writer,\
+                Path(f'{file_prefix}.{chromosome}.sample').open('r') as sample_file:
             samples_dict_writer.write('sampID\trow\n')
-            sample_file = csv.DictReader(open(file_prefix + "." + chromosome + '.sample', 'r', newline='\n'),
-                                         delimiter=" ",
-                                         quoting=csv.QUOTE_NONE)
-            for sample in sample_file:
-                if sample['ID'] != "0": # This gets rid of the wierd header row in bgen sample files...
+            sample_csv = csv.DictReader(sample_file, delimiter=' ', quoting=csv.QUOTE_NONE)
+            for sample in sample_csv:
+                if sample['ID'] != "0":  # This gets rid of the wierd header row in bgen sample files...
                     samples[sample['ID']] = col_num
-                    samples_dict_writer.write('%s\t%i\n' % (sample['ID'], col_num))
-                    col_num+=1
+                    samples_dict_writer.write(f'{sample["ID"]}\t{col_num}\n')
+                    col_num += 1
             samples_dict_writer.close()
 
         # ... Then a dictionary of variant column IDs
         # This file is also saved for runassociationtesting
         variants = {}
-        variants_dict_file = file_prefix + "." + chromosome + '.variants_table.STAAR.tsv'
+        variants_dict_file = Path(f'{file_prefix}.{chromosome}.variants_table.STAAR.tsv')
         row_num = 1
-        with open(variants_dict_file, 'w') as variants_dict_writer:
-            variants_file = open('snp_ENST.txt', 'r', newline='\n')
+        with variants_dict_file.open('w') as variants_dict_writer,\
+                Path('snp_ENST.txt').open('r') as variants_file:
+
             variants_dict_writer.write('varID\tchrom\tpos\tENST\tcolumn\n')
-            variants_csv = csv.DictReader(variants_file,
-                                          delimiter="\t",
-                                          quoting=csv.QUOTE_NONE)
+            variants_csv = csv.DictReader(variants_file, delimiter="\t", quoting=csv.QUOTE_NONE)
             for var in variants_csv:
                 if var['CHROM'] == chromosome or chromosome == 'SNP' or chromosome == 'GENE':
                     variants[var['varID']] = row_num
-                    variants_dict_writer.write('%s\t%s\t%s\t%s\t%i\n' % (var['varID'], var['CHROM'], var['POS'], var['ENST'], row_num))
+                    variants_dict_writer.write(f'{var["varID"]}\t{var["CHROM"]}\t{var["POS"]}\t{var["ENST"]}\t{row_num}\n')
                     row_num += 1
-            variants_dict_writer.close()
 
         # Need to get the file length of this file...
         # This code is janky AF
-        proc = subprocess.Popen("wc -l " + file_prefix + "." + chromosome + ".parsed.txt", shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        proc = subprocess.Popen(f'wc -l {file_prefix}.{chromosome}.parsed.txt', shell=True,
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         stdout, stderr = proc.communicate()
         file_length = stdout.decode('utf-8')
         file_length = file_length.strip(' ').split(' ')[0]
 
         # And format it to R spec
-        sparse_matrix = csv.DictReader(open(file_prefix + "." + chromosome + '.parsed.txt', 'r'), delimiter="\t",quoting=csv.QUOTE_NONE,fieldnames=['sample', 'varID', 'genotype'])
-        matrix_file = file_prefix + "." + chromosome + '.STAAR.matrix.R.txt'
-        with open(matrix_file, 'w') as matrix_file_writer:
+        matrix_file = Path(f'{file_prefix}.{chromosome}.STAAR.matrix.R.txt')
+        with Path(f'{file_prefix}.{chromosome}.parsed.txt').open('r') as sparse_matrix,\
+                matrix_file.open('w') as matrix_file_writer:
+
+            sparse_matrix = csv.DictReader(sparse_matrix, delimiter='\t', quoting=csv.QUOTE_NONE,
+                                           fieldnames=['sample', 'varID', 'genotype'])
+
             # Write the header in %MatrixMarket format
             matrix_file_writer.write('%%MatrixMarket matrix coordinate integer general\n')
-            matrix_file_writer.write('%i %i %s\n' % ((col_num-1), (row_num-1), file_length))  # -1 because of how the iterator above works...
+            # These have -1 because of how the iterator above works...
+            matrix_file_writer.write(f'{col_num - 1} {row_num - 1} {file_length}')
             # Write the individual cells in the matrix
             for row in sparse_matrix:
                 gt_val = 1 if row['genotype'] == '0/1' else 2
-                matrix_file_writer.write('%s %s %s\n' % (samples[row['sample']], variants[row['varID']], gt_val))
+                matrix_file_writer.write(f'{samples[row["sample"]]} {variants[row["varID"]]} {gt_val}\n')
             matrix_file_writer.close()
 
         # And then run the R script `buildSTAARmatrix.R` to properly attach row and column names and save in .RDS format
@@ -81,14 +85,17 @@ class STAARParser:
         # See the script itself for how it works, but it takes 4 inputs:
         # 1. Samples dict (samples_dict_file above) – the row names of our final matrix
         # 2. Variants dict (variants_dict_file above) – the column names of our final matrix
-        # 3. Matrix file (matrix_file above) – the cells in our final matrix, formatted in %MatrixMarket format for easy read
+        # 3. Matrix file (matrix_file above) – the cells in our final matrix, formatted in %MatrixMarket format for ease
         # 4. Out file – The name of the .rds file for final output
         # And generates one output:
         # 1. A .rds file (named by out file) that can be read back into STAAR during mrcepid-runassociationtesting
-        cmd = "Rscript /prog/buildSTAARmatrix.R /test/%s /test/%s /test/%s /test/%s" % \
-              (samples_dict_file, variants_dict_file, matrix_file, file_prefix + '.' + chromosome + '.STAAR.matrix.rds')
-        run_cmd(cmd, True)
+        cmd = f'Rscript /prog/buildSTAARmatrix.R /test/{samples_dict_file} ' \
+              f'/test/{variants_dict_file} ' \
+              f'/test/{matrix_file} ' \
+              f'/test/{file_prefix}.{chromosome}.STAAR.matrix.rds'
+        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest',
+                docker_mounts=['/usr/bin/:/prog'])
 
         # Remove intermediate files so they aren't stored in the final tar:
-        os.remove(samples_dict_file)
-        os.remove(matrix_file)
+        samples_dict_file.unlink()
+        matrix_file.unlink()

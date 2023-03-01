@@ -1,9 +1,11 @@
-import gzip
+import dxpy
 import pandas as pd
 
-from typing import List
-from collapse_logger import *
-from collapse_resources import *
+from pathlib import Path
+from typing import List, Dict
+
+from ingest_data import BGENIndex
+from collapse_logger import CollapseLOGGER
 
 
 # The whole purpose of this class is to process the self.variant_index pandas DataFrame.
@@ -11,8 +13,10 @@ from collapse_resources import *
 # file. The expression MUST be in a format parsable by pandas.query
 class SNPListGenerator:
 
-    def __init__(self, filtering_expression: str, found_snps: bool, found_genes: bool, LOG_FILE: CollapseLOGGER):
+    def __init__(self, bgen_index: Dict[str, BGENIndex], filtering_expression: str, found_snps: bool, found_genes: bool,
+                 LOG_FILE: CollapseLOGGER):
 
+        self.bgen_index = bgen_index
         self.filtering_expression = filtering_expression
         self.found_snps = found_snps
         self.found_genes = found_genes
@@ -24,15 +28,14 @@ class SNPListGenerator:
         self.total_sites = self._check_bgen_stats()
 
     # Load the entire variant index stored in the .vep tsv files
-    @staticmethod
-    def _load_variant_index() -> pd.DataFrame:
+    def _load_variant_index(self) -> pd.DataFrame:
 
         variant_index = []
         # Open all chromosome indicies and load them into a list
         # Specify dtype for SIFT/POLYPHEN as pandas returns warnings when loading these due to weird formating
-        for chromosome in get_chromosomes():
+        for chromosome in self.bgen_index.keys():
             variant_index.append(
-                pd.read_csv(gzip.open("filtered_bgen/chr" + chromosome + ".filtered.vep.tsv.gz", 'rt'), sep="\t",
+                pd.read_csv(f'filtered_bgen/chr{chromosome}.filtered.vep.tsv.gz', sep="\t",
                             dtype={'SIFT': str, 'POLYPHEN': str}))
 
         variant_index = pd.concat(variant_index)
@@ -64,7 +67,7 @@ class SNPListGenerator:
 
             # Set all gene ENSTs to ENST99999999999
             # This is a dummy value so that association_testing knows we are running a gene list
-            self.variant_index["ENST"] = "ENST99999999999"
+            self.variant_index['ENST'] = 'ENST99999999999'
 
             # Following code is just to report stats about genes that were/were not found
             queried_genes = []
@@ -87,7 +90,7 @@ class SNPListGenerator:
         # This is if we want to extract specific SNPs
         elif self.found_snps:
             self.LOG_FILE.write_generic('Variants not Found:')
-            with open('snp_list.snps', 'r') as snplist:
+            with Path('snp_list.snps').open('r') as snplist:
                 snps = []
                 not_found = []
                 for snp in snplist:
@@ -101,7 +104,7 @@ class SNPListGenerator:
             self.LOG_FILE.write_spacer()
 
             if len(snps) == 0:
-                raise dxpy.AppError("No SNPs remain after using SNPlist!")
+                raise dxpy.AppError('No SNPs remain after using SNPlist!')
             else:
                 # Print to logfile variants that we found...
                 self.LOG_FILE.write_generic('Variants found')
@@ -109,7 +112,7 @@ class SNPListGenerator:
                     self.LOG_FILE.write_generic(snp)
                 self.LOG_FILE.write_spacer()
 
-            self.LOG_FILE.write_int("Total variants found", len(snps))
+            self.LOG_FILE.write_int('Total variants found', len(snps))
             self.LOG_FILE.write_spacer()
 
             # And finally extract variants here
@@ -132,9 +135,8 @@ class SNPListGenerator:
         for row in self.variant_index.iterrows():
             # row[0] in this context is the varID since it is the 'index' in the pandas DataFrame
             # All other information is stored in a dictionary that is list element [1]
-            snp_id_file.write(row[0] + "\n")
-            gene_id_file.write(
-                "%s\t%s\t%i\t%s\n" % (row[0], row[1]['CHROM'].strip('chr'), row[1]['POS'], row[1]['ENST']))
+            snp_id_file.write(f'{row[0]}\n')
+            gene_id_file.write(f'{row[0]}\t{row[1]["CHROM"].replace("chr", "")}\t{row[1]["POS"]}\t{row[1]["ENST"]}')
         snp_id_file.close()
         gene_id_file.close()
 
@@ -150,33 +152,33 @@ class SNPListGenerator:
 
         self.LOG_FILE.write_header('Overall Statistics')
         total_sites = self.variant_index['CHROM'].count()  # Assign as a variable so I can return it below for further checking
-        self.LOG_FILE.write_int("Total number of variants", total_sites)
-        self.LOG_FILE.write_float("Maximum missingness", self.variant_index['F_MISSING'].max() * 100)
-        self.LOG_FILE.write_scientific("Maximum Allele Frequency", self.variant_index['AF'].max(skipna=True))
-        self.LOG_FILE.write_float("Minimum CADD Score", self.variant_index['CADD'].min(skipna=True))
-        self.LOG_FILE.write_float("Minimum REVEL Score", self.variant_index['REVEL'].min(skipna=True))
-        self.LOG_FILE.write_int("Number of NA REVEL Scores",
+        self.LOG_FILE.write_int('Total number of variants', total_sites)
+        self.LOG_FILE.write_float('Maximum missingness', self.variant_index['F_MISSING'].max() * 100)
+        self.LOG_FILE.write_scientific('Maximum Allele Frequency', self.variant_index['AF'].max(skipna=True))
+        self.LOG_FILE.write_float('Minimum CADD Score', self.variant_index['CADD'].min(skipna=True))
+        self.LOG_FILE.write_float('Minimum REVEL Score', self.variant_index['REVEL'].min(skipna=True))
+        self.LOG_FILE.write_int('Number of NA REVEL Scores',
                                 self.variant_index[self.variant_index['REVEL'].isna()]['CHROM'].count())
-        self.LOG_FILE.write_int("Total number of PASS variants",
-                                self.variant_index[self.variant_index['FILTER'] == "PASS"]['CHROM'].count())
-        self.LOG_FILE.write_int("Total number of non-PASS variants",
-                                self.variant_index[self.variant_index['FILTER'] != "PASS"]['CHROM'].count())
+        self.LOG_FILE.write_int('Total number of PASS variants',
+                                self.variant_index[self.variant_index['FILTER'] == 'PASS']['CHROM'].count())
+        self.LOG_FILE.write_int('Total number of non-PASS variants',
+                                self.variant_index[self.variant_index['FILTER'] != 'PASS']['CHROM'].count())
 
         # LOFTEE:
         for key, value in self.variant_index['LOFTEE'].value_counts().iteritems():
-            key = "Number of LOFTEE %s" % key
+            key = f'Number of LOFTEE {key}'
             self.LOG_FILE.write_int(key, value)
         self.LOG_FILE.write_spacer()
 
         # Parsed Consequences:
         self.LOG_FILE.write_header('Consequence statistics')
         for key, value in self.variant_index['PARSED_CSQ'].value_counts().iteritems():
-            key = "Number of Parsed Consequence – %s" % key
+            key = f'Number of Parsed Consequence – {key}'
             self.LOG_FILE.write_int(key, value)
 
         # VEP Consequences:
         for key, value in self.variant_index['CSQ'].value_counts().iteritems():
-            key = "Number of VEP Consequence - %s" % key
+            key = f'Number of VEP Consequence - {key}'
             self.LOG_FILE.write_int(key, value, is_vep=True)
         self.LOG_FILE.write_spacer()
 

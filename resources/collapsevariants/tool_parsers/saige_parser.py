@@ -1,8 +1,8 @@
-import os
 import csv
+from pathlib import Path
 from typing import Tuple
 
-from collapsevariants.collapse_resources import *
+from general_utilities.association_resources import run_cmd
 
 
 class SAIGEParser:
@@ -16,39 +16,40 @@ class SAIGEParser:
     def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> Tuple[dict, dict]:
 
         # Easier to run SAIGE with a BCF file as I already have that pipeline set up
-        cmd = "plink2 --memory 9000 --threads 1 --bgen /test/" + file_prefix + "." + chromosome + ".bgen 'ref-last' " \
-                     "--sample /test/" + file_prefix + "." + chromosome + ".sample " \
-                     "--export bcf " \
-                     "--out /test/" + file_prefix + "." + chromosome + ".SAIGE"
-        run_cmd(cmd, True)
+        cmd = f'plink2 --memory 9000 --threads 1 --bgen /test/{file_prefix}.{chromosome}.bgen \'ref-last\' ' \
+              f'--sample /test/{file_prefix}.{chromosome}.sample ' \
+              f'--export bcf ' \
+              f'--out /test/{file_prefix}.{chromosome}.SAIGE'
+        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
 
         # and index...
-        cmd = "bcftools index /test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
-        run_cmd(cmd, True)
+        cmd = f'bcftools index /test/{file_prefix}.{chromosome}.SAIGE.bcf'
+        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
 
         # Need to make the SAIGE groupFile. I can use the file 'snp_ENST.txt' created above to generate this...
-        genes = {}
-        snp_gene_map = {}
-        snp_reader = csv.DictReader(open('snp_ENST.txt', 'r'), delimiter = "\t")
-        for snp in snp_reader:
-            if snp['CHROM'] == chromosome:
-                snp_gene_map[snp['varID']] = snp['ENST']
-                if snp['ENST'] in genes:
-                    genes[snp['ENST']]['varIDs'].append(snp['varID'])
-                    genes[snp['ENST']]['poss'].append(int(snp['POS']))
-                else:
-                    genes[snp['ENST']] = {'CHROM': snp['CHROM'], 'poss': [int(snp['POS'])], 'varIDs': [snp['varID']]}
+        with Path('snp_ENST.txt').open('r') as snp_reader,\
+                Path(f'{file_prefix}.{chromosome}.SAIGE.groupFile.txt').open('w') as output_setfile_SAIGE:
 
-        for gene in genes:
-            min_pos = min(genes[gene]['poss'])
-            genes[gene]['min_poss'] = min_pos
+            genes = {}
+            snp_gene_map = {}
+            snp_csv = csv.DictReader(snp_reader, delimiter='\t')
+            for snp in snp_csv:
+                if snp['CHROM'] == chromosome:
+                    snp_gene_map[snp['varID']] = snp['ENST']
+                    if snp['ENST'] in genes:
+                        genes[snp['ENST']]['varIDs'].append(snp['varID'])
+                        genes[snp['ENST']]['poss'].append(int(snp['POS']))
+                    else:
+                        genes[snp['ENST']] = {'CHROM': snp['CHROM'], 'poss': [int(snp['POS'])], 'varIDs': [snp['varID']]}
 
-        with open(file_prefix + "." +  chromosome + '.SAIGE.groupFile.txt', 'w') as output_setfile_SAIGE:
+            for gene in genes:
+                min_pos = min(genes[gene]['poss'])
+                genes[gene]['min_poss'] = min_pos
+
             for gene in genes:
                 id_string = "\t".join(["{0}:{1}_{2}/{3}".format(*item2) for item2 in [item.split(":") for item in genes[gene]['varIDs']]])
-                output_setfile_SAIGE.write("%s\t%s\n" % (gene, id_string))
-            output_setfile_SAIGE.close()
+                output_setfile_SAIGE.write(f'{gene}\t{id_string}\n')
 
-        os.remove(file_prefix + "." + chromosome + ".SAIGE.log")
+            Path(f'{file_prefix}.{chromosome}.SAIGE.log').unlink()
 
         return genes, snp_gene_map

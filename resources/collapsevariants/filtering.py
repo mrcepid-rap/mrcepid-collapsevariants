@@ -1,4 +1,7 @@
-from collapse_resources import *
+from pathlib import Path
+
+from general_utilities.association_resources import run_cmd
+
 
 class Filter:
 
@@ -12,21 +15,21 @@ class Filter:
 
         # Simple bgenix command that includes variants from the filtering expression and just outputs a new "filtered"
         # bgen file
-        cmd = "bgenix -g /test/" + bgenprefix + ".bgen -incl-rsids /test/include_snps.txt > " + file_prefix + "." + chromosome + ".bgen"
-        run_cmd(cmd, True)
+        cmd = f'bgenix -g /test/{bgenprefix}.bgen -incl-rsids /test/include_snps.txt > {file_prefix}.{chromosome}.bgen'
+        run_cmd(cmd, is_docker=True, docker_image="egardner413/mrcepid-burdentesting:latest")
 
-        cmd = "cp " + bgenprefix + ".sample " + file_prefix + "." + chromosome + ".sample"
-        run_cmd(cmd)
+        cmd = f'cp {bgenprefix}.sample {file_prefix}.{chromosome}.sample'
+        run_cmd(cmd, is_docker=False)
 
-        cmd = "bgenix -index -g /test/" + file_prefix + "." + chromosome + ".bgen"
-        run_cmd(cmd, True)
+        cmd = f'bgenix -index -g /test/{file_prefix}.{chromosome}.bgen'
+        run_cmd(cmd, is_docker=True, docker_image="egardner413/mrcepid-burdentesting:latest")
 
         # This just helps to get the total number of variants:
-        cmd = "bgenix -list -g /test/" + file_prefix + "." + chromosome + ".bgen > " + file_prefix + "." + chromosome + ".snps"
-        run_cmd(cmd, True)
+        cmd = f'bgenix -list -g /test/{file_prefix}.{chromosome}.bgen > {file_prefix}.{chromosome}.snps'
+        run_cmd(cmd, is_docker=True, docker_image="egardner413/mrcepid-burdentesting:latest")
 
         total_vars = 0
-        with open(file_prefix + "." + chromosome + '.snps') as snp_file:
+        with Path(f'{file_prefix}.{chromosome}.snps').open('r') as snp_file:
             for line in snp_file:
                 line = line.rstrip()
                 if '#' not in line and 'alternate_ids' not in line:

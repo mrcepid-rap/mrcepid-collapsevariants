@@ -1,11 +1,14 @@
 import os
 import csv
-from typing import TypedDict
+from pathlib import Path
 
-from collapse_resources import *
-
+import dxpy
+from typing import TypedDict, Dict
 
 # A TypedDict to make for more obvious return types
+from general_utilities.association_resources import run_cmd
+
+
 @staticmethod
 class BGENIndex(TypedDict):
     index: str
@@ -30,33 +33,34 @@ class IngestData:
     @staticmethod
     def _ingest_docker():
 
-        cmd = "docker pull egardner413/mrcepid-burdentesting:latest"
-        run_cmd(cmd)
-        print("Docker loaded")
+        cmd = 'docker pull egardner413/mrcepid-burdentesting:latest'
+        run_cmd(cmd, is_docker=False)
+        print('Docker loaded')
 
     def _set_num_threads(self):
         self.threads = os.cpu_count()
-        print('Number of threads available: %i' % self.threads)
+        print(f'Number of threads available: {self.threads}')
 
     # Ingest the INDEX of bgen files and download VEP indices
     @staticmethod
-    def _ingest_bgen_index(bgen_index: dict) -> dict:
+    def _ingest_bgen_index(bgen_index: dict) -> Dict[str, BGENIndex]:
 
         bgen_dict = {}
         bgen_index = dxpy.DXFile(bgen_index)
-        dxpy.download_dxfile(bgen_index.get_id(), "bgen_locs.tsv")
+        dxpy.download_dxfile(bgen_index.get_id(), 'bgen_locs.tsv')
 
         # and load it into a dict:
-        os.mkdir("filtered_bgen/")  # For downloading later...
-        bgen_index_csv = csv.DictReader(open("bgen_locs.tsv", "r"), delimiter="\t")
+        Path('filtered_bgen/').mkdir()  # For downloading later...
+        with Path('bgen_locs.tsv').open('r') as bgen_reader:
+            bgen_index_csv = csv.DictReader(bgen_reader, delimiter='\t')
 
-        for chrom in bgen_index_csv:
-            bgen_dict[chrom['chrom']] = {'index': chrom['bgen_index_dxid'], 'sample': chrom['sample_dxid'],
-                                         'bgen': chrom['bgen_dxid'], 'vep': chrom['vep_dxid']}
+            for chrom in bgen_index_csv:
+                bgen_dict[chrom['chrom']] = {'index': chrom['bgen_index_dxid'], 'sample': chrom['sample_dxid'],
+                                             'bgen': chrom['bgen_dxid'], 'vep': chrom['vep_dxid']}
 
-            # but download the vep index because of how we generate the SNP list:
-            vep = dxpy.DXFile(chrom['vep_dxid'])
-            dxpy.download_dxfile(vep.get_id(), "filtered_bgen/chr" + chrom['chrom'] + ".filtered.vep.tsv.gz")
+                # but download the vep index because of how we generate the SNP list:
+                vep = dxpy.DXFile(chrom['vep_dxid'])
+                dxpy.download_dxfile(vep.get_id(), f'filtered_bgen/chr{chrom["chrom"]}.filtered.vep.tsv.gz')
 
         return bgen_dict
 
@@ -85,15 +89,15 @@ class IngestData:
     def _check_filtering_expression(self):
         if self.filtering_expression is not None and self.found_snps is False and self.found_genes is False:
             # For logging purposes output the filtering expression provided by the user
-            print("Current Filtering Expression:")
+            print('Current Filtering Expression:')
             print(self.filtering_expression)
         elif self.filtering_expression is not None and self.found_snps is False and self.found_genes:
-            print("Gene list provided together with filtering expression - will filter for variant classes of interest in gene set")
-            print("Current Filtering Expression:")
+            print('Gene list provided together with filtering expression - will filter for variant classes of interest in gene set')
+            print('Current Filtering Expression:')
             print(self.filtering_expression)
         elif self.filtering_expression is None and self.found_snps and self.found_genes is False:
-            print("Using provided SNPlist to generate a mask...")
+            print('Using provided SNPlist to generate a mask...')
         else:
-            raise dxpy.AppError("Incorrect input provided...quitting!")
+            raise dxpy.AppError('Incorrect input provided...quitting!')
 
 

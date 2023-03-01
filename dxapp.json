@@ -3,7 +3,7 @@
   "title": "CollapseVariants",
   "summary": "Generates dummy input files for various association testing software",
   "dxapi": "1.0.0",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "inputSpec": [
     {
       "name": "filtering_expression",
@@ -90,10 +90,12 @@
     "release": "20.04",
     "version": "0",
     "execDepends": [
-      {"name": "pandas",
-        "package_manager": "pip"},
-      {"name": "numpy",
-        "package_manager": "pip"}
+      {
+        "name": "general_utilities",
+        "package_manager": "git",
+        "url":  "https://github.com/mrcepid-rap/general_utilities.git",
+        "build_commands": "pip3 install ."
+      }
     ]
   },
   "regionalOptions": {

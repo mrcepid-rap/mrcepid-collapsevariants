@@ -1,10 +1,10 @@
 import os
 import csv
+from pathlib import Path
 from typing import Tuple
 import pandas as pd
 import numpy as np
-
-from collapsevariants.collapse_resources import *
+from general_utilities.association_resources import run_cmd
 
 
 class BOLTParser:
@@ -23,8 +23,10 @@ class BOLTParser:
         # 1. Sample ID: UKBB eid format
         # 2. The actual genotype (0/1 or 1/1 in this case)
         # 3. The ENST ID so we know what gene this value is derived for
-        cmd = "bcftools query -i \'GT=\"alt\"'  -f \'[%SAMPLE\\t%ID\\t%GT\\n]\' -o /test/" + file_prefix + "." + chromosome + ".parsed.txt /test/" + file_prefix + "." + chromosome + ".SAIGE.bcf"
-        run_cmd(cmd, True)
+        cmd = f'bcftools query -i \'GT="alt"\' -f \'[%SAMPLE\\t%ID\\t%GT\\n]\' ' \
+              f'-o /test/{file_prefix}.{chromosome}.parsed.txt ' \
+              f'/test/{file_prefix}.{chromosome}.SAIGE.bcf'
+        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
         # This is just a list-format of the above file's header so we can read it in below with index-able columns
         header = ['sample', 'varID', 'genotype']
 
@@ -33,91 +35,89 @@ class BOLTParser:
         # we created above (samples). This dictionary has a structure like:
         # {'sample1': {'gene1': 1}, 'sample3': {'gene2': 1}}
         # Note that only samples with a qualifying variant are listed
-        filtered_variants = csv.DictReader(open(file_prefix + "." + chromosome + '.parsed.txt', 'r', newline='\n'),
-                                           fieldnames=header,
-                                           delimiter="\t",
-                                           quoting=csv.QUOTE_NONE)
-        for var in filtered_variants:
-            # IF the gene is already present for this individual, increment based on genotype
-            # ELSE the gene is NOT already present for this individual, instantiate a new
-            # level in the samples dict and set according to current genotype
-            ENST = snp_gene_map[var['varID']]
-            if var['sample'] in samples:
-                if ENST in samples[var['sample']]:
-                    samples[var['sample']][ENST] += 1 if (var['genotype'] == '0/1') else 2
+        with Path(f'{file_prefix}.{chromosome}.parsed.txt').open('r') as filtered_reader:
+            filtered_variants = csv.DictReader(filtered_reader,
+                                               fieldnames=header,
+                                               delimiter='\t',
+                                               quoting=csv.QUOTE_NONE)
+            for var in filtered_variants:
+                # IF the gene is already present for this individual, increment based on genotype
+                # ELSE the gene is NOT already present for this individual, instantiate a new
+                # level in the samples dict and set according to current genotype
+                ENST = snp_gene_map[var['varID']]
+                if var['sample'] in samples:
+                    if ENST in samples[var['sample']]:
+                        samples[var['sample']][ENST] += 1 if (var['genotype'] == '0/1') else 2
+                    else:
+                        samples[var['sample']][ENST] = 1 if (var['genotype'] == '0/1') else 2
                 else:
-                    samples[var['sample']][ENST] = 1 if (var['genotype'] == '0/1') else 2
-            else:
-                samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
+                    samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
 
         # We have to write this first into plink .ped format and then convert to bgen for input into BOLT
         # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
         # will be a set of genes, and if an individual has a qualifying variant within that gene, setting it
         # to that value
-        output_map = open(file_prefix + "." + chromosome + '.BOLT.map', 'w')
-        output_ped = open(file_prefix + "." + chromosome + '.BOLT.ped', 'w')
-        output_fam = open(file_prefix + "." + chromosome + '.BOLT.fam', 'w')
+        with Path(f'{file_prefix}.{chromosome}.BOLT.map').open('w') as output_map,\
+                Path(f'{file_prefix}.{chromosome}.BOLT.ped').open('w') as output_ped,\
+                Path(f'{file_prefix}.{chromosome}.BOLT.fam').open('w') as output_fam,\
+                Path(f'{file_prefix}.{chromosome}.sample').open('r') as sample_reader:
 
-        # Make map file (just list of genes with the chromosome and start position of that gene):
-        for gene in genes:
-            output_map.write("%s %s 0 %i\n" % (genes[gene]['CHROM'],
-                                               gene,
-                                               genes[gene]['min_poss']))
+            # Make map file (just list of genes with the chromosome and start position of that gene):
+            for gene in genes:
+                output_map.write(f'{genes[gene]["CHROM"]} {gene} 0 {genes[gene]["min_poss"]}\n')
 
-        # Make ped / fam files:
-        # ped files are coded with dummy genotypes of A A as a ref individual and A C as a carrier
+            # Make ped / fam files:
+            # ped files are coded with dummy genotypes of A A as a ref individual and A C as a carrier
 
-        # We first need a list of samples we expect to be in this file. We can get this from the REGENIE .psam
-        poss_indv = []  # This is just to help us make sure we have the right numbers later
-        sample_file = csv.DictReader(open(file_prefix + "." + chromosome + '.sample', 'r', newline='\n'),
-                                     delimiter=" ",
-                                     quoting=csv.QUOTE_NONE)
-        for sample in sample_file:
-            if sample['ID'] != "0":  # This gets rid of the weird header row in bgen sample files...
-                sample = sample['ID']
-                poss_indv.append(sample)
-                output_ped.write("%s %s 0 0 0 -9 " % (sample, sample))
-                output_fam.write("%s %s 0 0 0 -9\n" % (sample, sample))
-                genes_processed = 0
-                for gene in genes:
-                    genes_processed += 1  # This is a helper value to make sure we end rows on a carriage return (\n)
-                    if sample in samples:
-                        if gene in samples[sample]:
-                            if genes_processed == len(genes):
-                                output_ped.write("A C\n")
+            # We first need a list of samples we expect to be in this file. We can get this from the REGENIE .psam
+            poss_indv = []  # This is just to help us make sure we have the right numbers later
+            sample_file = csv.DictReader(sample_reader, delimiter=' ', quoting=csv.QUOTE_NONE)
+            for sample in sample_file:
+                if sample['ID'] != "0":  # This gets rid of the weird header row in bgen sample files...
+                    sample = sample['ID']
+                    poss_indv.append(sample)
+                    output_ped.write(f'{sample} {sample} 0 0 0 -9 ')
+                    output_fam.write(f'{sample} {sample} 0 0 0 -9\n')
+                    genes_processed = 0
+                    for gene in genes:
+                        genes_processed += 1  # This is a helper value to make sure we end rows on a carriage return (\n)
+                        if sample in samples:
+                            if gene in samples[sample]:
+                                if genes_processed == len(genes):
+                                    output_ped.write('A C\n')
+                                else:
+                                    output_ped.write('A C ')
                             else:
-                                output_ped.write("A C ")
+                                if genes_processed == len(genes):
+                                    output_ped.write('A A\n')
+                                else:
+                                    output_ped.write('A A ')
                         else:
                             if genes_processed == len(genes):
-                                output_ped.write("A A\n")
+                                output_ped.write('A A\n')
                             else:
-                                output_ped.write("A A ")
-                    else:
-                        if genes_processed == len(genes):
-                            output_ped.write("A A\n")
-                        else:
-                            output_ped.write("A A ")
-
-        output_ped.close()
-        output_map.close()
-        output_fam.close()
+                                output_ped.write('A A ')
 
         # And convert to bgen
         # Have to use OG plink to get into .bed format first
-        cmd = 'plink --threads 1 --memory 9000 --make-bed --file /test/' + file_prefix + "." + chromosome + '.BOLT --out /test/' + file_prefix + "." + chromosome + '.BOLT'
-        run_cmd(cmd, True)
+        cmd = f'plink --threads 1 --memory 9000 --make-bed ' \
+              f'--file /test/{file_prefix}.{chromosome}.BOLT ' \
+              f'--out /test/{file_prefix}.{chromosome}.BOLT'
+        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+
         # And then use plink2 to make a bgen file
-        cmd = "plink2 --threads 1 --memory 9000 --export bgen-1.2 'bits='8 --bfile /test/" + file_prefix + "." + chromosome + ".BOLT --out /test/" + file_prefix + "." + chromosome + ".BOLT"
-        run_cmd(cmd, True)
+        cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 --bfile /test/{file_prefix}.{chromosome}.BOLT' \
+              f' --out /test/{file_prefix}.{chromosome}.BOLT'
+        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
 
         # Purge unecessary intermediate files to save space on the AWS instance:
-        os.remove(file_prefix + "." + chromosome + '.BOLT.ped')
-        os.remove(file_prefix + "." + chromosome + '.BOLT.map')
-        os.remove(file_prefix + "." + chromosome + '.BOLT.fam')
-        os.remove(file_prefix + "." + chromosome + '.BOLT.bed')
-        os.remove(file_prefix + "." + chromosome + '.BOLT.bim')
-        os.remove(file_prefix + "." + chromosome + '.BOLT.log')
-        os.remove(file_prefix + "." + chromosome + '.BOLT.nosex')
+        Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()
+        Path(f'{file_prefix}.{chromosome}.BOLT.map').unlink()
+        Path(f'{file_prefix}.{chromosome}.BOLT.fam').unlink()
+        Path(f'{file_prefix}.{chromosome}.BOLT.bed').unlink()
+        Path(f'{file_prefix}.{chromosome}.BOLT.bim').unlink()
+        Path(f'{file_prefix}.{chromosome}.BOLT.log').unlink()
+        Path(f'{file_prefix}.{chromosome}.BOLT.nosex').unlink()
 
         return poss_indv, samples
 

@@ -10,10 +10,10 @@
 import sys
 import glob
 import tarfile
-from concurrent import futures
-from concurrent.futures import ThreadPoolExecutor
 
 # We have to do this to get modules to run properly on DNANexus while still enabling easy editing in PyCharm
+from general_utilities.job_management.thread_utility import ThreadUtility
+
 sys.path.append('/')
 sys.path.append('/collapsevariants/')
 sys.path.append('/collapsevariants/tool_parsers/')
@@ -94,24 +94,24 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
     ingested_data = IngestData(filtering_expression, bgen_index, snplist, genelist)
 
     # First generate a list of ALL variants genome-wide that we want to retain:
-    snp_list_generator = SNPListGenerator(ingested_data.filtering_expression,
+    snp_list_generator = SNPListGenerator(ingested_data.bgen_index,
+                                          ingested_data.filtering_expression,
                                           ingested_data.found_snps,
                                           ingested_data.found_genes,
                                           LOG_FILE)
 
     # Now build a thread worker that contains as many threads
     # instance takes a thread and 1 thread for monitoring
-    executor = ThreadPoolExecutor(max_workers=(ingested_data.threads - 1))
+    thread_utility = ThreadUtility()
 
     # Now loop through each chromosome and do the actual filtering...
     # ...launch the requested threads
-    future_pool = []
     for chromosome in snp_list_generator.chromosomes:
         chrom_bgen_index = ingested_data.bgen_index[chromosome]
-        future_pool.append(executor.submit(filter_bgen,
-                                           chromosome=chromosome,
-                                           file_prefix=file_prefix,
-                                           chrom_bgen_index=chrom_bgen_index))
+        thread_utility.launch_job(filter_bgen,
+                                  chromosome=chromosome,
+                                  file_prefix=file_prefix,
+                                  chrom_bgen_index=chrom_bgen_index)
 
     print("All threads submitted...")
 
@@ -119,16 +119,11 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
     per_chromosome_total_sites = 0
     sample_tables = []
     LOG_FILE.write_header('Per-chromosome totals')
-    for future in futures.as_completed(future_pool):
-        try:
-            per_chromosome_total, chromosome, sample_table = future.result()
-            sample_tables.append(sample_table)
-            per_chromosome_total_sites += per_chromosome_total
-            LOG_FILE.write_int(f'Total sites on chr{chromosome}', per_chromosome_total)
-        except Exception as err:
-            print("A thread failed...")
-            print(Exception, err)
-            raise dxpy.AppError("A thread failed...")
+    for result in thread_utility:
+        per_chromosome_total, chromosome, sample_table = result
+        sample_tables.append(sample_table)
+        per_chromosome_total_sites += per_chromosome_total
+        LOG_FILE.write_int(f'Total sites on chr{chromosome}', per_chromosome_total)
     LOG_FILE.write_spacer()
 
     print("All threads completed...")
