@@ -252,7 +252,7 @@ either the keywords "MAF" or "AC" (e.g. "HC_PTV-MAF_01"). This will result in as
 The BGEN index must follow a strict format and is a required option:
 
 ```
-chrom   vep   bgen    index   sample
+chrom   vep_dxid   bgen_dxid    bgen_index_dxid   sample_dxid
 chr1    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
 ```
 
