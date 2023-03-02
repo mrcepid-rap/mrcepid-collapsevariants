@@ -34,13 +34,15 @@ class SAIGEParser:
             snp_gene_map = dict()
             snp_csv = csv.DictReader(snp_reader, delimiter='\t')
             for snp in snp_csv:
-                if snp['CHROM'] == chromosome:
+                if snp['chrom'] == chromosome:
                     snp_gene_map[snp['varID']] = snp['ENST']
                     if snp['ENST'] in genes:
                         genes[snp['ENST']]['varIDs'].append(snp['varID'])
-                        genes[snp['ENST']]['poss'].append(int(snp['POS']))
+                        genes[snp['ENST']]['poss'].append(int(snp['pos']))
                     else:
-                        genes[snp['ENST']] = {'CHROM': snp['CHROM'], 'poss': [int(snp['POS'])], 'varIDs': [snp['varID']]}
+                        genes[snp['ENST']] = {'CHROM': snp['chrom'],
+                                              'poss': [int(snp['pos'])],
+                                              'varIDs': [snp['varID']]}
 
             for gene in genes:
                 min_pos = min(genes[gene]['poss'])

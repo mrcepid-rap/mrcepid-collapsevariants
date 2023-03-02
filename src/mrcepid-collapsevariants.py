@@ -15,7 +15,6 @@ import pandas as pd
 from pathlib import Path
 
 from general_utilities.association_resources import generate_linked_dx_file
-
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 

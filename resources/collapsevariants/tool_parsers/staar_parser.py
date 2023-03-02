@@ -1,5 +1,4 @@
 import csv
-import subprocess
 from pathlib import Path
 
 from general_utilities.association_resources import run_cmd
@@ -62,14 +61,14 @@ class STAARParser:
                                                fieldnames=['varID', 'chrom', 'pos', 'ENST', 'column'])
             variants_dict_csv.writeheader()
             for var in variants_list_csv:
-                if var['CHROM'] == chromosome or chromosome == 'SNP' or chromosome == 'GENE':
+                if var['chrom'] == chromosome or chromosome == 'SNP' or chromosome == 'GENE':
                     variants[var['varID']] = row_num
+
                     var['column'] = row_num
                     variants_dict_csv.writerow(var)
                     row_num += 1
 
         # Need to get the file length of this file...
-        # This code is janky AF
         wc_file = Path(f'{file_prefix}.{chromosome}_wc.txt')
         run_cmd(f'wc -l {file_prefix}.{chromosome}.parsed.txt', is_docker=False, stdout_file=wc_file)
         with wc_file.open('r') as wc_reader:
@@ -107,7 +106,8 @@ class STAARParser:
         # And generates one output:
         # 1. A .rds file (named by the last argument) that can be read back into STAAR during
         #   mrcepid-runassociationtesting
-        cmd = f'Rscript /prog/buildSTAARmatrix.R /test/{samples_dict_file} ' \
+        cmd = f'Rscript /prog/buildSTAARmatrix.R ' \
+              f'/test/{samples_dict_file} ' \
               f'/test/{variants_dict_file} ' \
               f'/test/{matrix_file} ' \
               f'/test/{file_prefix}.{chromosome}.STAAR.matrix.rds'

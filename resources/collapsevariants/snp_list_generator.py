@@ -206,15 +206,15 @@ class SNPListGenerator:
                 Path('snp_ENST.txt').open('w') as gene_id_file:
 
             snp_id_csv = csv.DictWriter(snp_id_file, delimiter="\t", fieldnames=['varID'], extrasaction='ignore')
-            gene_id_csv = csv.DictWriter(gene_id_file, delimiter='\t', fieldnames=['varID', 'CHROM', 'POS', 'ENST'])
+            gene_id_csv = csv.DictWriter(gene_id_file, delimiter='\t', fieldnames=['varID', 'chrom', 'pos', 'ENST'])
             gene_id_csv.writeheader()
 
             for row in self.variant_index.iterrows():
                 # row[0] in this context is the varID since it is the 'index' in the pandas DataFrame
                 # All other information is stored in a dictionary that is list element [1]
                 line_dict = {'varID': row[0],
-                             'CHROM': row[1]['CHROM'].replace('chr', ''),
-                             'POS': row[1]['POS'],
+                             'chrom': row[1]['CHROM'].replace('chr', ''),
+                             'pos': row[1]['POS'],
                              'ENST': row[1]['ENST']}
                 snp_id_csv.writerow(line_dict)
                 gene_id_csv.writerow(line_dict)
