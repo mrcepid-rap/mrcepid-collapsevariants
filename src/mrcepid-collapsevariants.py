@@ -160,7 +160,7 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index):
     LOG_FILE.write_generic('AC_bin\tcount\n')
     ac_counts = master_sample_table.value_counts('ac')
     ac_counts = ac_counts.sort_index()
-    for ac, count in ac_counts.iteritems():
+    for ac, count in ac_counts.items():
         LOG_FILE.write_histogram(ac, count)
 
     # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
