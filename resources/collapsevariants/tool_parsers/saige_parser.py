@@ -30,8 +30,8 @@ class SAIGEParser:
         with Path('snp_ENST.txt').open('r') as snp_reader,\
                 Path(f'{file_prefix}.{chromosome}.SAIGE.groupFile.txt').open('w') as output_setfile_SAIGE:
 
-            genes = {}
-            snp_gene_map = {}
+            genes = dict()
+            snp_gene_map = dict()
             snp_csv = csv.DictReader(snp_reader, delimiter='\t')
             for snp in snp_csv:
                 if snp['CHROM'] == chromosome:
@@ -47,10 +47,13 @@ class SAIGEParser:
                 genes[gene]['min_poss'] = min_pos
 
             for gene in genes:
-                id_string = "\t".join(["{0}:{1}_{2}/{3}".format(*item2) for item2 in [item.split(":") for item in genes[gene]['varIDs']]])
+                # This is just using *args to place the four values that will always be here as {0} .. {3} automatically
+                # into string formatting. Could probably write it a more functional way, but don't want to risk
+                # disturbing this code that I know works properly
+                id_string = "\t".join(["{0}:{1}_{2}/{3}".format(*item2) for item2 in
+                                       [item.split(":") for item in genes[gene]['varIDs']]])
                 output_setfile_SAIGE.write(f'{gene}\t{id_string}\n')
 
             Path(f'{file_prefix}.{chromosome}.SAIGE.log').unlink()
 
-        print(snp_gene_map)
         return genes, snp_gene_map

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import TypedDict, Dict
 
 from general_utilities.association_resources import run_cmd
+from general_utilities.mrc_logger import MRCLogger
 
 
 # A TypedDict to make for more obvious return types
@@ -19,6 +20,8 @@ class BGENIndex(TypedDict):
 class IngestData:
 
     def __init__(self, filtering_expression: str, bgen_index: dict, snplist: dict, genelist: dict):
+
+        self._logger = MRCLogger(__name__).get_logger()
 
         self.filtering_expression = filtering_expression
 
@@ -88,15 +91,15 @@ class IngestData:
     def _check_filtering_expression(self):
         if self.filtering_expression is not None and self.found_snps is False and self.found_genes is False:
             # For logging purposes output the filtering expression provided by the user
-            print('Current Filtering Expression:')
-            print(self.filtering_expression)
+            self._logger.info('Current Filtering Expression:')
+            self._logger.info(self.filtering_expression)
         elif self.filtering_expression is not None and self.found_snps is False and self.found_genes:
-            print('Gene list provided together with filtering expression - will filter for variant classes of interest in gene set')
-            print('Current Filtering Expression:')
-            print(self.filtering_expression)
+            self._logger.info('Gene list provided together with filtering expression - will filter for variant classes of interest in gene set')
+            self._logger.info('Current Filtering Expression:')
+            self._logger.info(self.filtering_expression)
         elif self.filtering_expression is None and self.found_snps and self.found_genes is False:
-            print('Using provided SNPlist to generate a mask...')
+            self._logger.info('Using provided SNPlist to generate a mask...')
         else:
-            raise dxpy.AppError('Incorrect input provided...quitting!')
+            raise ValueError('Incorrect input for snp/gene/filtering expression provided... exiting!')
 
 

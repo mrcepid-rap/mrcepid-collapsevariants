@@ -1,3 +1,5 @@
+import csv
+
 import dxpy
 import pandas as pd
 
@@ -35,7 +37,7 @@ class SNPListGenerator:
         # Specify dtype for SIFT/POLYPHEN as pandas returns warnings when loading these due to weird formating
         for chromosome in self.bgen_index.keys():
             variant_index.append(
-                pd.read_csv(f'filtered_bgen/chr{chromosome}.filtered.vep.tsv.gz', sep="\t",
+                pd.read_csv(f'filtered_bgen/chr{chromosome}.filtered.vep.tsv.gz', sep='\t',
                             dtype={'SIFT': str, 'POLYPHEN': str}))
 
         variant_index = pd.concat(variant_index)
@@ -53,13 +55,13 @@ class SNPListGenerator:
 
         # If using a gene list with a filtering expression...
         if self.filtering_expression is not None and self.found_genes:
-            my_genelist_file = open("gene_list.genes", "r")
-            genelist = my_genelist_file.readlines()
-            genelist = [gene.rstrip() for gene in genelist]
+            with Path('gene_list.genes').open('r') as my_genelist_file:
+                genelist = my_genelist_file.readlines()
+                genelist = [gene.rstrip() for gene in genelist]
 
             # First filter to the gene Symbols we care about
-            self.variant_index = self.variant_index.query("SYMBOL == @genelist")
-            all_genelist = list(self.variant_index["SYMBOL"].unique())
+            self.variant_index = self.variant_index.query('SYMBOL == @genelist')
+            all_genelist = list(self.variant_index['SYMBOL'].unique())
             found_genes_symbol_present = list(set.intersection(set(genelist), set(all_genelist)))
 
             # Now further filter down to the filtering_expression we are interested in
@@ -72,7 +74,7 @@ class SNPListGenerator:
             # Following code is just to report stats about genes that were/were not found
             queried_genes = []
             self.LOG_FILE.write_header('Per-gene stats')
-            for key, value in self.variant_index['SYMBOL'].value_counts().iteritems():
+            for key, value in self.variant_index['SYMBOL'].value_counts().items():
                 queried_genes.append(key)
                 self.LOG_FILE.write_int(key, value)
             self.LOG_FILE.write_spacer()
@@ -129,21 +131,27 @@ class SNPListGenerator:
         # Now prep a list of variants to include in any analysis. We need two files:
         # 1. Assigns a variant to a gene (gene_id_file)
         # 2. Just includes variant IDs (snp_id_file)
-        snp_id_file = open('include_snps.txt', 'w')
-        gene_id_file = open('snp_ENST.txt', 'w')
-        gene_id_file.write("varID\tCHROM\tPOS\tENST\n")
-        for row in self.variant_index.iterrows():
-            # row[0] in this context is the varID since it is the 'index' in the pandas DataFrame
-            # All other information is stored in a dictionary that is list element [1]
-            snp_id_file.write(f'{row[0]}\n')
-            gene_id_file.write(f'{row[0]}\t{row[1]["CHROM"].replace("chr", "")}\t{row[1]["POS"]}\t{row[1]["ENST"]}')
-        snp_id_file.close()
-        gene_id_file.close()
+        with Path('include_snps.txt').open('w') as snp_id_file,\
+                Path('snp_ENST.txt').open('w') as gene_id_file:
+
+            snp_id_csv = csv.DictWriter(snp_id_file, delimiter="\t", fieldnames=['varID'], extrasaction='ignore')
+            gene_id_csv = csv.DictWriter(gene_id_file, delimiter='\t', fieldnames=['varID', 'CHROM', 'POS', 'ENST'])
+            gene_id_csv.writeheader()
+
+            for row in self.variant_index.iterrows():
+                # row[0] in this context is the varID since it is the 'index' in the pandas DataFrame
+                # All other information is stored in a dictionary that is list element [1]
+                line_dict = {'varID': row[0],
+                             'CHROM': row[1]['CHROM'].replace('chr', ''),
+                             'POS': row[1]['POS'],
+                             'ENST': row[1]['ENST']}
+                snp_id_csv.writerow(line_dict)
+                gene_id_csv.writerow(line_dict)
 
         # Get chromosomes we want to actually run to save time downstream:
         chromosomes = self.variant_index['CHROM'].value_counts()
         chromosomes = chromosomes.index.to_list()
-        chromosomes = [str.replace(chrom, "chr", "") for chrom in chromosomes]
+        chromosomes = [str.replace(chrom, 'chr', '') for chrom in chromosomes]
 
         return chromosomes
 
@@ -165,19 +173,19 @@ class SNPListGenerator:
                                 self.variant_index[self.variant_index['FILTER'] != 'PASS']['CHROM'].count())
 
         # LOFTEE:
-        for key, value in self.variant_index['LOFTEE'].value_counts().iteritems():
+        for key, value in self.variant_index['LOFTEE'].value_counts().items():
             key = f'Number of LOFTEE {key}'
             self.LOG_FILE.write_int(key, value)
         self.LOG_FILE.write_spacer()
 
         # Parsed Consequences:
         self.LOG_FILE.write_header('Consequence statistics')
-        for key, value in self.variant_index['PARSED_CSQ'].value_counts().iteritems():
+        for key, value in self.variant_index['PARSED_CSQ'].value_counts().items():
             key = f'Number of Parsed Consequence – {key}'
             self.LOG_FILE.write_int(key, value)
 
         # VEP Consequences:
-        for key, value in self.variant_index['CSQ'].value_counts().iteritems():
+        for key, value in self.variant_index['CSQ'].value_counts().items():
             key = f'Number of VEP Consequence - {key}'
             self.LOG_FILE.write_int(key, value, is_vep=True)
         self.LOG_FILE.write_spacer()
