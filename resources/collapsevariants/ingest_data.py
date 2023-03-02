@@ -9,7 +9,6 @@ from typing import TypedDict, Dict
 from general_utilities.association_resources import run_cmd
 
 
-@staticmethod
 class BGENIndex(TypedDict):
     index: str
     sample: str
