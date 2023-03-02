@@ -5,11 +5,22 @@ from pathlib import Path
 from general_utilities.association_resources import run_cmd
 
 
+class STAARMergingException(Exception):
+
+    def __init__(self, message: str = "Merging failed"):
+        super().__init__(message)
+
+
 class STAARParser:
 
     def __init__(self, file_prefix: str, chromosome: str):
 
-        self._parse_filters_STAAR(file_prefix, chromosome)
+        # STAAR merging will occasionally fail for no obvious reason, this try-catch should allow for the calling method
+        # to know this and then properly re-run the code.
+        try:
+            self._parse_filters_STAAR(file_prefix, chromosome)
+        except Exception:
+            raise STAARMergingException(f'STAAR chr {chromosome} failed to merge.')
 
     # Generate input format files that can be provided to STAAR
     @staticmethod

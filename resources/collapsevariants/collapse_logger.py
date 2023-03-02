@@ -1,7 +1,6 @@
-import dxpy
-
 from typing import IO
 from dxpy import DXFile
+from general_utilities.association_resources import generate_linked_dx_file
 
 
 class CollapseLOGGER:
@@ -22,7 +21,7 @@ class CollapseLOGGER:
     def close_writer(self) -> DXFile:
 
         self._LOG_FILE.close()
-        linked_log_file = dxpy.upload_local_file(f'{self._file_prefix}.log')
+        linked_log_file = generate_linked_dx_file(f'{self._file_prefix}.log')
         return linked_log_file
 
     def write_header(self, text: str) -> None:

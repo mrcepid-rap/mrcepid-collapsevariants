@@ -1,14 +1,14 @@
 import os
 import csv
-from pathlib import Path
-
 import dxpy
+
+from pathlib import Path
 from typing import TypedDict, Dict
 
-# A TypedDict to make for more obvious return types
 from general_utilities.association_resources import run_cmd
 
 
+# A TypedDict to make for more obvious return types
 class BGENIndex(TypedDict):
     index: str
     sample: str
