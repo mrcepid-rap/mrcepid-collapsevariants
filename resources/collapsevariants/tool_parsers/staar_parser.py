@@ -55,25 +55,31 @@ class STAARParser:
         variants_dict_file = Path(f'{file_prefix}.{chromosome}.variants_table.STAAR.tsv')
         row_num = 1
         with variants_dict_file.open('w') as variants_dict_writer,\
-                Path('snp_ENST.txt').open('r') as variants_file:
+                Path('snp_ENST.txt').open('r') as variants_list_file:
 
-            variants_dict_writer.write('varID\tchrom\tpos\tENST\tcolumn\n')
-            variants_csv = csv.DictReader(variants_file, delimiter="\t", quoting=csv.QUOTE_NONE)
-            for var in variants_csv:
+            variants_list_csv = csv.DictReader(variants_list_file, delimiter="\t", quoting=csv.QUOTE_NONE)
+            variants_dict_csv = csv.DictWriter(variants_dict_writer, delimiter='\t', extrasaction='ignore',
+                                               fieldnames=['varID', 'chrom', 'pos', 'ENST', 'column'])
+            variants_dict_csv.writeheader()
+            for var in variants_list_csv:
                 if var['CHROM'] == chromosome or chromosome == 'SNP' or chromosome == 'GENE':
                     variants[var['varID']] = row_num
-                    variants_dict_writer.write(f'{var["varID"]}\t{var["CHROM"]}\t{var["POS"]}\t{var["ENST"]}\t{row_num}\n')
+                    var['column'] = row_num
+                    variants_dict_csv.writerow(var)
                     row_num += 1
 
         # Need to get the file length of this file...
         # This code is janky AF
-        proc = subprocess.Popen(f'wc -l {file_prefix}.{chromosome}.parsed.txt', shell=True,
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        stdout, stderr = proc.communicate()
-        file_length = stdout.decode('utf-8')
-        file_length = file_length.strip(' ').split(' ')[0]
+        wc_file = Path(f'{file_prefix}.{chromosome}_wc.txt')
+        run_cmd(f'wc -l {file_prefix}.{chromosome}.parsed.txt', is_docker=False, stdout_file=wc_file)
+        with wc_file.open('r') as wc_reader:
+            for line in wc_reader:
+                line = line.rstrip()
+                file_length = int(line.split()[0])
+        wc_file.unlink()
 
-        # And format it to R spec
+        # And format it to R Matrix (matrixMarket) spec. I can't use a DictWriter here because of the double header
+        # lines which makes it not fit csv/tsv standard
         matrix_file = Path(f'{file_prefix}.{chromosome}.STAAR.matrix.R.txt')
         with Path(f'{file_prefix}.{chromosome}.parsed.txt').open('r') as sparse_matrix,\
                 matrix_file.open('w') as matrix_file_writer:
@@ -83,8 +89,7 @@ class STAARParser:
 
             # Write the header in %MatrixMarket format
             matrix_file_writer.write('%%MatrixMarket matrix coordinate integer general\n')
-            # These have -1 because of how the iterator above works...
-            matrix_file_writer.write(f'{col_num - 1} {row_num - 1} {file_length}')
+            matrix_file_writer.write(f'{col_num - 1} {row_num - 1} {file_length}\n')  # -1 because of 0-based header
             # Write the individual cells in the matrix
             for row in sparse_matrix:
                 gt_val = 1 if row['genotype'] == '0/1' else 2
@@ -98,8 +103,10 @@ class STAARParser:
         # 2. Variants dict (variants_dict_file above) – the column names of our final matrix
         # 3. Matrix file (matrix_file above) – the cells in our final matrix, formatted in %MatrixMarket format for ease
         # 4. Out file – The name of the .rds file for final output
+        #
         # And generates one output:
-        # 1. A .rds file (named by out file) that can be read back into STAAR during mrcepid-runassociationtesting
+        # 1. A .rds file (named by the last argument) that can be read back into STAAR during
+        #   mrcepid-runassociationtesting
         cmd = f'Rscript /prog/buildSTAARmatrix.R /test/{samples_dict_file} ' \
               f'/test/{variants_dict_file} ' \
               f'/test/{matrix_file} ' \

@@ -1,4 +1,3 @@
-import os
 import csv
 import dxpy
 
@@ -26,22 +25,16 @@ class IngestData:
         self.filtering_expression = filtering_expression
 
         self._ingest_docker()
-        self._set_num_threads()
         self.bgen_index = self._ingest_bgen_index(bgen_index)
         self.found_snps = self._define_snplist(snplist)
         self.found_genes = self._define_genelist(genelist)
 
     # Grab our docker image
-    @staticmethod
-    def _ingest_docker():
+    def _ingest_docker(self):
 
         cmd = 'docker pull egardner413/mrcepid-burdentesting:latest'
         run_cmd(cmd, is_docker=False)
-        print('Docker loaded')
-
-    def _set_num_threads(self):
-        self.threads = os.cpu_count()
-        print(f'Number of threads available: {self.threads}')
+        self._logger.info('Docker loaded')
 
     # Ingest the INDEX of bgen files and download VEP indices
     @staticmethod
@@ -94,12 +87,11 @@ class IngestData:
             self._logger.info('Current Filtering Expression:')
             self._logger.info(self.filtering_expression)
         elif self.filtering_expression is not None and self.found_snps is False and self.found_genes:
-            self._logger.info('Gene list provided together with filtering expression - will filter for variant classes of interest in gene set')
+            self._logger.info('Gene list provided together with filtering expression - will filter for variant '
+                              'classes of interest in gene set')
             self._logger.info('Current Filtering Expression:')
             self._logger.info(self.filtering_expression)
         elif self.filtering_expression is None and self.found_snps and self.found_genes is False:
             self._logger.info('Using provided SNPlist to generate a mask...')
         else:
             raise ValueError('Incorrect input for snp/gene/filtering expression provided... exiting!')
-
-
