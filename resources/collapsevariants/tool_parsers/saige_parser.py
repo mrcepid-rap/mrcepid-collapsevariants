@@ -52,4 +52,5 @@ class SAIGEParser:
 
             Path(f'{file_prefix}.{chromosome}.SAIGE.log').unlink()
 
+        print(snp_gene_map)
         return genes, snp_gene_map
