@@ -173,8 +173,8 @@ class STAARParser:
         :param file_length: The total number of sample x variant pairs as calculated by :func:`_get_num_records`
         :return: A PathLike pointing to the matrixMarket format file created by this method
         """
-        col_num = max(variants.values())
         row_num = max(samples.values())
+        col_num = max(variants.values())
 
         # And format it to R Matrix (matrixMarket) spec. I can't use a DictWriter here because of the double header
         # lines which makes it not fit csv/tsv standard
@@ -187,7 +187,7 @@ class STAARParser:
 
             # Write the header in %MatrixMarket format
             matrix_file_writer.write('%%MatrixMarket matrix coordinate integer general\n')
-            matrix_file_writer.write(f'{col_num - 1} {row_num - 1} {file_length}\n')  # -1 because of 0-based header
+            matrix_file_writer.write(f'{row_num} {col_num} {file_length}\n')
             # Write the individual cells in the matrix
             for row in sparse_matrix:
                 gt_val = 1 if row['genotype'] == '0/1' else 2
