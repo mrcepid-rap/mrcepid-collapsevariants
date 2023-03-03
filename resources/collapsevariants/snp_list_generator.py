@@ -46,9 +46,8 @@ class SNPListGenerator:
         self.chromosomes = self._write_variant_lists()
         self.total_sites = self._check_bgen_stats()
 
-    # Load the entire variant index stored in the .vep tsv files
     def _load_variant_index(self) -> pd.DataFrame:
-        """Load vep annotated tsv.gz files into a pandas DataFrame
+        """Load vep annotated *.tsv.gz files into a pandas DataFrame
 
         Will iterate over all chromosomes that were found by collapse_variants.ingest_data, NOT the actual chromosomes
         in the human genome (e.g., 1..23, X, Y).
@@ -195,18 +194,28 @@ class SNPListGenerator:
 
         return variant_index
 
-    # Write the lists that will be used for filtering and generate a list of chromosomes that are valid for actual
-    # processing.
     def _write_variant_lists(self) -> List[str]:
+        """Write the lists that will be used for filtering and generate a list of chromosomes that are valid for actual
+            processing.
+
+        Generate two files that will be used later:
+
+        1. A list of variants -> Genes
+        2. Just a list of variant IDs
+
+        Also keep track of chromosomes that we found so we don't process chromosomes without a qualifying variant.
+
+        :return: A list of chromosomes that actually contain variants we collapsed on
+        """
 
         # Now prep a list of variants to include in any analysis. We need two files:
         # 1. Assigns a variant to a gene (gene_id_file)
         # 2. Just includes variant IDs (snp_id_file)
-        with Path('include_snps.txt').open('w') as snp_id_file,\
-                Path('snp_ENST.txt').open('w') as gene_id_file:
+        with Path('snp_ENST.txt').open('w') as gene_id_file,\
+                Path('include_snps.txt').open('w') as snp_id_file:
 
-            snp_id_csv = csv.DictWriter(snp_id_file, delimiter="\t", fieldnames=['varID'], extrasaction='ignore')
             gene_id_csv = csv.DictWriter(gene_id_file, delimiter='\t', fieldnames=['varID', 'chrom', 'pos', 'ENST'])
+            snp_id_csv = csv.DictWriter(snp_id_file, delimiter="\t", fieldnames=['varID'], extrasaction='ignore')
             gene_id_csv.writeheader()
 
             for row in self.variant_index.iterrows():
@@ -216,8 +225,8 @@ class SNPListGenerator:
                              'chrom': row[1]['CHROM'].replace('chr', ''),
                              'pos': row[1]['POS'],
                              'ENST': row[1]['ENST']}
-                snp_id_csv.writerow(line_dict)
                 gene_id_csv.writerow(line_dict)
+                snp_id_csv.writerow(line_dict)
 
         # Get chromosomes we want to actually run to save time downstream:
         chromosomes = self.variant_index['CHROM'].value_counts()
@@ -226,8 +235,14 @@ class SNPListGenerator:
 
         return chromosomes
 
-    # This gets information relating to included variants in bgen format files (per-gene)
     def _check_bgen_stats(self) -> int:
+        """Gets information relating to included variants in bgen format files (per-gene)
+
+        This method just uses standard pandas.DataFrame methods to query the underlying table to get stats and report
+        them in the applet LOG_FILE
+
+        :return: The total number of sites after filtering
+        """
 
         self.LOG_FILE.write_header('Overall Statistics')
         total_sites = self.variant_index['CHROM'].count()  # Assign as a variable so I can return it below for further checking
