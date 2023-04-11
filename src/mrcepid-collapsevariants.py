@@ -6,13 +6,12 @@
 #   http://autodoc.dnanexus.com/bindings/python/current/
 
 import sys
-from typing import Tuple, Dict
-
 import dxpy
 import tarfile
 import pandas as pd
 
 from pathlib import Path
+from typing import Tuple, Dict, List
 
 from general_utilities.association_resources import generate_linked_dx_file
 from general_utilities.job_management.thread_utility import ThreadUtility
@@ -106,8 +105,55 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict) -> Tu
         return num_variants, chromosome, sample_table
 
 
+def stat_writer(sample_tables: List[pd.DataFrame], per_chromosome_totals: Dict[str, int], LOG_FILE: CollapseLOGGER,
+                total_sites: int) -> None:
+    """ Writes stats about the various collapsing operations performed by this applet
+
+    :param sample_tables: A list of Pandas dataframes (one for each chromosome queried) containing per sample and per
+        gene information.
+    :param per_chromosome_totals: Total number of variants found per-chromosome
+    :param LOG_FILE: The LOG_FILE for this instance to print to
+    :param total_sites: Total number of expected sites based on the original query
+    :return: None
+    """
+
+    # Write a bunch of stats
+    LOG_FILE.write_header('Per-chromosome totals')
+
+    found_total_sites = 0
+    for chromosome, total in per_chromosome_totals.items():
+        found_total_sites += total
+        LOG_FILE.write_int(f'Total sites on chr{chromosome}', total)
+
+    LOG_FILE.write_header('Genome-wide totals')
+    LOG_FILE.write_int('Total sites expected from filtering expression', total_sites)
+    LOG_FILE.write_int('Total sites extracted from all chromosomes', found_total_sites)
+    LOG_FILE.write_string('Total expected and total extracted match', str(total_sites == found_total_sites))
+    LOG_FILE.write_spacer()
+
+    # Concatenate and sum sample tables:
+    master_sample_table = pd.concat(sample_tables).groupby(['sample_id']).sum().reset_index()
+    LOG_FILE.write_header('Per-individual totals')
+    LOG_FILE.write_int('Median number of alleles per indv', master_sample_table['ac'].median())
+    LOG_FILE.write_int('Median number of genes affected per indv', master_sample_table['ac_gene'].median())
+    LOG_FILE.write_float('Mean number of alleles per indv', master_sample_table['ac'].mean())
+    LOG_FILE.write_float('Mean number of genes affected per indv', master_sample_table['ac_gene'].mean())
+    LOG_FILE.write_int('Max number of alleles', master_sample_table['ac'].max())
+    LOG_FILE.write_int('Number of individuals with at least 1 allele',
+                       pd.value_counts(master_sample_table['ac'] > 0)[True])
+    LOG_FILE.write_spacer()
+
+    LOG_FILE.write_header('AC Histogram')
+    LOG_FILE.write_generic('AC_bin\tcount\n')
+    ac_counts = master_sample_table.value_counts('ac')
+    ac_counts = ac_counts.sort_index()
+    for ac, count in ac_counts.items():
+        LOG_FILE.write_histogram(ac, count)
+
+
 @dxpy.entry_point('main')
-def main(filtering_expression, snplist, genelist, file_prefix, bgen_index) -> Dict[str, dict]:
+def main(filtering_expression: str, snplist: dict, genelist: dict, file_prefix: str,
+         bgen_index: dict) -> Dict[str, dict]:
     """The main entrypoint in the DNANexus applet that runs CollapseVariants
 
     This method collapses variants using a variety of ways in four steps (see individual classes / README for more
@@ -123,7 +169,7 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index) -> Di
     :param snplist: A DXFile containing a list of varIDs to use as a custom mask
     :param genelist: A DXFile containing a list of gene symbols to collapse into a custom mask
     :param file_prefix: A name to append to beginning of output files.
-    :param bgen_index: A file containing information of bgen files to collapse on
+    :param bgen_index: A DXFile containing information of bgen files to collapse on
     :return: A Dictionary with keys of output strings and values of DXIndex
     """
 
@@ -154,58 +200,27 @@ def main(filtering_expression, snplist, genelist, file_prefix, bgen_index) -> Di
                                   chrom_bgen_index=chrom_bgen_index)
 
     # And gather the resulting futures
-    per_chromosome_total_sites = 0
     sample_tables = []
-    LOG_FILE.write_header('Per-chromosome totals')
+    chromosome_totals = dict()
+
     for result in thread_utility:
         per_chromosome_total, chromosome, sample_table = result
         sample_tables.append(sample_table)
-        per_chromosome_total_sites += per_chromosome_total
-        LOG_FILE.write_int(f'Total sites on chr{chromosome}', per_chromosome_total)
+        chromosome_totals[chromosome] = per_chromosome_total
     LOG_FILE.write_spacer()
 
-    # Write a whole bunch of stats
-    # Should probably be a separate class, but was tired of refactoring this entire code base...
-    LOG_FILE.write_header('Genome-wide totals')
-    LOG_FILE.write_int('Total sites expected from filtering expression', snp_list_generator.total_sites)
-    LOG_FILE.write_int('Total sites extracted from all chromosomes', per_chromosome_total_sites)
-    LOG_FILE.write_int('Total expected and total extracted match',
-                       (snp_list_generator.total_sites == per_chromosome_total_sites))
-    LOG_FILE.write_spacer()
-
-    # Concatenate and sum sample tables:
-    master_sample_table = pd.concat(sample_tables).groupby(['sample_id']).sum().reset_index()
-    LOG_FILE.write_header('Per-individual totals')
-    LOG_FILE.write_int('Median number of alleles per indv', master_sample_table['ac'].median())
-    LOG_FILE.write_int('Median number of genes affected per indv', master_sample_table['ac_gene'].median())
-    LOG_FILE.write_float('Mean number of alleles per indv', master_sample_table['ac'].mean())
-    LOG_FILE.write_float('Mean number of genes affected per indv', master_sample_table['ac_gene'].mean())
-    LOG_FILE.write_int('Max number of alleles', master_sample_table['ac'].max())
-    LOG_FILE.write_int('Number of individuals with at least 1 allele',
-                       pd.value_counts(master_sample_table['ac'] > 0)[True])
-    LOG_FILE.write_spacer()
-
-    LOG_FILE.write_header('AC Histogram')
-    LOG_FILE.write_generic('AC_bin\tcount\n')
-    ac_counts = master_sample_table.value_counts('ac')
-    ac_counts = ac_counts.sort_index()
-    for ac, count in ac_counts.items():
-        LOG_FILE.write_histogram(ac, count)
+    # And write stats about the collected futures
+    stat_writer(sample_tables, chromosome_totals, LOG_FILE, snp_list_generator.total_sites)
 
     # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
     if ingested_data.found_snps or ingested_data.found_genes:  # run for gene list as well, add
         LOGGER.info('Making merged SNP files for burden testing...')
         SNPMerger(snp_list_generator.chromosomes, file_prefix, ingested_data.found_genes)
 
-    # Because of how I manage the SNP version of this app, I have to delete the sample files here to ensure they are
-    # not included in the final tarball:
-    for chrom in snp_list_generator.chromosomes:
-        Path(f'{file_prefix}.{chrom}.sample').unlink()
-
     LOGGER.info('Closing LOG file...')
     linked_log_file = LOG_FILE.close_writer()
 
-    # Here we are taking all of the files generated by the various functions above and adding them to a single tar
+    # Here we are taking all the files generated by the various functions above and adding them to a single tar
     # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
     LOGGER.info('Generating final tarball...')
     output_tarball = Path(f'{file_prefix}.tar.gz')

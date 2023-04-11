@@ -92,6 +92,16 @@ class CollapseLOGGER:
         write_string = f'{bin}\t{count}\n'
         self._write(write_string)
 
+    def write_string(self, text: str, value: str) -> None:
+        """Write a string with some formatted text
+
+        :param text: The text label for this output
+        :param value: The string to write
+        """
+
+        write_string = f'{text:{self._line_width}}: {value}\n'
+        self._write(write_string)
+
     def write_generic(self, text: str) -> None:
         """Write a generic string to the log without formatting
 

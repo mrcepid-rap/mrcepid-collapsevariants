@@ -4,7 +4,7 @@ import dxpy
 from pathlib import Path
 from typing import TypedDict, Dict
 
-from general_utilities.association_resources import run_cmd
+from general_utilities.association_resources import run_cmd, download_dxfile_by_name
 from general_utilities.mrc_logger import MRCLogger
 
 
@@ -73,12 +73,11 @@ class IngestData:
         """
 
         bgen_dict = {}
-        bgen_index = dxpy.DXFile(bgen_index)
-        dxpy.download_dxfile(bgen_index.get_id(), 'bgen_locs.tsv')
+        bgen_index = download_dxfile_by_name(bgen_index)
 
         # and load it into a dict:
         Path('filtered_bgen/').mkdir()  # For downloading later...
-        with Path('bgen_locs.tsv').open('r') as bgen_reader:
+        with bgen_index.open('r') as bgen_reader:
             bgen_index_csv = csv.DictReader(bgen_reader, delimiter='\t')
 
             for chrom in bgen_index_csv:
