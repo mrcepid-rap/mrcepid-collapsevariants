@@ -5,6 +5,7 @@
 # DNAnexus Python Bindings (dxpy) documentation:
 #   http://autodoc.dnanexus.com/bindings/python/current/
 
+import os
 import sys
 import dxpy
 import tarfile
@@ -13,7 +14,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Tuple, Dict, List
 
-from general_utilities.association_resources import generate_linked_dx_file
+from general_utilities.association_resources import generate_linked_dx_file, run_cmd
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 
@@ -152,8 +153,8 @@ def stat_writer(sample_tables: List[pd.DataFrame], per_chromosome_totals: Dict[s
 
 
 @dxpy.entry_point('main')
-def main(filtering_expression: str, snplist: dict, genelist: dict, file_prefix: str,
-         bgen_index: dict) -> Dict[str, dict]:
+def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix: str,
+         bgen_index: dict, testing_script: dict, testing_directory: str) -> Dict[str, dict]:
     """The main entrypoint in the DNANexus applet that runs CollapseVariants
 
     This method collapses variants using a variety of ways in four steps (see individual classes / README for more
@@ -168,74 +169,124 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, file_prefix: 
         pandas.query())
     :param snplist: A DXFile containing a list of varIDs to use as a custom mask
     :param genelist: A DXFile containing a list of gene symbols to collapse into a custom mask
-    :param file_prefix: A name to append to beginning of output files.
+    :param output_prefix: A name to append to beginning of output files.
     :param bgen_index: A DXFile containing information of bgen files to collapse on
+    :param testing_script: Script compatible with pytest. If not null, invoke the runassociationtesting testing suite
+        via :func:`test`.
+    :param testing_directory: Directory containing test files if in testing mode.
     :return: A Dictionary with keys of output strings and values of DXIndex
     """
 
-    # Set up our logfile for recording information on
-    LOG_FILE = CollapseLOGGER(file_prefix)
+    if testing_script is not None:
+        LOGGER.info('Testing mode activated...')
+        if testing_directory is None:
+            raise ValueError(f'Testing mode invoked but -itesting_directory not provided!')
+        output_tarball, linked_log_file = test(output_prefix, testing_script, testing_directory)
+        output = {'output_tarball': dxpy.dxlink(generate_linked_dx_file(output_tarball)),
+                  'log_file': dxpy.dxlink(linked_log_file)}
 
-    # This loads all data
-    ingested_data = IngestData(filtering_expression, bgen_index, snplist, genelist)
+    else:
+        # Set up our logfile for recording information on
+        LOG_FILE = CollapseLOGGER(output_prefix)
 
-    # First generate a list of ALL variants genome-wide that we want to retain:
-    snp_list_generator = SNPListGenerator(ingested_data.bgen_index,
-                                          ingested_data.filtering_expression,
-                                          ingested_data.found_snps,
-                                          ingested_data.found_genes,
-                                          LOG_FILE)
+        # This loads all data
+        ingested_data = IngestData(filtering_expression, bgen_index, snplist, genelist)
 
-    # Now build a thread worker that contains as many threads
-    # instance takes a thread and 1 thread for monitoring
-    thread_utility = ThreadUtility()
+        # First generate a list of ALL variants genome-wide that we want to retain:
+        snp_list_generator = SNPListGenerator(ingested_data.bgen_index,
+                                              ingested_data.filtering_expression,
+                                              ingested_data.found_snps,
+                                              ingested_data.found_genes,
+                                              LOG_FILE)
 
-    # Now loop through each chromosome and do the actual filtering...
-    # ...launch the requested threads
-    for chromosome in snp_list_generator.chromosomes:
-        chrom_bgen_index = ingested_data.bgen_index[chromosome]
-        thread_utility.launch_job(filter_bgen,
-                                  file_prefix=file_prefix,
-                                  chromosome=chromosome,
-                                  chrom_bgen_index=chrom_bgen_index)
+        # Now build a thread worker that contains as many threads
+        # instance takes a thread and 1 thread for monitoring
+        thread_utility = ThreadUtility()
 
-    # And gather the resulting futures
-    sample_tables = []
-    chromosome_totals = dict()
+        # Now loop through each chromosome and do the actual filtering...
+        # ...launch the requested threads
+        for chromosome in snp_list_generator.chromosomes:
+            chrom_bgen_index = ingested_data.bgen_index[chromosome]
+            thread_utility.launch_job(filter_bgen,
+                                      file_prefix=output_prefix,
+                                      chromosome=chromosome,
+                                      chrom_bgen_index=chrom_bgen_index)
 
-    for result in thread_utility:
-        per_chromosome_total, chromosome, sample_table = result
-        sample_tables.append(sample_table)
-        chromosome_totals[chromosome] = per_chromosome_total
-    LOG_FILE.write_spacer()
+        # And gather the resulting futures
+        sample_tables = []
+        chromosome_totals = dict()
 
-    # And write stats about the collected futures
-    stat_writer(sample_tables, chromosome_totals, LOG_FILE, snp_list_generator.total_sites)
+        for result in thread_utility:
+            per_chromosome_total, chromosome, sample_table = result
+            sample_tables.append(sample_table)
+            chromosome_totals[chromosome] = per_chromosome_total
+        LOG_FILE.write_spacer()
 
-    # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
-    if ingested_data.found_snps or ingested_data.found_genes:  # run for gene list as well, add
-        LOGGER.info('Making merged SNP files for burden testing...')
-        SNPMerger(snp_list_generator.chromosomes, file_prefix, ingested_data.found_genes)
+        # And write stats about the collected futures
+        stat_writer(sample_tables, chromosome_totals, LOG_FILE, snp_list_generator.total_sites)
 
-    LOGGER.info('Closing LOG file...')
-    linked_log_file = LOG_FILE.close_writer()
+        # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
+        if ingested_data.found_snps or ingested_data.found_genes:  # run for gene list as well, add
+            LOGGER.info('Making merged SNP files for burden testing...')
+            SNPMerger(snp_list_generator.chromosomes, output_prefix, ingested_data.found_genes)
 
-    # Here we are taking all the files generated by the various functions above and adding them to a single tar
-    # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
-    LOGGER.info('Generating final tarball...')
-    output_tarball = Path(f'{file_prefix}.tar.gz')
-    tar = tarfile.open(output_tarball, 'w:gz')
-    for file in Path('./').glob(f'{file_prefix}.*'):
-        if '.tar.gz' not in file.name:  # Don't want to remove the tar itself... yet...
-            tar.add(file)
-            file.unlink()
-    tar.close()
+        LOGGER.info('Closing LOG file...')
+        linked_log_file = LOG_FILE.close_writer()
 
-    # Set output
-    output = {'output_tarball': dxpy.dxlink(generate_linked_dx_file(output_tarball)),
-              'log_file': dxpy.dxlink(linked_log_file)}
+        # Here we are taking all the files generated by the various functions above and adding them to a single tar
+        # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
+        LOGGER.info('Generating final tarball...')
+        output_tarball = Path(f'{output_prefix}.tar.gz')
+        tar = tarfile.open(output_tarball, 'w:gz')
+        for file in Path('./').glob(f'{output_prefix}.*'):
+            if '.tar.gz' not in file.name:  # Don't want to remove the tar itself... yet...
+                tar.add(file)
+                file.unlink()
+        tar.close()
+
+        # Set output
+        output = {'output_tarball': dxpy.dxlink(generate_linked_dx_file(output_tarball)),
+                  'log_file': dxpy.dxlink(linked_log_file)}
 
     return output
+
+
+def test(output_prefix: str, testing_script: dict, testing_directory: str) -> Tuple[Path, dict]:
+    """Run the collapsevariants testing suite.
+
+    This method is invisible to the applet and can only be accessed by using API calls via dxpy.DXApplet() on
+    a local machine. See the resources in the `./test/` folder for more information on running tests.
+
+    :param output_prefix: A prefix to name the output tarball returned by this method.
+    :param testing_script: The dxfile ID of the pytest-compatible script
+    :param testing_directory: The name of the folder containing test resources on the DNANexus platform
+    :return: Dict of containing the pytest log in a tar.gz to ensure compatibility with the main() method returns
+    """
+
+    LOGGER.info('Launching mrcepid-collapsevariants with the testing suite')
+    dxpy.download_dxfile(dxid=testing_script['$dnanexus_link'], filename='test.py')
+
+    # I then set an environment variable that tells pytest where the testing directory is
+    os.environ['TEST_DIR'] = testing_directory
+    os.environ['CI'] = '500'  # Make sure logs aren't truncated
+    LOGGER.info(f'TEST_DIR environment variable set: {os.getenv("TEST_DIR")}')
+
+    # pytest always throws an error when a test fails, which causes the entire suite to fall apart (and,
+    # problematically, not return the logfile...). So we catch a runtime error if thrown by run_cmd() and then return
+    # the log that (hopefully) should already exist. This will fall apart if there is an issue with run_cmd that is
+    # outside of running pytest.
+    out_log = Path(f'pytest.{output_prefix}.log')
+    try:
+        run_cmd('pytest test.py', is_docker=False, stdout_file=out_log)
+    except RuntimeError:
+        pass
+
+    output_tarball = Path(f'{output_prefix}.tar.gz')
+    tar = tarfile.open(output_tarball, "w:gz")
+    tar.add(out_log)
+    tar.close()
+
+    return output_tarball
 
 
 dxpy.run()
