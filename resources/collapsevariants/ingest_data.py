@@ -36,7 +36,7 @@ class IngestData:
     :param genelist: A DXFile containing a list of gene symbols to collapse into a custom mask
     """
 
-    def __init__(self, filtering_expression: str, bgen_index: dict, snplist: dict, genelist: dict):
+    def __init__(self, bgen_index: dict, filtering_expression: str, snplist: dict, genelist: dict):
 
         # Instantiate the MRC logger
         self._logger = MRCLogger(__name__).get_logger()

@@ -48,7 +48,7 @@ class CollapseLOGGER:
 
         :param text: The header text to write
         """
-        write_string = f'{text:{self._spacer}^{self._header_width}}\n'
+        write_string = f'{text:{self._spacer}^{self._header_width}.{self._header_width}}\n'
         self._write(write_string)
 
     def write_int(self, text: str, number: int, is_vep: bool = False) -> None:
@@ -59,7 +59,8 @@ class CollapseLOGGER:
         :param is_vep: Do we need an extra bit of space to print long vep strings?
         """
 
-        write_string = f'{text:{self._vep_width if is_vep else self._line_width}}: {number}\n'
+        line_width = self._vep_width if is_vep else self._line_width
+        write_string = f'{text:{line_width}.{line_width}}: {number}\n'
         self._write(write_string)
 
     def write_float(self, text: str, number: float) -> None:
@@ -69,7 +70,7 @@ class CollapseLOGGER:
         :param number: The value to write, formatted to three decimal places (`0.3f`)
         """
 
-        write_string = f'{text:{self._line_width}}: {number:0.3f}\n'
+        write_string = f'{text:{self._line_width}.{self._line_width}}: {number:0.3f}\n'
         self._write(write_string)
 
     def write_scientific(self, text: str, number: float) -> None:
@@ -79,7 +80,7 @@ class CollapseLOGGER:
         :param number: The value to write, formatted to three decimal places in scientific notation (`0.3e`)
         """
 
-        write_string = f'{text:{self._line_width}}: {number:0.3e}\n'
+        write_string = f'{text:{self._line_width}.{self._line_width}}: {number:0.3e}\n'
         self._write(write_string)
 
     def write_histogram(self, bin: int, count: int) -> None:
@@ -99,7 +100,7 @@ class CollapseLOGGER:
         :param value: The string to write
         """
 
-        write_string = f'{text:{self._line_width}}: {value}\n'
+        write_string = f'{text:{self._line_width}.{self._line_width}}: {value}\n'
         self._write(write_string)
 
     def write_generic(self, text: str) -> None:
@@ -124,3 +125,4 @@ class CollapseLOGGER:
         """
 
         self._LOG_FILE.write(write_string)
+        self._LOG_FILE.flush()
