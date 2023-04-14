@@ -11,6 +11,7 @@ import dxpy
 import tarfile
 import pandas as pd
 
+from dxpy import DXFile
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -121,10 +122,7 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
         ingested_data = IngestData(bgen_index, filtering_expression, snplist, genelist)
 
         # First generate a list of ALL variants genome-wide that we want to retain:
-        snp_list_generator = SNPListGenerator(ingested_data.bgen_index,
-                                              ingested_data.filtering_expression,
-                                              ingested_data.found_snps,
-                                              ingested_data.found_genes,
+        snp_list_generator = SNPListGenerator(ingested_data,
                                               LOG_FILE)
 
         # Now build a thread worker that contains as many threads
@@ -153,8 +151,9 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
         # And write stats about the collected futures
         stat_writer(sample_tables, chromosome_totals, LOG_FILE, snp_list_generator.total_sites)
 
-        # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single per-snp files:
-        if ingested_data.found_snps or ingested_data.found_genes:  # run for gene list as well, add
+        # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single
+        # per-snp/gene files:
+        if ingested_data.found_snps or ingested_data.found_genes:
             LOGGER.info('Making merged SNP files for burden testing...')
             SNPMerger(snp_list_generator.chromosomes, output_prefix, ingested_data.found_genes)
 
@@ -179,7 +178,7 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     return output
 
 
-def test(output_prefix: str, bgen_index: dict, testing_script: dict, testing_directory: str) -> Tuple[Path, dict]:
+def test(output_prefix: str, bgen_index: dict, testing_script: dict, testing_directory: str) -> Tuple[Path, DXFile]:
     """Run the collapsevariants testing suite.
 
     This method is invisible to the applet and can only be accessed by using API calls via dxpy.DXApplet() on
@@ -217,7 +216,12 @@ def test(output_prefix: str, bgen_index: dict, testing_script: dict, testing_dir
     tar.add(out_log)
     tar.close()
 
-    return output_tarball
+    # Write a fake logger as it is a required output
+    fake_logger = CollapseLOGGER('fake_logger')
+    fake_logger.write_header('FAKE')
+    fake_logger_file = fake_logger.close_writer()
+
+    return output_tarball, fake_logger_file
 
 
 dxpy.run()

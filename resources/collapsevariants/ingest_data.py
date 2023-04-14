@@ -48,6 +48,9 @@ class IngestData:
         self.found_snps = self._define_snplist(snplist)
         self.found_genes = self._define_genelist(genelist)
 
+        # And do final checks to ensure compatibility of inputs with downstream processing
+        self._check_filtering_expression()
+
     # Grab our docker image
     def _ingest_docker(self):
         """Download the standard mrcepid docker instance to this instance
@@ -76,7 +79,7 @@ class IngestData:
         bgen_index = download_dxfile_by_name(bgen_index)
 
         # and load it into a dict:
-        Path('filtered_bgen/').mkdir()  # For downloading later...
+        Path('filtered_bgen/').mkdir(exist_ok=True)  # For downloading later...
         with bgen_index.open('r') as bgen_reader:
             bgen_index_csv = csv.DictReader(bgen_reader, delimiter='\t')
 

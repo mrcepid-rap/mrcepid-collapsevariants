@@ -119,6 +119,5 @@ def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str) -> int:
             line = line.rstrip()
             if '#' not in line and 'alternate_ids' not in line:
                 total_vars += 1
-        snp_file.close()
 
     return total_vars

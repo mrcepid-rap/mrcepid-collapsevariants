@@ -5,7 +5,7 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Dict
 
-from ingest_data import BGENIndex
+from ingest_data import IngestData
 from collapse_logger import CollapseLOGGER
 from general_utilities.mrc_logger import MRCLogger
 
@@ -32,14 +32,14 @@ class SNPListGenerator:
     :param LOG_FILE: A class of CollapseLOGGER to store information on variant filtering
     """
 
-    def __init__(self, bgen_index: Dict[str, BGENIndex], filtering_expression: str, found_snps: bool, found_genes: bool,
-                 LOG_FILE: CollapseLOGGER):
+    def __init__(self, ingested_data: IngestData, LOG_FILE: CollapseLOGGER):
+
+        self.bgen_index = ingested_data.bgen_index
+        self.filtering_expression = ingested_data.filtering_expression
+        self.found_snps = ingested_data.found_snps
+        self.found_genes = ingested_data.found_genes
 
         self._logger = MRCLogger(__name__).get_logger()
-        self.bgen_index = bgen_index
-        self.filtering_expression = filtering_expression
-        self.found_snps = found_snps
-        self.found_genes = found_genes
         self.LOG_FILE = LOG_FILE
 
         self.variant_index = self._query_variant_index()
@@ -72,9 +72,9 @@ class SNPListGenerator:
     def _query_variant_index(self) -> pd.DataFrame:
         """Query self.variant_index based on the logic outlined in the __init__ method for this class
 
-        <<INPUT>>
+        As described in the __init__ for the class, there are three possibilities, each with an if/ifelse, and in this
+        logical order:
 
-        As described for the class, there are three possibilities, each with an if/ifelse, and in this logical order:
         1. Filtering Expression + Gene List = Select specific genes to collapse on
         2. Filtering Expression = Any variant which qualifies under the given filtering expression
         3. SNPList = Select specific SNPs to collapse on
@@ -82,9 +82,10 @@ class SNPListGenerator:
         :return: A pandas.DataFrame containing variants filtered based on provided input parameters
         """
 
-        # First load
+        # First load information for all variants into a pandas DataFrame
         variant_index = self._load_variant_index()
 
+        # Then query
         # 1. Filtering expression + Gene List
         if self.filtering_expression is not None and self.found_genes:
             variant_index = self._query_gene_list(variant_index)
