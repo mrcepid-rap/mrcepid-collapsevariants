@@ -16,7 +16,7 @@ https://documentation.dnanexus.com/.
   * [1. Filtering Variants](#1-filtering-variants)
     + [i. Filtering With Pandas Query Expressions](#i-filtering-with-pandas-query-expressions)
     + [ii. Filtering with Variant IDs](#ii-filtering-with-variant-ids)
-    + [iii. Filtering with HGNC gene symbols + query expression](#iii-filtering-with-hgnc-gene-symbols---query-expression)
+    + [iii. Filtering with HGNC gene symbols + query expression](#iii-filtering-with-hgnc-gene-symbols--query-expression)
   * [2. Generating Outputs](#2-generating-outputs)
 - [Running on DNANexus](#running-on-dnanexus)
   * [Inputs](#inputs)
