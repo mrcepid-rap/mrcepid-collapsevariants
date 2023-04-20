@@ -49,6 +49,7 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 * v1.2.0
   * Updated the codebase to implement general_utilities
   * Modernised the code-base to be more in line with runassociationtesting's style
+  * Implemented tests using the [mrcepid-testing](https://github.com/mrcepid-rap/mrcepid-testing) suite
 
 * v1.1.0
   * Did a major refactor of the codebase to implement object-oriented style for code maintainability.

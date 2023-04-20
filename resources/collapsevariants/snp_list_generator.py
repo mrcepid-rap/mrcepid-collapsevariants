@@ -34,10 +34,10 @@ class SNPListGenerator:
 
     def __init__(self, ingested_data: IngestData, LOG_FILE: CollapseLOGGER):
 
-        self.bgen_index = ingested_data.bgen_index
-        self.filtering_expression = ingested_data.filtering_expression
-        self.found_snps = ingested_data.found_snps
-        self.found_genes = ingested_data.found_genes
+        self._bgen_index = ingested_data.bgen_index
+        self._filtering_expression = ingested_data.filtering_expression
+        self._found_snps = ingested_data.found_snps
+        self._found_genes = ingested_data.found_genes
 
         self._logger = MRCLogger(__name__).get_logger()
         self.LOG_FILE = LOG_FILE
@@ -58,7 +58,7 @@ class SNPListGenerator:
         variant_index = []
         # Open all chromosome indicies and load them into a list
         # Specify dtype for SIFT/POLYPHEN as pandas returns warnings when loading these due to weird formating
-        for chromosome in self.bgen_index.keys():
+        for chromosome in self._bgen_index.keys():
             variant_index.append(
                 pd.read_csv(f'filtered_bgen/chr{chromosome}.filtered.vep.tsv.gz', sep='\t',
                             dtype={'SIFT': str, 'POLYPHEN': str}))
@@ -87,15 +87,15 @@ class SNPListGenerator:
 
         # Then query
         # 1. Filtering expression + Gene List
-        if self.filtering_expression is not None and self.found_genes:
+        if self._filtering_expression is not None and self._found_genes:
             variant_index = self._query_gene_list(variant_index)
 
         # 2. Filtering expression
-        elif self.filtering_expression is not None:
+        elif self._filtering_expression is not None:
             variant_index = self._query_filtering_expression(variant_index)
 
         # 3. SNP List
-        elif self.found_snps:
+        elif self._found_snps:
             variant_index = self._query_snp_list(variant_index)
 
         return variant_index
@@ -117,7 +117,7 @@ class SNPListGenerator:
         found_genes_symbol_present = list(set.intersection(set(genelist), set(all_genelist)))
 
         # Now further filter down to the filtering_expression we are interested in
-        variant_index = variant_index.query(self.filtering_expression)
+        variant_index = variant_index.query(self._filtering_expression)
 
         # Set all gene ENSTs to ENST99999999999
         # This is a dummy value so that association_testing knows we are running a gene list
@@ -151,7 +151,7 @@ class SNPListGenerator:
             provided filtering_expression
         """
 
-        variant_index = variant_index.query(self.filtering_expression)
+        variant_index = variant_index.query(self._filtering_expression)
         return variant_index
 
     def _query_snp_list(self, variant_index: pd.DataFrame) -> pd.DataFrame:

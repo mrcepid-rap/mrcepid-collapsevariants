@@ -195,11 +195,11 @@ def test(output_prefix: str, bgen_index: dict, testing_script: dict, testing_dir
     dxpy.download_dxfile(dxid=testing_script['$dnanexus_link'], filename='test.py')
 
     # I then set an environment variable that tells pytest where the testing directory is
+    os.environ['CI'] = '500'  # Make sure pytest logs aren't truncated
     os.environ['TEST_DIR'] = testing_directory
     LOGGER.info(f'TEST_DIR environment variable set: {os.getenv("TEST_DIR")}')
-    os.environ['CI'] = '500'  # Make sure logs aren't truncated
     os.environ['BGEN_INDEX'] = bgen_index['$dnanexus_link']
-    LOGGER.info(f'TEST_DIR environment variable set: {os.getenv("BGEN_INDEX")}')
+    LOGGER.info(f'BGEN_INDEX environment variable set: {os.getenv("BGEN_INDEX")}')
 
     # pytest always throws an error when a test fails, which causes the entire suite to fall apart (and,
     # problematically, not return the logfile...). So we catch a runtime error if thrown by run_cmd() and then return

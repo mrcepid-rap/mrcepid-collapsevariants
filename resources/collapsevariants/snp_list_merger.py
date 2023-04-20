@@ -86,6 +86,7 @@ class SNPMerger:
         STAARParser(self._file_prefix, self._tar_type).parse_filters_STAAR()
 
         # Delete old files to avoid confusion:
+        Path(f'{self._file_prefix}.{self._tar_type}.parsed.txt').unlink()
         for chrom in self._valid_chromosomes:
             Path(f'{self._file_prefix}.{chrom}.SAIGE.bcf').unlink()
             Path(f'{self._file_prefix}.{chrom}.SAIGE.bcf.csi').unlink()
