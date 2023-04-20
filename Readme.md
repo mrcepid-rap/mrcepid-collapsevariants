@@ -16,7 +16,7 @@ https://documentation.dnanexus.com/.
   * [1. Filtering Variants](#1-filtering-variants)
     + [i. Filtering With Pandas Query Expressions](#i-filtering-with-pandas-query-expressions)
     + [ii. Filtering with Variant IDs](#ii-filtering-with-variant-ids)
-    + [iii. Filtering with HGNC gene symbols + query expression](#iii-filtering-with-hgnc-gene-symbols---query-expression)
+    + [iii. Filtering with HGNC gene symbols + query expression](#iii-filtering-with-hgnc-gene-symbols--query-expression)
   * [2. Generating Outputs](#2-generating-outputs)
 - [Running on DNANexus](#running-on-dnanexus)
   * [Inputs](#inputs)
@@ -46,9 +46,27 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 
 ### Changelog
 
+* v1.2.0
+  * The vast majority of changes in this release are invisible to the day-to-day user but should greatly improve maintainability of the code
+  * Deleted the collapse_resources library and instead implemented general_utilities
+    * Docker commands are now run in a consistent way to other applets in this project
+  * Modernised the codebase to be more in line with the mrcepid project code style
+    * Cleaned up package imports
+    * Added python docstrings to all methods
+    * Implemented the MRCLOGGER to print information in a more synergistic way with the DNANexus platform rather than using `print()` commands
+  * Implemented tests using the [mrcepid-testing](https://github.com/mrcepid-rap/mrcepid-testing) suite
+    * Please see the developer README (Readme.developer.md) for more details
+    * This adds two new command-line options: `testing_script` and `testing_directory`. **DO NOT** use these options unless you know what you are doing!
+  * Added a `write_string()` method to CollapseLOGGER
+  * Ensured that items written to log_file output would be truncated rather than print very long strings
+  * Refactored the `filter_bgen()` method into filtering.py to enable easier testing
+  * Filter expressions / gene lists / and SNP lists are now actually checked for proper input combinations
+  * Created a new method that performs final logging capabilities
+  * Modified code to be more in-line with `pandas` v2.0 to allow eventual version change
+ 
 * v1.1.0
   * Did a major refactor of the codebase to implement object-oriented style for code maintainability.
-  * Code is functionally identical to the user
+  * Code is functionally identical from the user's perspective
 
 * v1.0.0
   * Initial numbered release. Changes going forward will be tracked in this section of the documentation
@@ -73,7 +91,7 @@ please see the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mr
 This applet uses [Docker](https://www.docker.com/) to supply dependencies to the underlying AWS instance
 launched by DNANexus. The Dockerfile used to build dependencies is available as part of the MRCEpid organisation at:
 
-https://github.com/mrcepid-rap/dockerimages/blob/main/filterbcf.Dockerfile
+https://github.com/mrcepid-rap/dockerimages/blob/main/burdentesting.Dockerfile
 
 This Docker image is built off of the primary 20.04 Ubuntu distribution available via [dockerhub](https://hub.docker.com/layers/ubuntu/library/ubuntu/20.04/images/sha256-644e9b64bee38964c4d39b8f9f241b894c00d71a932b5a20e1e8ee8e06ca0fbd?context=explore).
 This image is very light-weight and only provides basic OS installation. Other basic software (e.g. wget, make, and gcc) need
@@ -162,11 +180,11 @@ using the pseudo-code:
 import pandas as pd
 import gzip
 
-variant_index = pd.read_csv(gzip.open('450k_vep.sorted.tsv.gz', 'rt'), sep = "\t")
+variant_index = pd.read_csv(gzip.open('470k_vep.sorted.tsv.gz', 'rt'), sep = "\t")
 variant_index = variant_index.query('FILTER=="PASS" & AF<=0.001 & LOFTEE=="HC" & PARSED_CSQ=="PTV" & CADD>25 & gnomAD_AF < 0.001')
 ```
 
-The file `variants.filtered.bcf` is used for the next step.
+The table `variant_index` is used for the next step.
 
 #### ii. Filtering with Variant IDs
 
@@ -195,7 +213,9 @@ to recognise that we are running collapsed SNPs rather than per-GENE tests.
 
 #### iii. Filtering with HGNC gene symbols + query expression
 
-Another option is to provide a list HGNC gene symbols **combined** with a pandas query expression to create a custom mask. The relevant parameter to specify the gene list is `genelist`. As with the SNP list input we create a single 'GENE' which here has the ID ENST99999999999. Many considerations for the SNP list input also apply to gene list input (e.g. maximum number of underlying variants etc.).
+Another option is to provide a list HGNC gene symbols **combined** with a pandas query expression to create a custom mask. 
+The relevant parameter to specify the gene list is `genelist`. As with the SNP list input we create a single 'GENE' which here has the ID ENST99999999999. 
+Many considerations for the SNP list input also apply to gene list input (e.g. maximum number of underlying variants etc.).
 Gene IDs are checked against the HGNC gene symbols reported in the VEP annotation files, example input would look like this:
 
 ```text
@@ -203,16 +223,24 @@ ATM
 ATR 
 BRCA1 
 ```
-The rules for the generation of the pandas query expression that is passed with the `filtering_expression` parameter are the same as outlined in i. If a gene list is provided without a filtering expression, the applet/app will throw an error. Very briefly, this is because testing for any variants in a gene would include many common variants and would not answer a biologically meaningful question.
+The rules for the generation of the pandas query expression that is passed with the `filtering_expression` parameter are 
+the same as outlined in i. If a gene list is provided without a filtering expression, the applet/app will throw an error.
+Very briefly, this is because testing for any variants in a gene would include many common variants and would not answer
+a biologically meaningful question.
 
-Another note of caution is that you generate a list of gene symbols via excel or a similar tool and then save it as txt/csv it is reasonable to check the resulting file for special characters e.g. with `cat -A` or `less` in the Unix command-line, as these are not automatically removed by the underlying Python scripts.
+Another note of caution is that you generate a list of gene symbols via excel or a similar tool and then save it as 
+txt/csv it is reasonable to check the resulting file for special characters e.g. with `cat -A` or `less` in the Unix 
+command-line, as these are not automatically removed by the underlying Python scripts.
 
-The applet will also provide information on which gene symbols were not found in the VEP files and flag cases where no variants remained after the application of the filtering expression.
+The applet will also provide information on which gene symbols were not found in the VEP files and flag cases where 
+no variants remained after the application of the filtering expression.
 
-The output from the gene list input will be very similar to the files generated when using a SNP list. The key difference is that prefix 'SNP' will be replaced by 'GENE'. This is to allow [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting)
+The output from the gene list input will be very similar to the files generated when using a SNP list. The key 
+difference is that prefix 'SNP' will be replaced by 'GENE'. This is to allow [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting)
 to recognise that we are running a collapse gene list ather than per-GENE tests.
 
-**Big Note** – As with a SNP list mask generated with a gene list combined with a filtering expression are currently only compatible with the phewas and extract modes of 
+**Big Note** – As with a SNP list mask generated with a gene list combined with a filtering expression are currently 
+only compatible with the phewas and extract modes of 
 [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
 
 ### 2. Generating Outputs
@@ -228,13 +256,15 @@ https://github.com/mrcepid-rap/mrcepid-runassociationtesting
 
 ### Inputs
 
-| input                  | description                                                                                                               |
-|------------------------|---------------------------------------------------------------------------------------------------------------------------|
-| filtering_expression   | [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) compatible filtering expression. |
-| snplist                | A file containing a list of SNPids to generate a mask.                                                                    |
-| genelist               | A file containing a list of HGNC gene symbols to generate a mask.                                                         |
-| file_prefix            | descriptive file prefix for output name                                                                                   |
-| bgen_index             | index of bgen information and corresponding annotations.                                                                  |
+| input                | description                                                                                                                                                                                                        |
+|----------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| filtering_expression | [pandas query](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html) compatible filtering expression.                                                                                          |
+| snplist              | A file containing a list of SNPids to generate a mask.                                                                                                                                                             |
+| genelist             | A file containing a list of HGNC gene symbols to generate a mask.                                                                                                                                                  |
+| file_prefix          | descriptive file prefix for output name                                                                                                                                                                            |
+| bgen_index           | index of bgen information and corresponding annotations.                                                                                                                                                           |
+| testing_script       | Invoke the test suite by providing a script compatible with the 'pytest' module. DO NOT use this flag unless you know what you are doing! See the developer readme (`Readme.developer.md`) for more information.   |
+| testing_directory    | Testing directory containing test files for the runassociationtesting test suite. DO NOT use this flag unless you know what you are doing! See the developer readme (`Readme.developer.md`) for more information.  | 
 
 **BIG NOTE**: The name given to 'file_prefix' will be used by the next step in this analysis pipeline as a column in the 
 final tab-delimited output files provided for each tool. These columns are derived by splitting `file_prefix` on "-". For 
@@ -253,7 +283,7 @@ The BGEN index must follow a strict format and is a required option:
 
 ```
 chrom   vep_dxid   bgen_dxid    bgen_index_dxid   sample_dxid
-chr1    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
+1    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
 ```
 
 A more detailed description of what this file looks like and how to make it is included in the following repository:
@@ -265,7 +295,7 @@ https://github.com/mrcepid-rap/QC_workflow
 | output                   | description                                                     |
 |--------------------------|-----------------------------------------------------------------|
 | output_tarball           | Output tarball containing filtered and processed variant counts |
-| log_file                 | Output logfile containing statistics for each                   |
+| log_file                 | Output logfile containing summary statistics                    |
 
 The output_tarball and logfile are named based on the value of `file_prefix` like:
 
@@ -305,8 +335,7 @@ https://github.com/mrcepid-rap
 
 2. As an **app** – use the app that has been provided in the DNANexus global namespace. This will ensure you are always using
 the latest version and keeps you from having to manually update your local version. To be able to access this app, you
-will need to be an authorised member of `org-mrc_epid_group_1_2`. Please contact Eugene Gardner if you would like to
-be added!
+will need to be an authorised member of `org-mrc_epid_group_1_2`.
 
 **Note:** All commands below have been provided as if using option (2) above!
 

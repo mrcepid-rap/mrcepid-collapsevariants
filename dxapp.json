@@ -3,7 +3,7 @@
   "title": "CollapseVariants",
   "summary": "Generates dummy input files for various association testing software",
   "dxapi": "1.0.0",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "inputSpec": [
     {
       "name": "filtering_expression",
@@ -36,7 +36,7 @@
       "help": "list of gene symbols to use as a custom mask. MUST be one gene symbol per line. Please note that a filtering expression needs to be provided"
     },
     {
-      "name": "file_prefix",
+      "name": "output_prefix",
       "label": "name to append to beginning of output files.",
       "class": "string",
       "optional": false,
@@ -48,6 +48,22 @@
       "class": "file",
       "optional": false,
       "help": "list of bgen files and associated index/annotation"
+    },
+    {
+      "name": "testing_script",
+      "label": "Invoke the collapsevariants test suite by providing a script compatible with the 'pytest' module.",
+      "class": "file",
+      "optional": true,
+      "default": null,
+      "help": "Invoke the collapsevariants test suite by providing a script compatible with the 'pytest' module. DO NOT use this flag unless you know what you are doing!"
+    },
+    {
+      "name": "testing_directory",
+      "label": "Directory name containing test files.",
+      "class": "string",
+      "optional": true,
+      "default": null,
+      "help": "Directory name containing test files. DO NOT use this flag unless you know what you are doing!"
     }
   ],
   "outputSpec": [
@@ -90,10 +106,12 @@
     "release": "20.04",
     "version": "0",
     "execDepends": [
-      {"name": "pandas",
-        "package_manager": "pip"},
-      {"name": "numpy",
-        "package_manager": "pip"}
+      {
+        "name": "general_utilities",
+        "package_manager": "git",
+        "url":  "https://github.com/mrcepid-rap/general_utilities.git",
+        "build_commands": "pip3 install ."
+      }
     ]
   },
   "regionalOptions": {
