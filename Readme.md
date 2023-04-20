@@ -47,13 +47,25 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 ### Changelog
 
 * v1.2.0
-  * Updated the codebase to implement general_utilities
-  * Modernised the code-base to be more in line with runassociationtesting's style
+  * The vast majority of changes in this release are invisible to the day-to-day user but should greatly improve maintainability of the code
+  * Deleted the collapse_resources library and instead implemented general_utilities
+    * Docker commands are now run in a consistent way to other applets in this project
+  * Modernised the codebase to be more in line with the mrcepid project code style
+    * Cleaned up package imports
+    * Added python docstrings to all methods
+    * Implemented the MRCLOGGER to print information in a more synergistic way with the DNANexus platform rather than using `print()` commands
   * Implemented tests using the [mrcepid-testing](https://github.com/mrcepid-rap/mrcepid-testing) suite
-
+    * Please see the developer README (Readme.developer.md) for more details
+    * This adds two new command-line options: `testing_script` and `testing_directory`. **DO NOT** use these options unless you know what you are doing!
+  * Added a `write_string()` method to CollapseLOGGER
+  * Ensured that items written to log_file output would be truncated rather than print very long strings
+  * Refactored the `filter_bgen()` method into filtering.py to enable easier testing
+  * Filter expressions / gene lists / and SNP lists are now actually checked for proper input combinations
+  * Created a new method that performs final logging capabilities
+ 
 * v1.1.0
   * Did a major refactor of the codebase to implement object-oriented style for code maintainability.
-  * Code is functionally identical to the user
+  * Code is functionally identical from the user's perspective
 
 * v1.0.0
   * Initial numbered release. Changes going forward will be tracked in this section of the documentation
