@@ -62,6 +62,7 @@ dx describe file-1234567890ABCDEFGHIJKLMN
   * Refactored the `filter_bgen()` method into filtering.py to enable easier testing
   * Filter expressions / gene lists / and SNP lists are now actually checked for proper input combinations
   * Created a new method that performs final logging capabilities
+  * Modified code to be more in-line with `pandas` v2.0 to allow eventual version change
  
 * v1.1.0
   * Did a major refactor of the codebase to implement object-oriented style for code maintainability.
