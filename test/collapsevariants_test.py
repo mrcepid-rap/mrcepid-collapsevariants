@@ -300,7 +300,7 @@ def test_filtering(var_info: dict):
             total_genes += 1
             line = line.rstrip().split('\t')
             if line[0] == test_var:
-                    assert (len(line) - 1) == test_var_count
+                assert (len(line) - 1) == test_var_count
 
         assert total_genes == tot_gene_count
 
