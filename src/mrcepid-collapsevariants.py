@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 #
+# mrcepid-collapsevariants
+#
 # Author: Eugene Gardner (eugene.gardner at mrc.epid.cam.ac.uk)
 #
 # DNAnexus Python Bindings (dxpy) documentation:
@@ -188,7 +190,8 @@ def test(output_prefix: str, bgen_index: dict, testing_script: dict, testing_dir
     :param bgen_index: A DXFile containing information of bgen files to collapse on
     :param testing_script: The dxfile ID of the pytest-compatible script
     :param testing_directory: The name of the folder containing test resources on the DNANexus platform
-    :return: Dict of containing the pytest log in a tar.gz to ensure compatibility with the main() method returns
+    :return: Tuple containing of the pytest log in a tar.gz and a 'fake' log file to ensure compatibility with the
+        main() method returns
     """
 
     LOGGER.info('Launching mrcepid-collapsevariants with the testing suite')

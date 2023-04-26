@@ -2,10 +2,7 @@
 # Author: Eugene Gardner (eugene.gardner at mrc.epid.cam.ac.uk)
 #
 # Prior to using this script PLEASE follow the instructions in the developer readme (Readme.developer.md) carefully.
-# This Readme provides instructions on how to regenerate testing data necessary to run these tests. Before running,
-# there should be a single YAML-format file in the test_data that points to:
-# 1. The index-file for simulated WES data in your DNANexus project
-# 2. A transcripts.tsv.gz file
+# This Readme provides instructions on how to regenerate testing data necessary to run these tests.
 
 import os
 import sys
@@ -29,7 +26,7 @@ sys.path.append('/collapsevariants/')
 sys.path.append('/collapsevariants/tool_parsers/')
 
 # DO NOT move this. It MUST come after the above 'sys.path.append' code to make sure packages run properly
-from collapsevariants.ingest_data import IngestData, BGENIndex
+from collapsevariants.ingest_data import IngestData
 from collapsevariants.collapse_logger import CollapseLOGGER
 from collapsevariants.snp_list_generator import SNPListGenerator
 from collapsevariants.snp_list_merger import SNPMerger
