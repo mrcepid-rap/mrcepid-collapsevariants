@@ -79,7 +79,7 @@ class SNPMerger:
         # Trick the already made BOLT code above to build a new merged BOLT file:
         # This copy is slightly dodgy, as it assumes at least one chromosome has come through in the variable
         # 'chrom' from the loop above
-        Path(f'{self._file_prefix}.{chrom}.sample').rename(f'{self._file_prefix}.{self._tar_type}.sample')
+        Path(f'{self._file_prefix}.{chrom}.sample').replace(f'{self._file_prefix}.{self._tar_type}.sample')
         parse_filters_BOLT(self._file_prefix, self._tar_type, self._genes, snp_gene_map)
 
         # Trick the already made STAAR code above to build a new merged set of STAAR files
