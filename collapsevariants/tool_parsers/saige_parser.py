@@ -40,6 +40,7 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExec
     :param file_prefix: A name to append to beginning of output files.
     :param chromosome: The chromosome currently being processed. This must be the short form of the chromosome name
         (e.g., '1' not 'chr1').
+    :param cmd_exec: A CommandExecutor object to run commands on Docker
     :return: A tuple containing two dictionaries of ENSTs mapped to variants and variants mapped to ENSTs, respectively
     """
 

@@ -199,6 +199,6 @@ An example command-line to run tests is provided below:
 ./test_launch.py --script /path/to/mrcepid-collapsevariants/test/collapsevariants_test.py \ 
    --files /path/to/mrcepid-collapsevariants/test/test_data/ \
    --root_dir /path/to/mrcepid-collapsevariants/ \
-   --modules general_utilities
+   --modules general_utilities mrcepid-collapsevariants \
    --add_opts bgen_index:file-GQz5Z78J0zVXK6633vP3GV8K
 ```

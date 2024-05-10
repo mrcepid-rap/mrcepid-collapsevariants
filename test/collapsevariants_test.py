@@ -193,11 +193,13 @@ def test_filtering(var_info: dict):
         chrom_bgen_index = ingested_data.bgen_index[chromosome]
         per_chromosome_total, _, sample_table = filter_bgen(file_prefix=f'{variant_type}_{test_type}_test',
                                                             chromosome=chromosome,
-                                                            chrom_bgen_index=chrom_bgen_index)
+                                                            chrom_bgen_index=chrom_bgen_index,
+                                                            cmd_exec=CMD_EXEC)
         filtering_total += per_chromosome_total
 
     if snp_list or gene_list:
-        SNPMerger(snp_list_generator.chromosomes, f'{variant_type}_{test_type}_test', ingested_data.found_genes)
+        SNPMerger(snp_list_generator.chromosomes, f'{variant_type}_{test_type}_test',
+                  ingested_data.found_genes, cmd_exec=CMD_EXEC)
     # This is the end of actual processing. All tests follow
 
     # Test overall site count as determined by snp_list_generator
