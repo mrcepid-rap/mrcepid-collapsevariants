@@ -110,7 +110,14 @@
         "name": "general_utilities",
         "package_manager": "git",
         "url":  "https://github.com/mrcepid-rap/general_utilities.git",
-        "tag": "v1.2.2",
+        "tag": "main",
+        "build_commands": "pip3 install ."
+      },
+      {
+        "name": "mrcepid-collapsevariants",
+        "package_manager": "git",
+        "url":  "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
+        "tag": "feature/refactor",
         "build_commands": "pip3 install ."
       }
     ]

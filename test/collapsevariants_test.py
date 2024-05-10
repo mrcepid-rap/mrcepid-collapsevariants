@@ -2,16 +2,11 @@
 # Author: Eugene Gardner (eugene.gardner at mrc.epid.cam.ac.uk)
 #
 # Prior to using this script PLEASE follow the instructions in the developer readme (Readme.developer.md) carefully.
-# This Readme provides instructions on how to regenerate testing data necessary to run these tests. Before running,
-# there should be a single YAML-format file in the test_data that points to:
-# 1. The index-file for simulated WES data in your DNANexus project
-# 2. A transcripts.tsv.gz file
+# This Readme provides instructions on how to regenerate testing data necessary to run these tests.
 
 import os
-import sys
 import time
 import json
-
 import dxpy
 import pytest
 import filecmp
@@ -19,17 +14,9 @@ import pandas as pd
 
 from pathlib import Path
 
-from general_utilities.association_resources import run_cmd
+from general_utilities.job_management.command_executor import build_default_command_executor
 
-# DO NOT move the sys.path.append() calls below - they are required to be able to import the collapsevariants
-# classes that follow on the DNANexus platform for proper testing.
-# We have to do this to get modules to run properly on DNANexus while still enabling easy editing in PyCharm
-sys.path.append('/')
-sys.path.append('/collapsevariants/')
-sys.path.append('/collapsevariants/tool_parsers/')
-
-# DO NOT move this. It MUST come after the above 'sys.path.append' code to make sure packages run properly
-from collapsevariants.ingest_data import IngestData, BGENIndex
+from collapsevariants.ingest_data import IngestData
 from collapsevariants.collapse_logger import CollapseLOGGER
 from collapsevariants.snp_list_generator import SNPListGenerator
 from collapsevariants.snp_list_merger import SNPMerger
@@ -37,6 +24,7 @@ from collapsevariants.filtering import filter_bgen
 
 
 test_folder = Path(os.getenv('TEST_DIR'))
+CMD_EXEC = build_default_command_executor()
 
 
 def get_testing_files(file_name: str, download: bool = False) -> dict:
@@ -277,7 +265,7 @@ def test_filtering(var_info: dict):
     test_cmd = f'plink2 --bgen /test/{variant_type}_{test_type}_test.{chrom_suffix}.BOLT.bgen \'ref-last\' ' \
                f'--sample /test/{variant_type}_{test_type}_test.{chrom_suffix}.BOLT.sample ' \
                f'--extract /test/extract_gene.txt --export AD --out /test/{variant_type}_{test_type}_bolt'
-    run_cmd(test_cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting')
+    CMD_EXEC.run_cmd_on_docker(test_cmd)
     bolt_test = pd.read_csv(f'{variant_type}_{test_type}_bolt.raw', sep='\t')
     assert bolt_test[f'{test_gene}_HET'].sum() == gene_het_count  # Alt count correct
     assert bolt_test[f'{test_gene}_A'].sum() == (20000 - gene_het_count)  # Ref count correct
@@ -286,7 +274,7 @@ def test_filtering(var_info: dict):
     # SAIGE.bcf
     test_cmd = f'bcftools query -i \'ID == "{test_var}"\' -f \'[%CHROM\\t%POS\\t%REF\\t%ALT\\t%SAMPLE\\t%GT\\n]\' ' \
                f'/test/{variant_type}_{test_type}_test.{chrom_suffix}.SAIGE.bcf > {variant_type}_{test_type}_saige.tsv'
-    run_cmd(test_cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting')
+    CMD_EXEC.run_cmd_on_docker(test_cmd)
     saige_test = pd.read_csv(f'{variant_type}_{test_type}_saige.tsv', sep="\t",
                              names=['chrom', 'pos', 'ref', 'alt', 'FID', 'gt'])
     assert saige_test['gt'].value_counts()['0/1'] == var_het_count
@@ -300,7 +288,7 @@ def test_filtering(var_info: dict):
             total_genes += 1
             line = line.rstrip().split('\t')
             if line[0] == test_var:
-                    assert (len(line) - 1) == test_var_count
+                assert (len(line) - 1) == test_var_count
 
         assert total_genes == tot_gene_count
 

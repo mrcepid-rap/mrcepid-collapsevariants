@@ -1,5 +1,4 @@
 /.talismanrc
-/collapsevariants/
 /test/sim_data/*
 /test/test_data_old/
 /test/.pytest_cache/

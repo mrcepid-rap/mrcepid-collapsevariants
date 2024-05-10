@@ -1,8 +1,9 @@
 import csv
 from pathlib import Path
 from typing import Tuple, Dict
+from importlib_resources import files
 
-from general_utilities.association_resources import run_cmd
+from general_utilities.job_management.command_executor import CommandExecutor, DockerMount
 
 
 class STAARMergingException(Exception):
@@ -14,7 +15,7 @@ class STAARMergingException(Exception):
 
 class STAARParser:
 
-    def __init__(self, file_prefix: str, chromosome: str):
+    def __init__(self, file_prefix: str, chromosome: str, cmd_exec: CommandExecutor):
         """A class to process files for input into STAAR
 
         STAAR requires me to make a "matrix" with rows of sample IDs and Columns of individual variants: rows can be
@@ -27,10 +28,12 @@ class STAARParser:
         :param file_prefix: A name to append to beginning of output files.
         :param chromosome: The chromosome currently being processed. This must be the short form of the chromosome name
             (e.g., '1' not 'chr1').
+        :param cmd_exec: A CommandExecutor instance to run commands on the Docker container.
         """
 
         self._file_prefix = file_prefix
         self._chromosome = chromosome
+        self._cmd_exec = cmd_exec
 
     def parse_filters_STAAR(self) -> None:
         """Generate input format files that can be provided to STAAR
@@ -67,14 +70,18 @@ class STAARParser:
 
             # 1. A .rds file (named by the last argument) that can be read back into STAAR during
             # mrcepid-runassociationtesting
+            r_script = files('collapsevariants.tool_parsers.R_resources').joinpath('buildSTAARmatrix.R')
 
-            cmd = f'Rscript /prog/buildSTAARmatrix.R ' \
+            # This generates a text output file of p.values
+            # See the README.md for more information on these parameters
+            cmd = f'Rscript /scripts/{r_script.name} ' \
                   f'/test/{samples_dict_file} ' \
                   f'/test/{variants_dict_file} ' \
                   f'/test/{matrix_file} ' \
                   f'/test/{self._file_prefix}.{self._chromosome}.STAAR.matrix.rds'
-            run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest',
-                    docker_mounts=['/usr/bin/:/prog'])
+            staar_mount = DockerMount(local=Path(f'{r_script.parent}/'),
+                                      remote=Path('/scripts/'))
+            self._cmd_exec.run_cmd_on_docker(cmd, docker_mounts=[staar_mount])
 
             # Remove intermediate files so they aren't stored in the final tar:
             samples_dict_file.unlink()
@@ -152,7 +159,7 @@ class STAARParser:
 
         # Need to get the file length of this file...
         wc_file = Path(f'{self._file_prefix}.{self._chromosome}_wc.txt')
-        run_cmd(f'wc -l {self._file_prefix}.{self._chromosome}.parsed.txt', is_docker=False, stdout_file=wc_file)
+        self._cmd_exec.run_cmd(f'wc -l {self._file_prefix}.{self._chromosome}.parsed.txt', stdout_file=wc_file)
         with wc_file.open('r') as wc_reader:
             for line in wc_reader:
                 line = line.rstrip()

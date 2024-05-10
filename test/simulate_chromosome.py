@@ -10,16 +10,19 @@ from pathlib import Path
 from typing import Tuple
 from pysam import VariantFile
 
-from general_utilities.association_resources import run_cmd
-
 # simuPOP has to be imported this way to enable optionsetting
 import simuOpt
+
+from general_utilities.job_management.command_executor import CommandExecutor
+
 simuOpt.setOptions(numThreads=os.cpu_count())
 import simuPOP as sim
 
 # Set RNGs to ensure consistent results:
 random.seed(1234)
 sim.getRNG().set('mt19937', 1234)
+
+CMD_EXEC = CommandExecutor()
 
 
 def get_recomb_rate(position: int) -> Tuple[float, float]:
@@ -102,7 +105,7 @@ gm.reset_index(inplace=True)
 # Get rsID values (required by BOLT). bigBedToBed is already available within the Docker this script runs on:
 get_snps_cmd = f'bigBedToBed https://hgdownload.soe.ucsc.edu/gbdb/hg19/snp/dbSnp153Common.bb ' \
                f'-chrom=chr{chromosome} -header rsID.bed'
-run_cmd(get_snps_cmd, is_docker=False)
+CMD_EXEC.run_cmd(get_snps_cmd)
 dbSNP = pd.read_csv('rsID.bed', sep='\t')
 dbSNP = dbSNP[['#chrom', 'chromEnd', 'name']]  # Only chromEnd required since table is in 0-based bed format
 
@@ -211,7 +214,7 @@ plink_cmd = f'plink2 --import-dosage sim_chromosome_{chromosome}.traw skip0=1 sk
             f'--fam sim_chromosome_{chromosome}.fam ' \
             f'--make-bed ' \
             f'--out sim_chromosome_{chromosome}'
-run_cmd(plink_cmd, is_docker=False, print_cmd=True)
+CMD_EXEC.run_cmd(plink_cmd, print_cmd=True)
 
 # Delete files we don't want uploaded
 Path(f'sim_chromosome_{chromosome}.traw').unlink()

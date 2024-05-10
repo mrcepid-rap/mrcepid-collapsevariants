@@ -5,14 +5,14 @@ import numpy as np
 from pathlib import Path
 from typing import Tuple, List, Dict
 
-from general_utilities.association_resources import run_cmd
-from tool_parsers.saige_parser import GeneDict
+from collapsevariants.tool_parsers.saige_parser import GeneDict
+from general_utilities.job_management.command_executor import CommandExecutor
 
 
 # self.poss_indv, self.samples = self._parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map)
 # self.sample_table = self._check_vcf_stats(self.poss_indv, self.samples)
 def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneDict],
-                       snp_gene_map: dict) -> Tuple[List[str], Dict[str, Dict[str, int]]]:
+                       snp_gene_map: dict, cmd_exec: CommandExecutor) -> Tuple[List[str], Dict[str, Dict[str, int]]]:
     """Generate input format files that can be provided to BOLT
 
     BOLT only runs on individual variants and has no built-in functionality to perform burden testing. Thus, to run BOLT
@@ -41,7 +41,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     cmd = f'bcftools query -i \'GT="alt"\' -f \'[%SAMPLE\\t%ID\\t%GT\\n]\' ' \
           f'-o /test/{file_prefix}.{chromosome}.parsed.txt ' \
           f'/test/{file_prefix}.{chromosome}.SAIGE.bcf'
-    run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+    cmd_exec.run_cmd_on_docker(cmd)
     # This is just a list-format of the above file's header so we can read it in below with index-able columns
     header = ['sample', 'varID', 'genotype']
 
@@ -118,12 +118,13 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     cmd = f'plink --threads 1 --memory 9000 --make-bed ' \
           f'--file /test/{file_prefix}.{chromosome}.BOLT ' \
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
-    run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+    cmd_exec.run_cmd_on_docker(cmd)
 
     # And then use plink2 to make a bgen file
-    cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 --bfile /test/{file_prefix}.{chromosome}.BOLT' \
-          f' --out /test/{file_prefix}.{chromosome}.BOLT'
-    run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+    cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
+          f'--bfile /test/{file_prefix}.{chromosome}.BOLT ' \
+          f'--out /test/{file_prefix}.{chromosome}.BOLT'
+    cmd_exec.run_cmd_on_docker(cmd)
 
     # Purge unecessary intermediate files to save space on the AWS instance:
     Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()

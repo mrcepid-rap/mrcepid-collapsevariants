@@ -1,11 +1,10 @@
 from pathlib import Path
 from typing import List, Dict
 
-from general_utilities.association_resources import run_cmd
-
-from tool_parsers.bolt_parser import parse_filters_BOLT
-from tool_parsers.saige_parser import GeneDict
-from tool_parsers.staar_parser import STAARParser
+from collapsevariants.tool_parsers.bolt_parser import parse_filters_BOLT
+from collapsevariants.tool_parsers.saige_parser import GeneDict
+from collapsevariants.tool_parsers.staar_parser import STAARParser
+from general_utilities.job_management.command_executor import CommandExecutor
 
 
 class SNPMerger:
@@ -14,13 +13,15 @@ class SNPMerger:
     :param valid_chromosomes: A list containing chromosomes we actually found data for
     :param file_prefix: A name to append to beginning of output files.
     :param found_genes: Did we find a GeneList to process?
+    :param cmd_exec: A CommandExecutor object to run commands on Docker
     """
 
-    def __init__(self, valid_chromosomes: List[str], file_prefix: str, found_genes: bool):
+    def __init__(self, valid_chromosomes: List[str], file_prefix: str, found_genes: bool, cmd_exec: CommandExecutor):
 
         self._valid_chromosomes = valid_chromosomes
         self._file_prefix = file_prefix
         self._found_genes = found_genes
+        self._cmd_exec = cmd_exec
 
         # file prefix to distinguish output from gene list or snp list and prepping for downstream processing
         # self._genes is full of infomation to fake out the BOLT methods to write a single file
@@ -60,17 +61,17 @@ class SNPMerger:
                             snp_gene_map[bolt_format_id] = 'ENST99999999999'
 
         # Combine with bcftools concat
-        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+        self._cmd_exec.run_cmd_on_docker(cmd)
 
         # Make sure sorted properly...
         cmd = f'bcftools sort -Ob -o /test/{self._file_prefix}.{self._tar_type}.SAIGE.bcf ' \
               f'/test/{self._file_prefix}.{self._tar_type}.SAIGE.pre.bcf'
-        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+        self._cmd_exec.run_cmd_on_docker(cmd)
         Path(f'{self._file_prefix}.{self._tar_type}.SAIGE.pre.bcf').unlink()  # Delete old file
 
         # And index:
         cmd = f'bcftools index /test/{self._file_prefix}.{self._tar_type}.SAIGE.bcf'
-        run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+        self._cmd_exec.run_cmd_on_docker(cmd)
 
         # Write new groupFile:
         with Path(f'{self._file_prefix}.{self._tar_type}.SAIGE.groupFile.txt').open('w') as snp_groupfile:
@@ -79,7 +80,7 @@ class SNPMerger:
         # Trick the already made BOLT code above to build a new merged BOLT file:
         # This copy is slightly dodgy, as it assumes at least one chromosome has come through in the variable
         # 'chrom' from the loop above
-        Path(f'{self._file_prefix}.{chrom}.sample').rename(f'{self._file_prefix}.{self._tar_type}.sample')
+        Path(f'{self._file_prefix}.{chrom}.sample').replace(f'{self._file_prefix}.{self._tar_type}.sample')
         parse_filters_BOLT(self._file_prefix, self._tar_type, self._genes, snp_gene_map)
 
         # Trick the already made STAAR code above to build a new merged set of STAAR files
