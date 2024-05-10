@@ -7,7 +7,7 @@ name = "collapsevariants"
 version = "1.2.0"
 description = ""
 authors = [ "Eugene Gardner <eugene.gardner@mrc-epid.cam.ac.uk>",]
-readme = "README.md"
+readme = "Readme.md"
 repository = "https://github.com/mrcepid-rap/mrcepid-collapsevariants"
 licence = "MIT"
 
