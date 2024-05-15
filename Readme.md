@@ -86,6 +86,10 @@ please see the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mr
 
 ### Dependencies
 
+Due to how the DNANexus platform works, this applet is dependent on itself. In short, this means that at launch,
+the applet will automatically download the latest version of itself from github and and install it as a dependency via
+poetry. This allows the module subpackages (in `collapsevariants`) to be imported by the main class.
+
 #### Docker
 
 This applet uses [Docker](https://www.docker.com/) to supply dependencies to the underlying AWS instance

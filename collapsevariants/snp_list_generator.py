@@ -3,10 +3,10 @@ import dxpy
 import pandas as pd
 
 from pathlib import Path
-from typing import List, Dict
+from typing import List
 
-from ingest_data import IngestData
-from collapse_logger import CollapseLOGGER
+from collapsevariants.ingest_data import IngestData
+from collapsevariants.collapse_logger import CollapseLOGGER
 from general_utilities.mrc_logger import MRCLogger
 
 
@@ -24,15 +24,15 @@ class SNPListGenerator:
         Unlike the previous two methods, this approach DOES NOT use a filtering expression and relies on the user to
         filter SNPs.
 
-    :param bgen_index: A dict that contains chromosomes as keys and a BGENIndex TypedDict containing information on
-        filepaths containing filtered & annotated variants.
-    :param filtering_expression: A pandas.query() compatible expression to filter variants on, 'None' if not provided
-    :param found_snps: Were SNPs found to filter against in collapse_variants.ingest_data (IngestData class)
-    :param found_genes: Were SNPs found to filter against in collapse_variants.ingest_data (IngestData class)
-    :param LOG_FILE: A class of CollapseLOGGER to store information on variant filtering
+    :param ingested_data: An object from CollapseIngester containing: 1) A dict that contains chromosomes as keys and
+        a BGENIndex TypedDict containing information on filepaths containing filtered & annotated variants. 2) A
+        pandas.query() compatible expression to filter variants on, 'None' if not provided. 3) Were SNPs
+        found to filter against in collapse_variants.ingest_data (IngestData class) 4) Were SNPs found
+        to filter against in collapse_variants.ingest_data (IngestData class)
+    :param log_file: A class of CollapseLOGGER to store information on variant filtering
     """
 
-    def __init__(self, ingested_data: IngestData, LOG_FILE: CollapseLOGGER):
+    def __init__(self, ingested_data: IngestData, log_file: CollapseLOGGER):
 
         self._bgen_index = ingested_data.bgen_index
         self._filtering_expression = ingested_data.filtering_expression
@@ -40,7 +40,7 @@ class SNPListGenerator:
         self._found_genes = ingested_data.found_genes
 
         self._logger = MRCLogger(__name__).get_logger()
-        self.LOG_FILE = LOG_FILE
+        self.log_file = log_file
 
         self.variant_index = self._query_variant_index()
         self.chromosomes = self._write_variant_lists()
@@ -125,11 +125,11 @@ class SNPListGenerator:
 
         # Following code is just to report stats about genes that were/were not found
         queried_genes = []
-        self.LOG_FILE.write_header('Per-gene stats')
+        self.log_file.write_header('Per-gene stats')
         for key, value in variant_index['SYMBOL'].value_counts().items():
             queried_genes.append(key)
-            self.LOG_FILE.write_int(key, value)
-        self.LOG_FILE.write_spacer()
+            self.log_file.write_int(key, value)
+        self.log_file.write_spacer()
 
         for gene in genelist:
             if gene not in found_genes_symbol_present:
@@ -160,7 +160,7 @@ class SNPListGenerator:
         :param variant_index: A pandas.DataFrame containing variants loaded from all provided chromosomes
         :return: A modified version of the variant_index pandas.DataFrame AFTER filtering on provided SNP list
         """
-        self.LOG_FILE.write_generic('Variants not Found:')
+        self.log_file.write_generic('Variants not Found:')
         with Path('snp_list.snps').open('r') as snplist:
             snps = []
             not_found = []
@@ -170,21 +170,21 @@ class SNPListGenerator:
                     snps.append(snp)
                 else:
                     not_found.append(snp)
-                    self.LOG_FILE.write_generic(snp)
+                    self.log_file.write_generic(snp)
             snplist.close()
-        self.LOG_FILE.write_spacer()
+        self.log_file.write_spacer()
 
         if len(snps) == 0:
             raise dxpy.AppError('No SNPs remain after using SNPlist!')
         else:
             # Print to logfile variants that we found...
-            self.LOG_FILE.write_generic('Variants found')
+            self.log_file.write_generic('Variants found')
             for snp in snps:
-                self.LOG_FILE.write_generic(snp)
-            self.LOG_FILE.write_spacer()
+                self.log_file.write_generic(snp)
+            self.log_file.write_spacer()
 
-        self.LOG_FILE.write_int('Total variants found', len(snps))
-        self.LOG_FILE.write_spacer()
+        self.log_file.write_int('Total variants found', len(snps))
+        self.log_file.write_spacer()
 
         # And finally extract variants here
         variant_index = variant_index.loc[snps]
@@ -240,41 +240,41 @@ class SNPListGenerator:
         """Gets information relating to included variants in bgen format files (per-gene)
 
         This method just uses standard pandas.DataFrame methods to query the underlying table to get stats and report
-        them in the applet LOG_FILE
+        them in the applet log_file
 
         :return: The total number of sites after filtering
         """
 
-        self.LOG_FILE.write_header('Overall Statistics')
+        self.log_file.write_header('Overall Statistics')
         total_sites = self.variant_index['CHROM'].count()  # Assign as a variable so I can return it below for further checking
-        self.LOG_FILE.write_int('Total number of variants', total_sites)
-        self.LOG_FILE.write_float('Maximum missingness', self.variant_index['F_MISSING'].max() * 100)
-        self.LOG_FILE.write_scientific('Maximum Allele Frequency', self.variant_index['AF'].max(skipna=True))
-        self.LOG_FILE.write_float('Minimum CADD Score', self.variant_index['CADD'].min(skipna=True))
-        self.LOG_FILE.write_float('Minimum REVEL Score', self.variant_index['REVEL'].min(skipna=True))
-        self.LOG_FILE.write_int('Number of NA REVEL Scores',
+        self.log_file.write_int('Total number of variants', total_sites)
+        self.log_file.write_float('Maximum missingness', self.variant_index['F_MISSING'].max() * 100)
+        self.log_file.write_scientific('Maximum Allele Frequency', self.variant_index['AF'].max(skipna=True))
+        self.log_file.write_float('Minimum CADD Score', self.variant_index['CADD'].min(skipna=True))
+        self.log_file.write_float('Minimum REVEL Score', self.variant_index['REVEL'].min(skipna=True))
+        self.log_file.write_int('Number of NA REVEL Scores',
                                 self.variant_index[self.variant_index['REVEL'].isna()]['CHROM'].count())
-        self.LOG_FILE.write_int('Total number of PASS variants',
+        self.log_file.write_int('Total number of PASS variants',
                                 self.variant_index[self.variant_index['FILTER'] == 'PASS']['CHROM'].count())
-        self.LOG_FILE.write_int('Total number of non-PASS variants',
+        self.log_file.write_int('Total number of non-PASS variants',
                                 self.variant_index[self.variant_index['FILTER'] != 'PASS']['CHROM'].count())
 
         # LOFTEE:
         for key, value in self.variant_index['LOFTEE'].value_counts().items():
             key = f'Number of LOFTEE {key}'
-            self.LOG_FILE.write_int(key, value)
-        self.LOG_FILE.write_spacer()
+            self.log_file.write_int(key, value)
+        self.log_file.write_spacer()
 
         # Parsed Consequences:
-        self.LOG_FILE.write_header('Consequence statistics')
+        self.log_file.write_header('Consequence statistics')
         for key, value in self.variant_index['PARSED_CSQ'].value_counts().items():
             key = f'Number of Parsed Consequence – {key}'
-            self.LOG_FILE.write_int(key, value)
+            self.log_file.write_int(key, value)
 
         # VEP Consequences:
         for key, value in self.variant_index['CSQ'].value_counts().items():
             key = f'Number of VEP Consequence - {key}'
-            self.LOG_FILE.write_int(key, value, is_vep=True)
-        self.LOG_FILE.write_spacer()
+            self.log_file.write_int(key, value, is_vep=True)
+        self.log_file.write_spacer()
 
         return total_sites

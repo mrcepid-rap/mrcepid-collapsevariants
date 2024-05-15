@@ -2,7 +2,7 @@ import csv
 from pathlib import Path
 from typing import Tuple, TypedDict, List, Dict
 
-from general_utilities.association_resources import run_cmd
+from general_utilities.job_management.command_executor import CommandExecutor
 
 
 class GeneDict(TypedDict):
@@ -21,7 +21,7 @@ class GeneDict(TypedDict):
     min_poss: int
 
 
-def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> Tuple[Dict[str, GeneDict], Dict[str, str]]:
+def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExecutor) -> Tuple[Dict[str, GeneDict], Dict[str, str]]:
     """Generate input format files that can be provided to SAIGE
 
     For the way SAIGE is implemented downstream of this applet, SAIGE requires a standard .bcf file and a 'groupFile'.
@@ -40,6 +40,7 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> Tuple[Dict[str, Ge
     :param file_prefix: A name to append to beginning of output files.
     :param chromosome: The chromosome currently being processed. This must be the short form of the chromosome name
         (e.g., '1' not 'chr1').
+    :param cmd_exec: A CommandExecutor object to run commands on Docker
     :return: A tuple containing two dictionaries of ENSTs mapped to variants and variants mapped to ENSTs, respectively
     """
 
@@ -48,11 +49,11 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str) -> Tuple[Dict[str, Ge
           f'--sample /test/{file_prefix}.{chromosome}.sample ' \
           f'--export bcf ' \
           f'--out /test/{file_prefix}.{chromosome}.SAIGE'
-    run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+    cmd_exec.run_cmd_on_docker(cmd)
 
     # and index...
     cmd = f'bcftools index /test/{file_prefix}.{chromosome}.SAIGE.bcf'
-    run_cmd(cmd, is_docker=True, docker_image='egardner413/mrcepid-burdentesting:latest')
+    cmd_exec.run_cmd_on_docker(cmd)
 
     # Need to make the SAIGE groupFile. I can use the file 'snp_ENST.txt' created above to generate this...
     with Path('snp_ENST.txt').open('r') as snp_reader,\

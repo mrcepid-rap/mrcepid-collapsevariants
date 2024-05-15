@@ -4,8 +4,12 @@ import dxpy
 from pathlib import Path
 from typing import TypedDict, Dict
 
-from general_utilities.association_resources import run_cmd, download_dxfile_by_name
+from general_utilities.association_resources import download_dxfile_by_name
+from general_utilities.job_management.command_executor import build_default_command_executor
 from general_utilities.mrc_logger import MRCLogger
+
+
+CMD_EXEC = build_default_command_executor()
 
 
 class BGENIndex(TypedDict):
@@ -43,24 +47,13 @@ class IngestData:
 
         self.filtering_expression = filtering_expression
 
-        self._ingest_docker()
+        self.cmd_exec = build_default_command_executor()
         self.bgen_index = self._ingest_bgen_index(bgen_index)
         self.found_snps = self._define_snplist(snplist)
         self.found_genes = self._define_genelist(genelist)
 
         # And do final checks to ensure compatibility of inputs with downstream processing
         self._check_filtering_expression()
-
-    # Grab our docker image
-    def _ingest_docker(self):
-        """Download the standard mrcepid docker instance to this instance
-
-        This method just runs `docker pull egardner413/mrcepid-burdentesting:latest`
-        """
-
-        cmd = 'docker pull egardner413/mrcepid-burdentesting:latest'
-        run_cmd(cmd, is_docker=False)
-        self._logger.info('Docker loaded')
 
     # Ingest the INDEX of bgen files and download VEP indices
     @staticmethod

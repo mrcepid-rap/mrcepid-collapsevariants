@@ -4,16 +4,16 @@ import pandas as pd
 from pathlib import Path
 from typing import Tuple
 
-from general_utilities.association_resources import run_cmd
 from collapsevariants.tool_parsers.bolt_parser import parse_filters_BOLT, check_vcf_stats
 from collapsevariants.tool_parsers.saige_parser import parse_filters_SAIGE
 from collapsevariants.tool_parsers.staar_parser import STAARParser, STAARMergingException
+from general_utilities.job_management.command_executor import CommandExecutor
 from general_utilities.mrc_logger import MRCLogger
 
 LOGGER = MRCLogger(__name__).get_logger()
 
 
-def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict) -> Tuple[int, str, pd.DataFrame]:
+def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict, cmd_exec: CommandExecutor) -> Tuple[int, str, pd.DataFrame]:
     """Helper method for running separate BGENs through the collapsing process (returns function as a future).
 
     This method just works through all possible formatting methods (for BOLT, SAIGE, and STAAR) to generate a final
@@ -28,6 +28,7 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict) -> Tu
         (e.g., '1' not 'chr1').
     :param chrom_bgen_index: a BGENIndex TypedDict containing information on filepaths containing filtered & annotated
         variants.
+    :param cmd_exec: A CommandExecutor instance to run commands on the Docker container.
     :return: A Tuple containing the total number of variants found for this chromosome after filtering, the chromosome
         ID, and a pandas.DataFrame containing per-sample and per-ENST totals for log reporting purposes.
     """
@@ -43,7 +44,7 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict) -> Tu
 
     # Run filtering according to the user-provided filtering expression
     # Also gets the total number of variants retained for this chromosome
-    num_variants = run_filtering(bgenprefix, chromosome, file_prefix)
+    num_variants = run_filtering(bgenprefix, chromosome, file_prefix, cmd_exec)
     LOGGER.info(f'Identified {num_variants} variants that match the given filtering expression in file '
                 f'{file_prefix}.{chromosome}.bgen')
 
@@ -60,17 +61,17 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict) -> Tu
         # JUST TO BE CLEAR – the names of the functions here are not THAT important (e.g., files generated in the
         # function parse_filters_BOLT() will be used for other tools/workflows). It was just for me (Eugene Gardner)
         # to keep things organised when writing this code
-        genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome)
+        genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome, cmd_exec)
 
-        poss_indv, samples = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map)
+        poss_indv, samples = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map, cmd_exec)
         sample_table = check_vcf_stats(poss_indv, samples)
 
         # STAAR fails sometimes for unknown reasons, so try it twice if it fails before throwing the entire process
         try:
-            STAARParser(file_prefix, chromosome).parse_filters_STAAR()
+            STAARParser(file_prefix, chromosome, cmd_exec).parse_filters_STAAR()
         except STAARMergingException:
             LOGGER.warning(f'STAAR chr {chromosome} failed to merge, trying again...')
-            STAARParser(file_prefix, chromosome).parse_filters_STAAR()
+            STAARParser(file_prefix, chromosome, cmd_exec).parse_filters_STAAR()
 
         # Purge files that we no longer need:
         Path(f'{file_prefix}.{chromosome}.bgen').unlink()
@@ -82,7 +83,7 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict) -> Tu
         return num_variants, chromosome, sample_table
 
 
-def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str) -> int:
+def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str, cmd_exec: CommandExecutor) -> int:
     """A wrapper method around bgenix to filter WES .bgen files to variants as requested by SNPListGenerator
 
     This class will take a set of SNPs, hardcoded in this applet into the file 'include_snps.txt', and filter the
@@ -93,6 +94,7 @@ def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str) -> int:
         separate parameter to ensure compatibility with potential other data sources.
     :param chromosome: The chromosome currently being processed. This must be the short form of the chromosome name
         (e.g., '1' not 'chr1').
+    :param cmd_exec: A CommandExecutor instance to run commands on the Docker container.
     :param file_prefix: The prefix provided at runtime for the final output name.
 
     :return: Total number of variants passing provided filters for this chromosome
@@ -101,17 +103,17 @@ def run_filtering(bgenprefix: str, chromosome: str, file_prefix: str) -> int:
     # Simple bgenix command that includes variants from the filtering expression and just outputs a new "filtered"
     # bgen file
     cmd = f'bgenix -g /test/{bgenprefix}.bgen -incl-rsids /test/include_snps.txt > {file_prefix}.{chromosome}.bgen'
-    run_cmd(cmd, is_docker=True, docker_image="egardner413/mrcepid-burdentesting:latest")
+    cmd_exec.run_cmd_on_docker(cmd)
 
     cmd = f'cp {bgenprefix}.sample {file_prefix}.{chromosome}.sample'
-    run_cmd(cmd, is_docker=False)
+    cmd_exec.run_cmd(cmd)
 
     cmd = f'bgenix -index -g /test/{file_prefix}.{chromosome}.bgen'
-    run_cmd(cmd, is_docker=True, docker_image="egardner413/mrcepid-burdentesting:latest")
+    cmd_exec.run_cmd_on_docker(cmd)
 
     # This just helps to get the total number of variants:
     cmd = f'bgenix -list -g /test/{file_prefix}.{chromosome}.bgen > {file_prefix}.{chromosome}.snps'
-    run_cmd(cmd, is_docker=True, docker_image="egardner413/mrcepid-burdentesting:latest")
+    cmd_exec.run_cmd_on_docker(cmd)
 
     total_vars = 0
     with Path(f'{file_prefix}.{chromosome}.snps').open('r') as snp_file:
