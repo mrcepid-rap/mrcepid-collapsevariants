@@ -46,6 +46,9 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 
 ### Changelog
 
+* v1.2.1
+  * Removed run_cmd from all code due to deprecation in [general_utilities](https://github.com/mrcepid-rap/general_utilities)
+
 * v1.2.0
   * The vast majority of changes in this release are invisible to the day-to-day user but should greatly improve maintainability of the code
   * Deleted the collapse_resources library and instead implemented general_utilities
