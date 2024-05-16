@@ -117,7 +117,7 @@
         "name": "mrcepid-collapsevariants",
         "package_manager": "git",
         "url":  "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
-        "tag": "1.2.1",
+        "tag": "v1.2.1",
         "build_commands": "pip3 install ."
       }
     ]
