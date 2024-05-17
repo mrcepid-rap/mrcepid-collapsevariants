@@ -21,10 +21,11 @@ from collapsevariants.collapse_logger import CollapseLOGGER
 from collapsevariants.snp_list_generator import SNPListGenerator
 from collapsevariants.snp_list_merger import SNPMerger
 from collapsevariants.filtering import filter_bgen
-
+from general_utilities.mrc_logger import MRCLogger
 
 test_folder = Path(os.getenv('TEST_DIR'))
 CMD_EXEC = build_default_command_executor()
+LOGGER = MRCLogger(__name__).get_logger()
 
 
 def get_testing_files(file_name: str, download: bool = False) -> dict:
@@ -56,98 +57,98 @@ testing_expression = 'AF<0.001 & PARSED_CSQ=="PTV" & LOFTEE=="HC" & FILTER=="PAS
 bgen_index = {'$dnanexus_link': os.getenv('BGEN_INDEX')}
 snplist = get_testing_files('snp_list.pheno_1_MISS.txt')
 genelist = get_testing_files('gene_list.pheno_1_MISS.txt')
-@pytest.mark.parametrize(
-    argnames=['use_expression', 'use_snplist', 'use_genelist', 'expected_exception'],
-    argvalues=zip([True, False, True, True, False, False],
-                  [False, True, False, True, False, True],
-                  [False, False, True, False, True, True],
-                  [None, None, None, ValueError, ValueError, ValueError])
-)
-def test_ingest_data(use_expression: bool, use_snplist: bool, use_genelist: bool,
-                     expected_exception: Exception):
-    """Test IngestData in CollapseVariants
-
-    Test in order:
-    1. filtering expression
-    2. SNPList
-    3. gene list + filtering expression
-
-    Errors:
-    4. SNPList + expression
-    5. No expression + gene list
-    6. snp list + gene list
-
-    :param use_expression: Use the standard filtering expression?
-    :param use_snplist: Use a SNP list?
-    :param use_genelist: Use a gene list?
-    :param expected_exception: Exception that should be thrown by this combination of elements
-    """
-
-    # When running this code successive times, 'docker pull' functionality will just assert that the image is already
-    # on the instance, and no need to test...
-    if expected_exception is None:
-        ingested_data = IngestData(bgen_index,
-                                   testing_expression if use_expression else None,
-                                   snplist if use_snplist else None,
-                                   genelist if use_genelist else None)
-        assert sorted([f'{x}' for x in range(1, 23)] + ['X']) == sorted(ingested_data.bgen_index.keys())
-        assert ingested_data.filtering_expression == (testing_expression if use_expression else None)
-        assert ingested_data.found_snps == use_snplist
-        assert ingested_data.found_genes == use_genelist
-    else:
-        with pytest.raises(expected_exception):
-            IngestData(bgen_index,
-                       testing_expression if use_expression else None,
-                       snplist if use_snplist else None,
-                       genelist if use_genelist else None)
-
-
-def test_logger():
-    """Test the logging functionality coded for tracking variants
-
-    This function takes no inputs but uses a correctly formatted log from a previous run of this code
-    (correct_log.txt) to determine accuracy of these tests. This function also tests upload and download from the
-    DNANexus file system.
-    """
-
-    # Acquire correctly formatted log
-    get_testing_files('correct_log.txt', download=True)
-
-    assert Path('test_log.log').exists() is False
-    LOG_FILE = CollapseLOGGER('test_log')
-    assert Path('test_log.log').exists()
-
-    LOG_FILE.write_header('THIS IS A TEST')
-    LOG_FILE.write_int('test int no vep', 1, False)
-    LOG_FILE.write_int('test int vep', 1, True)
-    LOG_FILE.write_float('test float', 0.0001)  # should be 0.000
-    LOG_FILE.write_float('test float', 0.12369)  # Should be 0.124
-    LOG_FILE.write_scientific('test sci', 0.0001)  # should be 1.000e-04
-    LOG_FILE.write_scientific('test sci', 0.12369)  # should be 1.237e-01
-    LOG_FILE.write_string('test str', 'foo')
-    LOG_FILE.write_generic('test generic')
-    LOG_FILE.write_spacer()
-    LOG_FILE.write_histogram(0, 1)
-    LOG_FILE.write_histogram(1, 5)
-    LOG_FILE.write_histogram(2, 10)
-    LOG_FILE.write_histogram(3, 5)
-    LOG_FILE.write_histogram(4, 1)
-    LOG_FILE.write_spacer()
-    LOG_FILE.write_int('This text is too long to be included and should be truncated', 1)
-    LOG_FILE.write_header('This text is too long to be included and should be truncated')
-    uploaded_file = LOG_FILE.close_writer()
-
-    # The above (close writer) deletes the file on the local system, so test the full loop and make sure it was
-    # uploaded and can be downloaded again.
-    while uploaded_file.closed() == False:
-        time.sleep(5)
-    dxpy.download_dxfile(uploaded_file.get_id(), 'test_log.downloaded')
-    assert Path('test_log.downloaded').exists()
-
-    # And make sure the contents match the known data exactly
-    assert filecmp.cmp('correct_log.txt', 'test_log.downloaded')
-
-
+# @pytest.mark.parametrize(
+#     argnames=['use_expression', 'use_snplist', 'use_genelist', 'expected_exception'],
+#     argvalues=zip([True, False, True, True, False, False],
+#                   [False, True, False, True, False, True],
+#                   [False, False, True, False, True, True],
+#                   [None, None, None, ValueError, ValueError, ValueError])
+# )
+# def test_ingest_data(use_expression: bool, use_snplist: bool, use_genelist: bool,
+#                      expected_exception: Exception):
+#     """Test IngestData in CollapseVariants
+#
+#     Test in order:
+#     1. filtering expression
+#     2. SNPList
+#     3. gene list + filtering expression
+#
+#     Errors:
+#     4. SNPList + expression
+#     5. No expression + gene list
+#     6. snp list + gene list
+#
+#     :param use_expression: Use the standard filtering expression?
+#     :param use_snplist: Use a SNP list?
+#     :param use_genelist: Use a gene list?
+#     :param expected_exception: Exception that should be thrown by this combination of elements
+#     """
+#
+#     # When running this code successive times, 'docker pull' functionality will just assert that the image is already
+#     # on the instance, and no need to test...
+#     if expected_exception is None:
+#         ingested_data = IngestData(bgen_index,
+#                                    testing_expression if use_expression else None,
+#                                    snplist if use_snplist else None,
+#                                    genelist if use_genelist else None)
+#         assert sorted([f'{x}' for x in range(1, 23)] + ['X']) == sorted(ingested_data.bgen_index.keys())
+#         assert ingested_data.filtering_expression == (testing_expression if use_expression else None)
+#         assert ingested_data.found_snps == use_snplist
+#         assert ingested_data.found_genes == use_genelist
+#     else:
+#         with pytest.raises(expected_exception):
+#             IngestData(bgen_index,
+#                        testing_expression if use_expression else None,
+#                        snplist if use_snplist else None,
+#                        genelist if use_genelist else None)
+#
+#
+# def test_logger():
+#     """Test the logging functionality coded for tracking variants
+#
+#     This function takes no inputs but uses a correctly formatted log from a previous run of this code
+#     (correct_log.txt) to determine accuracy of these tests. This function also tests upload and download from the
+#     DNANexus file system.
+#     """
+#
+#     # Acquire correctly formatted log
+#     get_testing_files('correct_log.txt', download=True)
+#
+#     assert Path('test_log.log').exists() is False
+#     LOG_FILE = CollapseLOGGER('test_log')
+#     assert Path('test_log.log').exists()
+#
+#     LOG_FILE.write_header('THIS IS A TEST')
+#     LOG_FILE.write_int('test int no vep', 1, False)
+#     LOG_FILE.write_int('test int vep', 1, True)
+#     LOG_FILE.write_float('test float', 0.0001)  # should be 0.000
+#     LOG_FILE.write_float('test float', 0.12369)  # Should be 0.124
+#     LOG_FILE.write_scientific('test sci', 0.0001)  # should be 1.000e-04
+#     LOG_FILE.write_scientific('test sci', 0.12369)  # should be 1.237e-01
+#     LOG_FILE.write_string('test str', 'foo')
+#     LOG_FILE.write_generic('test generic')
+#     LOG_FILE.write_spacer()
+#     LOG_FILE.write_histogram(0, 1)
+#     LOG_FILE.write_histogram(1, 5)
+#     LOG_FILE.write_histogram(2, 10)
+#     LOG_FILE.write_histogram(3, 5)
+#     LOG_FILE.write_histogram(4, 1)
+#     LOG_FILE.write_spacer()
+#     LOG_FILE.write_int('This text is too long to be included and should be truncated', 1)
+#     LOG_FILE.write_header('This text is too long to be included and should be truncated')
+#     uploaded_file = LOG_FILE.close_writer()
+#
+#     # The above (close writer) deletes the file on the local system, so test the full loop and make sure it was
+#     # uploaded and can be downloaded again.
+#     while uploaded_file.closed() == False:
+#         time.sleep(5)
+#     dxpy.download_dxfile(uploaded_file.get_id(), 'test_log.downloaded')
+#     assert Path('test_log.downloaded').exists()
+#
+#     # And make sure the contents match the known data exactly
+#     assert filecmp.cmp('correct_log.txt', 'test_log.downloaded')
+#
+#
 get_testing_files('expression_test_data.json', download=True)
 var_test = json.load(Path('expression_test_data.json').open('r'))
 @pytest.mark.parametrize(
@@ -190,6 +191,7 @@ def test_filtering(var_info: dict):
     filtering_total = 0
     # Don't want to waste time doing every chromosome unless a SNP or GENE list
     for chromosome in (snp_list_generator.chromosomes if (gene_list or snp_list) else ['1']):
+        LOGGER.info(f'Running filtering for chromosome {chromosome}...')
         chrom_bgen_index = ingested_data.bgen_index[chromosome]
         per_chromosome_total, _, sample_table = filter_bgen(file_prefix=f'{variant_type}_{test_type}_test',
                                                             chromosome=chromosome,

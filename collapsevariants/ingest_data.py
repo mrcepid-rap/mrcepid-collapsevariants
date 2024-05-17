@@ -81,7 +81,6 @@ class IngestData:
 
                 # but download the vep index because of how we generate the SNP list:
                 vep = dxpy.DXFile(chrom['vep_dxid'])
-                self._logger.info(f'Trying to download VEP: {vep.get_id()} for chromosome {chrom["chrom"]}')
                 dxpy.download_dxfile(vep.get_id(), f'filtered_bgen/chr{chrom["chrom"]}.filtered.vep.tsv.gz')
 
         return bgen_dict
