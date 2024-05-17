@@ -38,9 +38,11 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict, cmd_e
     bgenprefix = f'filtered_bgen/chr{chromosome}.filtered'  # Get a prefix name for all files
 
     # Download the requisite files for this chromosome according to the index dict:
+    LOGGER.info(f'Starting download {bgenprefix} files...')
     dxpy.download_dxfile(dxpy.DXFile(chrom_bgen_index['index']).get_id(), f'{bgenprefix}.bgen.bgi')
     dxpy.download_dxfile(dxpy.DXFile(chrom_bgen_index['sample']).get_id(), f'{bgenprefix}.sample')
     dxpy.download_dxfile(dxpy.DXFile(chrom_bgen_index['bgen']).get_id(), f'{bgenprefix}.bgen')
+    LOGGER.info(f'Ending download {bgenprefix} files...')
 
     # Run filtering according to the user-provided filtering expression
     # Also gets the total number of variants retained for this chromosome

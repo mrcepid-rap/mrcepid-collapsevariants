@@ -199,6 +199,8 @@ def test_filtering(var_info: dict):
                                                             cmd_exec=CMD_EXEC)
         filtering_total += per_chromosome_total
 
+    LOGGER.info(f'Filtering done...')
+
     if snp_list or gene_list:
         SNPMerger(snp_list_generator.chromosomes, f'{variant_type}_{test_type}_test',
                   ingested_data.found_genes, cmd_exec=CMD_EXEC)
