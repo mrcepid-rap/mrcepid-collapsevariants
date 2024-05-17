@@ -56,8 +56,7 @@ class IngestData:
         self._check_filtering_expression()
 
     # Ingest the INDEX of bgen files and download VEP indices
-    @staticmethod
-    def _ingest_bgen_index(bgen_index: dict) -> Dict[str, BGENIndex]:
+    def _ingest_bgen_index(self, bgen_index: dict) -> Dict[str, BGENIndex]:
         """Index filtered bgen files from the mrc filtering & annotation workflow
 
         This class will NOT download the larger genetic data but only the vep information. bgen download is handled
@@ -82,6 +81,7 @@ class IngestData:
 
                 # but download the vep index because of how we generate the SNP list:
                 vep = dxpy.DXFile(chrom['vep_dxid'])
+                self._logger.info(f'Trying to download VEP: {vep.get_id()} for chromosome {chrom["chrom"]}')
                 dxpy.download_dxfile(vep.get_id(), f'filtered_bgen/chr{chrom["chrom"]}.filtered.vep.tsv.gz')
 
         return bgen_dict
