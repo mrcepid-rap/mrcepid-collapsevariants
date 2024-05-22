@@ -2,6 +2,7 @@ import csv
 from pathlib import Path
 from typing import Tuple, TypedDict, List, Dict
 
+from general_utilities.association_resources import fix_plink_bgen_sample_sex
 from general_utilities.job_management.command_executor import CommandExecutor
 
 
@@ -44,11 +45,14 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExec
     :return: A tuple containing two dictionaries of ENSTs mapped to variants and variants mapped to ENSTs, respectively
     """
 
+    bgen_fix_sample = fix_plink_bgen_sample_sex(Path(f'{file_prefix}.{chromosome}.sample'))
+
     # Easier to run SAIGE with a BCF file as I already have that pipeline set up
     cmd = f'plink2 --memory 9000 --threads 1 --bgen /test/{file_prefix}.{chromosome}.bgen \'ref-last\' ' \
-          f'--sample /test/{file_prefix}.{chromosome}.sample ' \
+          f'--sample /test/{bgen_fix_sample} ' \
           f'--export bcf ' \
-          f'--out /test/{file_prefix}.{chromosome}.SAIGE'
+          f'--out /test/{file_prefix}.{chromosome}.SAIGE ' \
+          f'--split-par hg38'
     cmd_exec.run_cmd_on_docker(cmd)
 
     # and index...
@@ -56,7 +60,7 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExec
     cmd_exec.run_cmd_on_docker(cmd)
 
     # Need to make the SAIGE groupFile. I can use the file 'snp_ENST.txt' created above to generate this...
-    with Path('snp_ENST.txt').open('r') as snp_reader,\
+    with Path('snp_ENST.txt').open('r') as snp_reader, \
             Path(f'{file_prefix}.{chromosome}.SAIGE.groupFile.txt').open('w') as output_setfile_SAIGE:
 
         genes: Dict[str, GeneDict] = dict()
