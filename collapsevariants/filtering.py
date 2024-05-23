@@ -62,10 +62,10 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict, cmd_e
         # function parse_filters_BOLT() will be used for other tools/workflows). It was just for me (Eugene Gardner)
         # to keep things organised when writing this code
         genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome, cmd_exec)
-        LOGGER.info(f'Finished SAIGE parsing chromosome {chromosome}')
+
         poss_indv, samples = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map, cmd_exec)
+
         sample_table = check_vcf_stats(poss_indv, samples)
-        LOGGER.info(f'Finished BOLT parsing chromosome {chromosome}')
 
         # STAAR fails sometimes for unknown reasons, so try it twice if it fails before throwing the entire process
         try:
@@ -73,7 +73,6 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict, cmd_e
         except STAARMergingException:
             LOGGER.warning(f'STAAR chr {chromosome} failed to merge, trying again...')
             STAARParser(file_prefix, chromosome, cmd_exec).parse_filters_STAAR()
-        LOGGER.info(f'Finished STAAR parsing chromosome {chromosome}')
 
         # Purge files that we no longer need:
         Path(f'{file_prefix}.{chromosome}.bgen').unlink()
