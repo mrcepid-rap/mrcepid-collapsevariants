@@ -130,7 +130,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
           f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
-    cmd_exec.run_cmd_on_docker(cmd)
+    cmd_exec.run_cmd_on_docker(cmd, livestream_out=True, print_cmd=True)
 
     LOGGER.info(f'Finishing plink2 conversion for {file_prefix}.{chromosome}.BOLT')
 
