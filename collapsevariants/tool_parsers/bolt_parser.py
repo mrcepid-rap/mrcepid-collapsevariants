@@ -7,10 +7,11 @@ from typing import Tuple, List, Dict
 
 from collapsevariants.tool_parsers.saige_parser import GeneDict
 from general_utilities.job_management.command_executor import CommandExecutor
+from general_utilities.mrc_logger import MRCLogger
+
+LOGGER = MRCLogger(__name__).get_logger()
 
 
-# self.poss_indv, self.samples = self._parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map)
-# self.sample_table = self._check_vcf_stats(self.poss_indv, self.samples)
 def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneDict],
                        snp_gene_map: dict, cmd_exec: CommandExecutor) -> Tuple[List[str], Dict[str, Dict[str, int]]]:
     """Generate input format files that can be provided to BOLT
@@ -120,11 +121,15 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
     cmd_exec.run_cmd_on_docker(cmd)
 
+    LOGGER.info(f'Finished plink conversion for {file_prefix}.{chromosome}.BOLT')
+
     # And then use plink2 to make a bgen file
     cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
           f'--bfile /test/{file_prefix}.{chromosome}.BOLT ' \
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
     cmd_exec.run_cmd_on_docker(cmd)
+
+    LOGGER.info(f'Finished plink2 conversion for {file_prefix}.{chromosome}.BOLT')
 
     # Purge unecessary intermediate files to save space on the AWS instance:
     Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()
