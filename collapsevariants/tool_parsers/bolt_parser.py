@@ -124,11 +124,15 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     #       f'--out /test/{file_prefix}.{chromosome}.BOLT'
     # cmd_exec.run_cmd_on_docker(cmd)
 
+    LOGGER.info(f'Starting plink2 conversion for {file_prefix}.{chromosome}.BOLT')
+
     # Use plink2 to make a bgen file
     cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
           f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
     cmd_exec.run_cmd_on_docker(cmd)
+
+    LOGGER.info(f'Finishing plink2 conversion for {file_prefix}.{chromosome}.BOLT')
 
     # Purge unecessary intermediate files to save space on the AWS instance:
     Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()

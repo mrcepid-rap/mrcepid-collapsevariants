@@ -110,7 +110,7 @@
         "name": "general_utilities",
         "package_manager": "git",
         "url":  "https://github.com/mrcepid-rap/general_utilities.git",
-        "tag": "feature/plink2_fix",
+        "tag": "main",
         "build_commands": "pip3 install ."
       },
       {
