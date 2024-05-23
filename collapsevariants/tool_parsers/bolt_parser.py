@@ -34,6 +34,8 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     :return: A Tuple containing a List of samples that were found and a Dictionary with keys of sample IDs and values of
         a dictionary of ENST / Genotype pairs for that given individual
     """
+    LOGGER.info(f'Starting BOLT parsing for {file_prefix}.{chromosome}')
+
     # Get out BCF file into a tab-delimited format that we can parse for BOLT.
     # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
     # 1. Sample ID: UKBB eid format
@@ -45,6 +47,8 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     cmd_exec.run_cmd_on_docker(cmd)
     # This is just a list-format of the above file's header so we can read it in below with index-able columns
     header = ['sample', 'varID', 'genotype']
+
+    LOGGER.info(f'Starting variant tally for {file_prefix}.{chromosome}')
 
     samples: Dict[str, Dict[str, int]] = dict()
     # Now we are going to read this file in and parse the genotype information into the dictionary
@@ -68,6 +72,8 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
                     samples[var['sample']][ENST] = 1 if (var['genotype'] == '0/1') else 2
             else:
                 samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
+
+    LOGGER.info(f'Writing plink files for {file_prefix}.{chromosome}')
 
     # We have to write this first into plink .ped format and then convert to bgen for input into BOLT
     # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
@@ -114,6 +120,8 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
                         else:
                             output_ped.write('A A ')
 
+    LOGGER.info(f'Starting plink conversion for {file_prefix}.{chromosome}.BOLT')
+
     # And convert to bgen
     # Have to use OG plink to get into .bed format first
     cmd = f'plink --threads 1 --memory 9000 --make-bed ' \
@@ -121,7 +129,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
     cmd_exec.run_cmd_on_docker(cmd)
 
-    LOGGER.info(f'Finished plink conversion for {file_prefix}.{chromosome}.BOLT')
+    LOGGER.info(f'Starting plink2 conversion for {file_prefix}.{chromosome}.BOLT')
 
     # And then use plink2 to make a bgen file
     cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
@@ -129,7 +137,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
     cmd_exec.run_cmd_on_docker(cmd)
 
-    LOGGER.info(f'Finished plink2 conversion for {file_prefix}.{chromosome}.BOLT')
+    LOGGER.info(f'Finished {file_prefix}.{chromosome}.BOLT')
 
     # Purge unecessary intermediate files to save space on the AWS instance:
     Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()
