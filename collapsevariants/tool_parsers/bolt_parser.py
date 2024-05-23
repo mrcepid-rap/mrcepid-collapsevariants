@@ -138,8 +138,6 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()
     Path(f'{file_prefix}.{chromosome}.BOLT.map').unlink()
     Path(f'{file_prefix}.{chromosome}.BOLT.fam').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.bed').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.bim').unlink()
     Path(f'{file_prefix}.{chromosome}.BOLT.log').unlink()
     Path(f'{file_prefix}.{chromosome}.BOLT.nosex').unlink()
 
