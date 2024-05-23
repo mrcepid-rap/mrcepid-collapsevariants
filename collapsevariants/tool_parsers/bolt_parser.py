@@ -76,9 +76,13 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
     # will be a set of genes, and if an individual has a qualifying variant within that gene, setting it
     # to that value
-    with Path(f'{file_prefix}.{chromosome}.BOLT.map').open('w') as output_map,\
-            Path(f'{file_prefix}.{chromosome}.BOLT.ped').open('w') as output_ped,\
-            Path(f'{file_prefix}.{chromosome}.BOLT.fam').open('w') as output_fam,\
+    map_path = Path(f'{file_prefix}.{chromosome}.BOLT.map')
+    ped_path = Path(f'{file_prefix}.{chromosome}.BOLT.ped')
+    fam_path = Path(f'{file_prefix}.{chromosome}.BOLT.fam')
+
+    with map_path.open('w') as output_map, \
+            ped_path.open('w') as output_ped, \
+            fam_path.open('w') as output_fam, \
             Path(f'{file_prefix}.{chromosome}.sample').open('r') as sample_reader:
 
         # Make map file (just list of genes with the chromosome and start position of that gene):
@@ -119,7 +123,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
 
     # And convert to bgen
     # Have to use OG plink to get into .bed format first
-    # cmd = f'plink2 --threads 1 --memory 9000 --make-bed ' \
+    # cmd = f'plink --threads 1 --memory 9000 --make-bed ' \
     #       f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
     #       f'--out /test/{file_prefix}.{chromosome}.BOLT'
     # cmd_exec.run_cmd_on_docker(cmd)
@@ -135,11 +139,10 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     LOGGER.info(f'Finishing plink2 conversion for {file_prefix}.{chromosome}.BOLT')
 
     # Purge unecessary intermediate files to save space on the AWS instance:
-    Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.map').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.fam').unlink()
+    map_path.unlink()
+    ped_path.unlink()
+    fam_path.unlink()
     Path(f'{file_prefix}.{chromosome}.BOLT.log').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.nosex').unlink()
 
     return poss_indv, samples
 
