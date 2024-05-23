@@ -72,8 +72,6 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
             else:
                 samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
 
-    LOGGER.info(f'Writing plink files for {file_prefix}.{chromosome}')
-
     # We have to write this first into plink .ped format and then convert to bgen for input into BOLT
     # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
     # will be a set of genes, and if an individual has a qualifying variant within that gene, setting it
@@ -118,8 +116,6 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
                             output_ped.write('A A\n')
                         else:
                             output_ped.write('A A ')
-
-    LOGGER.info(f'Starting plink conversion for {file_prefix}.{chromosome}.BOLT')
 
     # And convert to bgen
     # Have to use OG plink to get into .bed format first
