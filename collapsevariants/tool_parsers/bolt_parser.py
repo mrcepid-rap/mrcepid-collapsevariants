@@ -119,14 +119,14 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
 
     # And convert to bgen
     # Have to use OG plink to get into .bed format first
-    cmd = f'plink --threads 1 --memory 9000 --make-bed ' \
-          f'--file /test/{file_prefix}.{chromosome}.BOLT ' \
-          f'--out /test/{file_prefix}.{chromosome}.BOLT'
-    cmd_exec.run_cmd_on_docker(cmd)
+    # cmd = f'plink2 --threads 1 --memory 9000 --make-bed ' \
+    #       f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
+    #       f'--out /test/{file_prefix}.{chromosome}.BOLT'
+    # cmd_exec.run_cmd_on_docker(cmd)
 
-    # And then use plink2 to make a bgen file
+    # Use plink2 to make a bgen file
     cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
-          f'--bfile /test/{file_prefix}.{chromosome}.BOLT ' \
+          f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
           f'--out /test/{file_prefix}.{chromosome}.BOLT'
     cmd_exec.run_cmd_on_docker(cmd)
 
