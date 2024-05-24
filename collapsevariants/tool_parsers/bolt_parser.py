@@ -76,73 +76,120 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
     # will be a set of genes, and if an individual has a qualifying variant within that gene, setting it
     # to that value
-    map_path = Path(f'{file_prefix}.{chromosome}.BOLT.map')
-    ped_path = Path(f'{file_prefix}.{chromosome}.BOLT.ped')
-    fam_path = Path(f'{file_prefix}.{chromosome}.BOLT.fam')
 
-    with map_path.open('w') as output_map, \
-            ped_path.open('w') as output_ped, \
-            fam_path.open('w') as output_fam, \
+    vcf_path = Path(f'{file_prefix}.{chromosome}.BOLT.vcf')
+
+    with vcf_path.open('w') as output_vcf, \
             Path(f'{file_prefix}.{chromosome}.sample').open('r') as sample_reader:
 
-        # Make map file (just list of genes with the chromosome and start position of that gene):
-        for gene in genes:
-            output_map.write(f'{genes[gene]["CHROM"]} {gene} 0 {genes[gene]["min_poss"]}\n')
-
-        # Make ped / fam files:
-        # ped files are coded with dummy genotypes of A A as a ref individual and A C as a carrier
-
-        # We first need a list of samples we expect to be in this file. We can get this from the REGENIE .psam
-        poss_indv = []  # This is just to help us make sure we have the right numbers later
+        # First extract samples from the sample file
         sample_file = csv.DictReader(sample_reader, delimiter=' ', quoting=csv.QUOTE_NONE)
+        poss_indv = []  # This is just to help us make sure we have the right numbers later
         for sample in sample_file:
             if sample['ID'] != "0":  # This gets rid of the weird header row in bgen sample files...
                 sample = sample['ID']
                 poss_indv.append(sample)
-                output_ped.write(f'{sample} {sample} 0 0 0 -9 ')
-                output_fam.write(f'{sample} {sample} 0 0 0 -9\n')
-                genes_processed = 0
-                for gene in genes:
-                    genes_processed += 1  # This is a helper value to make sure we end rows on a carriage return (\n)
-                    if sample in samples:
-                        if gene in samples[sample]:
-                            if genes_processed == len(genes):
-                                output_ped.write('A C\n')
-                            else:
-                                output_ped.write('A C ')
-                        else:
-                            if genes_processed == len(genes):
-                                output_ped.write('A A\n')
-                            else:
-                                output_ped.write('A A ')
-                    else:
-                        if genes_processed == len(genes):
-                            output_ped.write('A A\n')
-                        else:
-                            output_ped.write('A A ')
 
+        # Write the vcf header
+        output_vcf.write('##fileformat=VCFv4.2\n')
+        output_vcf.write(f'##contig=<ID={chromosome},length=999999999>\n') # fake len as it doesn't matter to .bgen
+        output_vcf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
+        sample_string = '\t'.join(poss_indv)
+        output_vcf.write(f'#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample_string}\n')
+
+        # Write the vcf body
+        for gene in genes:
+            output_vcf.write(f'{genes[gene]["CHROM"]}\t{genes[gene]["min_poss"]}\t{gene}\tA\tC\t.\tPASS\t.\tGT\t')
+            gt_array = []
+            for sample in poss_indv:
+                if sample in samples:
+                    if gene in samples[sample]:
+                        gt_array.append('0/1')
+                    else:
+                        gt_array.append('0/0')
+                else:
+                    gt_array.append('0/0')
+            gt_string = '\t'.join(gt_array)
+            output_vcf.write(f'{genes[gene]["CHROM"]}\t{genes[gene]["min_poss"]}\t{gene}\tA\tC\t.\tPASS\t.\tGT\t{gt_string}\n')
+
+    # And convert to .bgen
+    cmd = f'qctool -filetype "vcf" -ofiletype "bgen_v1.2" -sort ' \
+          f'-g /test/{vcf_path} ' \
+          f'-og /test/{file_prefix}.{chromosome}.BOLT.bgen ' \
+          f'-os /test/{file_prefix}.{chromosome}.BOLT.sample'
+    cmd_exec.run_cmd_on_docker(cmd)
+
+    LOGGER.info(f'Finishing qctool conversion for {file_prefix}.{chromosome}.BOLT')
+
+    vcf_path.unlink()
+
+    # map_path = Path(f'{file_prefix}.{chromosome}.BOLT.map')
+    # ped_path = Path(f'{file_prefix}.{chromosome}.BOLT.ped')
+    # fam_path = Path(f'{file_prefix}.{chromosome}.BOLT.fam')
+    #
+    # with map_path.open('w') as output_map, \
+    #         ped_path.open('w') as output_ped, \
+    #         fam_path.open('w') as output_fam, \
+    #         Path(f'{file_prefix}.{chromosome}.sample').open('r') as sample_reader:
+    #
+    #     # Make map file (just list of genes with the chromosome and start position of that gene):
+    #     for gene in genes:
+    #         output_map.write(f'{genes[gene]["CHROM"]} {gene} 0 {genes[gene]["min_poss"]}\n')
+    #
+    #     # Make ped / fam files:
+    #     # ped files are coded with dummy genotypes of A A as a ref individual and A C as a carrier
+    #
+    #     # We first need a list of samples we expect to be in this file. We can get this from the REGENIE .psam
+    #     poss_indv = []  # This is just to help us make sure we have the right numbers later
+    #     sample_file = csv.DictReader(sample_reader, delimiter=' ', quoting=csv.QUOTE_NONE)
+    #     for sample in sample_file:
+    #         if sample['ID'] != "0":  # This gets rid of the weird header row in bgen sample files...
+    #             sample = sample['ID']
+    #             poss_indv.append(sample)
+    #             output_ped.write(f'{sample} {sample} 0 0 0 -9 ')
+    #             output_fam.write(f'{sample} {sample} 0 0 0 -9\n')
+    #             genes_processed = 0
+    #             for gene in genes:
+    #                 genes_processed += 1  # This is a helper value to make sure we end rows on a carriage return (\n)
+    #                 if sample in samples:
+    #                     if gene in samples[sample]:
+    #                         if genes_processed == len(genes):
+    #                             output_ped.write('A C\n')
+    #                         else:
+    #                             output_ped.write('A C ')
+    #                     else:
+    #                         if genes_processed == len(genes):
+    #                             output_ped.write('A A\n')
+    #                         else:
+    #                             output_ped.write('A A ')
+    #                 else:
+    #                     if genes_processed == len(genes):
+    #                         output_ped.write('A A\n')
+    #                     else:
+    #                         output_ped.write('A A ')
+    #
     # And convert to bgen
     # Have to use OG plink to get into .bed format first
     # cmd = f'plink --threads 1 --memory 9000 --make-bed ' \
     #       f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
     #       f'--out /test/{file_prefix}.{chromosome}.BOLT'
     # cmd_exec.run_cmd_on_docker(cmd)
-
-    LOGGER.info(f'Starting plink2 conversion for {file_prefix}.{chromosome}.BOLT')
-
-    # Use plink2 to make a bgen file
-    cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
-          f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
-          f'--out /test/{file_prefix}.{chromosome}.BOLT'
-    cmd_exec.run_cmd_on_docker(cmd, livestream_out=True, print_cmd=True)
-
-    LOGGER.info(f'Finishing plink2 conversion for {file_prefix}.{chromosome}.BOLT')
-
-    # Purge unecessary intermediate files to save space on the AWS instance:
-    map_path.unlink()
-    ped_path.unlink()
-    fam_path.unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.log').unlink()
+    #
+    # LOGGER.info(f'Starting plink2 conversion for {file_prefix}.{chromosome}.BOLT')
+    #
+    # # Use plink2 to make a bgen file
+    # cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
+    #       f'--pedmap /test/{file_prefix}.{chromosome}.BOLT ' \
+    #       f'--out /test/{file_prefix}.{chromosome}.BOLT'
+    # cmd_exec.run_cmd_on_docker(cmd, livestream_out=True, print_cmd=True)
+    #
+    # LOGGER.info(f'Finishing plink2 conversion for {file_prefix}.{chromosome}.BOLT')
+    #
+    # # Purge unecessary intermediate files to save space on the AWS instance:
+    # map_path.unlink()
+    # ped_path.unlink()
+    # fam_path.unlink()
+    # Path(f'{file_prefix}.{chromosome}.BOLT.log').unlink()
 
     return poss_indv, samples
 
