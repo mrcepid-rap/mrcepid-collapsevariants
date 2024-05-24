@@ -99,7 +99,6 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
 
         # Write the vcf body
         for gene in genes:
-            output_vcf.write(f'{genes[gene]["CHROM"]}\t{genes[gene]["min_poss"]}\t{gene}\tA\tC\t.\tPASS\t.\tGT\t')
             gt_array = []
             for sample in poss_indv:
                 if sample in samples:
