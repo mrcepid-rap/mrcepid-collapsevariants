@@ -54,6 +54,7 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExec
           f'--out /test/{file_prefix}.{chromosome}.SAIGE ' \
           f'--split-par hg38'
     cmd_exec.run_cmd_on_docker(cmd)
+    bgen_fix_sample.unlink()
 
     # and index...
     cmd = f'bcftools index /test/{file_prefix}.{chromosome}.SAIGE.bcf'
