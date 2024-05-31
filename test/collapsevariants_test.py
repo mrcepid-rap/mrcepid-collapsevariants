@@ -272,7 +272,7 @@ def test_filtering(var_info: dict):
     fix_sample = fix_plink_bgen_sample_sex(Path(f'{variant_type}_{test_type}_test.{chrom_suffix}.BOLT.sample'))
     test_cmd = f'plink2 --bgen /test/{variant_type}_{test_type}_test.{chrom_suffix}.BOLT.bgen \'ref-last\' ' \
                f'--sample /test/{fix_sample} ' \
-               f'--extract /test/extract_gene.txt --export AD --out /test/{variant_type}_{test_type}_bolt' \
+               f'--extract /test/extract_gene.txt --export AD --out /test/{variant_type}_{test_type}_bolt ' \
                f'--split-par hg38'
     CMD_EXEC.run_cmd_on_docker(test_cmd)
     bolt_test = pd.read_csv(f'{variant_type}_{test_type}_bolt.raw', sep='\t')
