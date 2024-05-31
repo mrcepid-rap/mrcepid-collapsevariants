@@ -33,6 +33,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     :param genes: A Dictionary of genes identified by saige_parser.parse_filters_SAIGE of ENSTs mapped to variant IDs
     :param snp_gene_map: A Dictionary of variants identified by saige_parser.parse_filters_SAGE of variantIDs
         mapped to ENSTs
+    :param cmd_exec: An instance of CommandExecutor to run commands on a docker container
     :return: A Tuple containing a List of samples that were found and a Dictionary with keys of sample IDs and values of
         a dictionary of ENST / Genotype pairs for that given individual
     """
@@ -72,10 +73,10 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
             else:
                 samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
 
-    # We have to write this first into plink .ped format and then convert to bgen for input into BOLT
-    # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
-    # will be a set of genes, and if an individual has a qualifying variant within that gene, setting it
-    # to that value
+    # We have to write this first into .vcf format and then convert to .bgen for input into BOLT
+    # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our .vcf file
+    # will be a set of genes, and if an individual has a qualifying variant within that gene, setting genotype
+    # to 0/1
 
     vcf_path = Path(f'{file_prefix}.{chromosome}.BOLT.vcf')
 
@@ -117,8 +118,6 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
           f'-og /test/{file_prefix}.{chromosome}.BOLT.bgen ' \
           f'-os /test/{file_prefix}.{chromosome}.BOLT.sample'
     cmd_exec.run_cmd_on_docker(cmd)
-
-    LOGGER.info(f'Finishing qctool conversion for {file_prefix}.{chromosome}.BOLT')
 
     vcf_path.unlink()
 
