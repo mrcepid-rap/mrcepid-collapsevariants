@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Tuple, List, Dict
 
 from collapsevariants.tool_parsers.saige_parser import GeneDict
+from general_utilities.import_utils.import_lib import sample_v2_to_v1
 from general_utilities.job_management.command_executor import CommandExecutor
 from general_utilities.mrc_logger import MRCLogger
 
@@ -20,7 +21,7 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
 
     BOLT only runs on individual variants and has no built-in functionality to perform burden testing. Thus, to run BOLT
     in an approximation of 'burden' mode we have to trick it by first collapsing all variants found within a gene across
-    a set of individuals into a single 'variant' that contains information for all individuals for that gene. Thus we
+    a set of individuals into a single 'variant' that contains information for all individuals for that gene. Thus, we
     create what amounts to a binary yes/no found a variant in the listed gene for a given individual.
 
     Gene-Variants are encoded as heterozygous, with all genes having a REF allele of A and alternate allele of C. All
@@ -77,7 +78,11 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our .vcf file
     # will be a set of genes, and if an individual has a qualifying variant within that gene, setting genotype
     # to 0/1
-
+    #
+    # Bit of history here for those who don't want to dive into change-log:
+    # This used to be done w/plink2, but they introduced a change that results in issues with the X chromosome. This
+    # then resulted in some unknown issue with plink hanging and leaving the DNANexus instance broken. So I switched
+    # to using qctool to convert a .vcf to .bgen. This is a bit slower, but it works and is more stable.
     vcf_path = Path(f'{file_prefix}.{chromosome}.BOLT.vcf')
 
     with vcf_path.open('w') as output_vcf, \
@@ -118,6 +123,9 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
           f'-og /test/{file_prefix}.{chromosome}.BOLT.bgen ' \
           f'-os /test/{file_prefix}.{chromosome}.BOLT.sample'
     cmd_exec.run_cmd_on_docker(cmd)
+
+    # And fix the sample file to have the right number of columns:
+    sample_v2_to_v1(Path(f'{file_prefix}.{chromosome}.BOLT.sample'))
 
     vcf_path.unlink()
 
