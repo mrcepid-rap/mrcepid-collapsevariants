@@ -103,7 +103,9 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
         sample_string = '\t'.join(poss_indv)
         output_vcf.write(f'#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample_string}\n')
 
-        # Write the vcf body
+        # Write the vcf body – remember, we historically wrote ref-last, so we have to do that here by encoding the REF
+        # allele as the alternate allele and the alternate allele as the reference allele and encode genotypes
+        # #accordingly
         for gene in genes:
             gt_array = []
             for sample in poss_indv:
@@ -111,11 +113,11 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
                     if gene in samples[sample]:
                         gt_array.append('0/1')
                     else:
-                        gt_array.append('0/0')
+                        gt_array.append('1/1')
                 else:
-                    gt_array.append('0/0')
+                    gt_array.append('1/1')
             gt_string = '\t'.join(gt_array)
-            output_vcf.write(f'{genes[gene]["CHROM"]}\t{genes[gene]["min_poss"]}\t{gene}\tA\tC\t.\tPASS\t.\tGT\t{gt_string}\n')
+            output_vcf.write(f'{genes[gene]["CHROM"]}\t{genes[gene]["min_poss"]}\t{gene}\tC\tA\t.\tPASS\t.\tGT\t{gt_string}\n')
 
     # And convert to .bgen
     cmd = f'qctool -filetype "vcf" -ofiletype "bgen_v1.2" -sort ' \
