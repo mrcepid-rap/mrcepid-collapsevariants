@@ -64,6 +64,7 @@ def filter_bgen(file_prefix: str, chromosome: str, chrom_bgen_index: dict, cmd_e
         genes, snp_gene_map = parse_filters_SAIGE(file_prefix, chromosome, cmd_exec)
 
         poss_indv, samples = parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map, cmd_exec)
+
         sample_table = check_vcf_stats(poss_indv, samples)
 
         # STAAR fails sometimes for unknown reasons, so try it twice if it fails before throwing the entire process

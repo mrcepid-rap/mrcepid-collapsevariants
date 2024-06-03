@@ -56,8 +56,7 @@ class IngestData:
         self._check_filtering_expression()
 
     # Ingest the INDEX of bgen files and download VEP indices
-    @staticmethod
-    def _ingest_bgen_index(bgen_index: dict) -> Dict[str, BGENIndex]:
+    def _ingest_bgen_index(self, bgen_index: dict) -> Dict[str, BGENIndex]:
         """Index filtered bgen files from the mrc filtering & annotation workflow
 
         This class will NOT download the larger genetic data but only the vep information. bgen download is handled

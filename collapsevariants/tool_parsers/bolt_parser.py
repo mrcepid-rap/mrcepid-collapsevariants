@@ -1,4 +1,6 @@
 import csv
+import sys
+
 import pandas as pd
 import numpy as np
 
@@ -6,18 +8,20 @@ from pathlib import Path
 from typing import Tuple, List, Dict
 
 from collapsevariants.tool_parsers.saige_parser import GeneDict
+from general_utilities.import_utils.import_lib import sample_v2_to_v1
 from general_utilities.job_management.command_executor import CommandExecutor
+from general_utilities.mrc_logger import MRCLogger
+
+LOGGER = MRCLogger(__name__).get_logger()
 
 
-# self.poss_indv, self.samples = self._parse_filters_BOLT(file_prefix, chromosome, genes, snp_gene_map)
-# self.sample_table = self._check_vcf_stats(self.poss_indv, self.samples)
 def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneDict],
                        snp_gene_map: dict, cmd_exec: CommandExecutor) -> Tuple[List[str], Dict[str, Dict[str, int]]]:
     """Generate input format files that can be provided to BOLT
 
     BOLT only runs on individual variants and has no built-in functionality to perform burden testing. Thus, to run BOLT
     in an approximation of 'burden' mode we have to trick it by first collapsing all variants found within a gene across
-    a set of individuals into a single 'variant' that contains information for all individuals for that gene. Thus we
+    a set of individuals into a single 'variant' that contains information for all individuals for that gene. Thus, we
     create what amounts to a binary yes/no found a variant in the listed gene for a given individual.
 
     Gene-Variants are encoded as heterozygous, with all genes having a REF allele of A and alternate allele of C. All
@@ -30,9 +34,11 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
     :param genes: A Dictionary of genes identified by saige_parser.parse_filters_SAIGE of ENSTs mapped to variant IDs
     :param snp_gene_map: A Dictionary of variants identified by saige_parser.parse_filters_SAGE of variantIDs
         mapped to ENSTs
+    :param cmd_exec: An instance of CommandExecutor to run commands on a docker container
     :return: A Tuple containing a List of samples that were found and a Dictionary with keys of sample IDs and values of
         a dictionary of ENST / Genotype pairs for that given individual
     """
+
     # Get out BCF file into a tab-delimited format that we can parse for BOLT.
     # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
     # 1. Sample ID: UKBB eid format
@@ -68,72 +74,62 @@ def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneD
             else:
                 samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
 
-    # We have to write this first into plink .ped format and then convert to bgen for input into BOLT
-    # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our map file
-    # will be a set of genes, and if an individual has a qualifying variant within that gene, setting it
-    # to that value
-    with Path(f'{file_prefix}.{chromosome}.BOLT.map').open('w') as output_map,\
-            Path(f'{file_prefix}.{chromosome}.BOLT.ped').open('w') as output_ped,\
-            Path(f'{file_prefix}.{chromosome}.BOLT.fam').open('w') as output_fam,\
+    # We have to write this first into .vcf format and then convert to .bgen for input into BOLT
+    # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our .vcf file
+    # will be a set of genes, and if an individual has a qualifying variant within that gene, setting genotype
+    # to 0/1
+    #
+    # Bit of history here for those who don't want to dive into change-log:
+    # This used to be done w/plink2, but they introduced a change that results in issues with the X chromosome. This
+    # then resulted in some unknown issue with plink hanging and leaving the DNANexus instance broken. So I switched
+    # to using qctool to convert a .vcf to .bgen. This is a bit slower, but it works and is more stable.
+    vcf_path = Path(f'{file_prefix}.{chromosome}.BOLT.vcf')
+
+    with vcf_path.open('w') as output_vcf, \
             Path(f'{file_prefix}.{chromosome}.sample').open('r') as sample_reader:
 
-        # Make map file (just list of genes with the chromosome and start position of that gene):
-        for gene in genes:
-            output_map.write(f'{genes[gene]["CHROM"]} {gene} 0 {genes[gene]["min_poss"]}\n')
-
-        # Make ped / fam files:
-        # ped files are coded with dummy genotypes of A A as a ref individual and A C as a carrier
-
-        # We first need a list of samples we expect to be in this file. We can get this from the REGENIE .psam
-        poss_indv = []  # This is just to help us make sure we have the right numbers later
+        # First extract samples from the sample file
         sample_file = csv.DictReader(sample_reader, delimiter=' ', quoting=csv.QUOTE_NONE)
+        poss_indv = []  # This is just to help us make sure we have the right numbers later
         for sample in sample_file:
             if sample['ID'] != "0":  # This gets rid of the weird header row in bgen sample files...
                 sample = sample['ID']
                 poss_indv.append(sample)
-                output_ped.write(f'{sample} {sample} 0 0 0 -9 ')
-                output_fam.write(f'{sample} {sample} 0 0 0 -9\n')
-                genes_processed = 0
-                for gene in genes:
-                    genes_processed += 1  # This is a helper value to make sure we end rows on a carriage return (\n)
-                    if sample in samples:
-                        if gene in samples[sample]:
-                            if genes_processed == len(genes):
-                                output_ped.write('A C\n')
-                            else:
-                                output_ped.write('A C ')
-                        else:
-                            if genes_processed == len(genes):
-                                output_ped.write('A A\n')
-                            else:
-                                output_ped.write('A A ')
+
+        # Write the vcf header
+        output_vcf.write('##fileformat=VCFv4.2\n')
+        output_vcf.write(f'##contig=<ID={chromosome},length=999999999>\n') # fake len as it doesn't matter to .bgen
+        output_vcf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
+        sample_string = '\t'.join(poss_indv)
+        output_vcf.write(f'#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample_string}\n')
+
+        # Write the vcf body – remember, we historically wrote ref-last, so we have to do that here by encoding the REF
+        # allele as the alternate allele and the alternate allele as the reference allele and encode genotypes
+        # #accordingly
+        for gene in genes:
+            gt_array = []
+            for sample in poss_indv:
+                if sample in samples:
+                    if gene in samples[sample]:
+                        gt_array.append('0/1')
                     else:
-                        if genes_processed == len(genes):
-                            output_ped.write('A A\n')
-                        else:
-                            output_ped.write('A A ')
+                        gt_array.append('1/1')
+                else:
+                    gt_array.append('1/1')
+            gt_string = '\t'.join(gt_array)
+            output_vcf.write(f'{genes[gene]["CHROM"]}\t{genes[gene]["min_poss"]}\t{gene}\tC\tA\t.\tPASS\t.\tGT\t{gt_string}\n')
 
-    # And convert to bgen
-    # Have to use OG plink to get into .bed format first
-    cmd = f'plink --threads 1 --memory 9000 --make-bed ' \
-          f'--file /test/{file_prefix}.{chromosome}.BOLT ' \
-          f'--out /test/{file_prefix}.{chromosome}.BOLT'
+    # And convert to .bgen
+    cmd = f'qctool -filetype "vcf" -ofiletype "bgen_v1.2" -sort ' \
+          f'-g /test/{vcf_path} ' \
+          f'-og /test/{file_prefix}.{chromosome}.BOLT.bgen ' \
+          f'-os /test/{file_prefix}.{chromosome}.BOLT.sample'
     cmd_exec.run_cmd_on_docker(cmd)
 
-    # And then use plink2 to make a bgen file
-    cmd = f'plink2 --threads 1 --memory 9000 --export bgen-1.2 \'bits=\'8 ' \
-          f'--bfile /test/{file_prefix}.{chromosome}.BOLT ' \
-          f'--out /test/{file_prefix}.{chromosome}.BOLT'
-    cmd_exec.run_cmd_on_docker(cmd)
+    # And fix the sample file to have the right number of columns:
+    sample_v2_to_v1(Path(f'{file_prefix}.{chromosome}.BOLT.sample'))
 
-    # Purge unecessary intermediate files to save space on the AWS instance:
-    Path(f'{file_prefix}.{chromosome}.BOLT.ped').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.map').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.fam').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.bed').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.bim').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.log').unlink()
-    Path(f'{file_prefix}.{chromosome}.BOLT.nosex').unlink()
+    vcf_path.unlink()
 
     return poss_indv, samples
 
