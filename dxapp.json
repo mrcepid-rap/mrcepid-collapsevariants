@@ -110,7 +110,7 @@
         "name": "general_utilities",
         "package_manager": "git",
         "url":  "https://github.com/mrcepid-rap/general_utilities.git",
-        "tag": "main",
+        "tag": "v1.5.0",
         "build_commands": "pip3 install ."
       },
       {
