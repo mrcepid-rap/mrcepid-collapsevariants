@@ -46,6 +46,11 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 
 ### Changelog
 
+* v1.2.2
+  * Bugfix release to solve issues with new version of plink2
+    * This removes plink2 from most aspects of the applet due to issues with silent crashes and formatting problems
+    * This may slow down the processing of data due to the need to use qctool rather than plink2 – please report excessive slowdown!
+
 * v1.2.1
   * Removed run_cmd from all code due to deprecation in [general_utilities](https://github.com/mrcepid-rap/general_utilities)
 
