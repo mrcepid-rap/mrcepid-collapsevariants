@@ -21,9 +21,10 @@ from general_utilities.mrc_logger import MRCLogger
 
 from collapsevariants.ingest_data import IngestData
 from collapsevariants.snp_list_generator import SNPListGenerator
-from collapsevariants.filtering import filter_bgen
+from collapsevariants.filtering import filter_bgen, run_filtering
 from collapsevariants.snp_list_merger import SNPMerger
 from collapsevariants.collapse_logger import CollapseLOGGER
+from plot_lib_test import cmd_exec
 
 # Set up the system logger – this is NOT the same as LOG_FILE below that records info about the filtering itself
 LOGGER = MRCLogger().get_logger()
@@ -119,17 +120,37 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
         snp_list_generator = SNPListGenerator(ingested_data,
                                               log_file)
 
-        # Now build a thread worker that contains as many threads
-        # instance takes a thread and 1 thread for monitoring
-        thread_utility = ThreadUtility()
+        # Next we need to filter the BGEN files according to the SNP list that we generated in snp_list_generator
+        thread_utility = ThreadUtility(error_message='Error in filtering BGEN files')
 
-        # Now loop through each chromosome and do the actual filtering...
-        # ...launch the requested threads
         for chromosome in snp_list_generator.chromosomes:
-            chrom_bgen_index = ingested_data.bgen_index[chromosome]
+            for prefix in snp_list_generator.chromosomes[chromosome]:
+                thread_utility.launch_job(run_filtering,
+                                          bgen_prefix=prefix,
+                                          chromosome=chromosome,
+                                          chrom_bgen_index=ingested_data.bgen_index[prefix],
+                                          cmd_exec=ingested_data.cmd_exec)
+
+        filtered_bgens = dict()
+        for result in thread_utility:
+
+
+
+        thread_utility.collect_futures()
+
+        thread_utility = ThreadUtility(error_message='Error in merging BGEN files')
+
+
+
+        # Now loop through each chromosome merge the results of the filtering and generate final bgen files
+        # ...launch the requested threads
+        thread_utility = ThreadUtility(error_message='Error in making merged SNP/GENE files')
+
+        for prefix in snp_list_generator.valid_prefixes:
+            chrom_bgen_index = ingested_data.bgen_index[prefix]
             thread_utility.launch_job(filter_bgen,
                                       file_prefix=output_prefix,
-                                      chromosome=chromosome,
+                                      bgen_prefix=prefix,
                                       chrom_bgen_index=chrom_bgen_index,
                                       cmd_exec=ingested_data.cmd_exec)
 
@@ -160,7 +181,7 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
         LOGGER.info('Generating final tarball...')
         output_tarball = Path(f'{output_prefix}.tar.gz')
         tar = tarfile.open(output_tarball, 'w:gz')
-        for file in Path('./').glob(f'{output_prefix}.*'):
+        for file in Path('../src/').glob(f'{output_prefix}.*'):
             if '.tar.gz' not in file.name:  # Don't want to remove the tar itself... yet...
                 tar.add(file)
                 file.unlink()
