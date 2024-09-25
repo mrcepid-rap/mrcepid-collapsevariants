@@ -1,10 +1,14 @@
 import csv
+import dxpy
 
 from pathlib import Path
-from typing import TypedDict, Dict, Optional
+from typing import TypedDict, Dict, Optional, IO
 
 from general_utilities.mrc_logger import MRCLogger
 from general_utilities.association_resources import download_dxfile_by_name
+
+from collapsevariants.collapse_utils import get_sample_ids
+
 
 class BGENIndex(TypedDict):
     """A TypedDict containing information on a downloaded bgen file to make for more obvious return types
@@ -42,12 +46,13 @@ class IngestData:
 
         self.filtering_expression = filtering_expression
 
+        self.sample_ids = []
         self.bgen_index = self._ingest_bgen_index(bgen_index)
+        self.vep_dict = self._open_vep_filepaths()
         self.snp_list_path = self._define_filter_list(snp_list)
         self.gene_list_path = self._define_filter_list(gene_list)
 
-    @staticmethod
-    def _ingest_bgen_index(bgen_index: dict) -> Dict[str, BGENIndex]:
+    def _ingest_bgen_index(self, bgen_index: dict) -> Dict[str, BGENIndex]:
         """Index filtered bgen files from the mrc filtering & annotation workflow
 
         This class will NOT download the larger genetic data but only the vep information. bgen download is handled
@@ -60,16 +65,37 @@ class IngestData:
 
         bgen_dict = {}
         bgen_index = download_dxfile_by_name(bgen_index)
+        samples_collected = False
 
         # and load it into a dict:
         with bgen_index.open('r') as bgen_reader:
             bgen_index_csv = csv.DictReader(bgen_reader, delimiter='\t')
 
             for batch in bgen_index_csv:
+
                 bgen_dict[batch['prefix']] = {'index': batch['bgen_index_dxid'], 'sample': batch['sample_dxid'],
-                                             'bgen': batch['bgen_dxid'], 'vep': batch['vep_dxid']}
+                                              'bgen': batch['bgen_dxid'], 'vep': batch['vep_dxid']}
+
+                # Collect sample IDs from the 1st bgen encountered. This is done on the premise that all bgen files
+                # have the same sample IDs...
+                if samples_collected is False:
+                    sample_file = download_dxfile_by_name(batch['sample_dxid'], print_status=False)
+                    self.sample_ids = get_sample_ids(sample_file)
+                    samples_collected = True
+                    sample_file.unlink()  # Make sure to delete to avoid conflict with later download
+
+        if len(self.sample_ids) == 0:
+            raise ValueError('No sample IDs found in the bgen files. Please check the sample files and try again.')
 
         return bgen_dict
+
+    def _open_vep_filepaths(self) -> Dict[str, IO]:
+
+        vep_dict = {}
+        for bgen_prefix, bgen_info in self.bgen_index.items():
+            vep_dict[bgen_prefix] = dxpy.open_dxfile(bgen_info['vep'], mode='rb')
+
+        return vep_dict
 
     @staticmethod
     def _define_filter_list(filtering_list: dict) -> Optional[Path]:
