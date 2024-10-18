@@ -2,3 +2,5 @@
 /test/sim_data/*
 /test/test_data_old/
 /test/.pytest_cache/
+/test/test_data/chr7_10.*
+/test/test_data/old_test_data/*

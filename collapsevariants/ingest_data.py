@@ -2,7 +2,9 @@ import csv
 import dxpy
 
 from pathlib import Path
-from typing import TypedDict, Dict
+from typing import TypedDict, Dict, Optional
+
+from dxpy.cli.download import download
 
 from general_utilities.association_resources import download_dxfile_by_name
 from general_utilities.job_management.command_executor import build_default_command_executor
@@ -49,8 +51,8 @@ class IngestData:
 
         self.cmd_exec = build_default_command_executor()
         self.bgen_index = self._ingest_bgen_index(bgen_index)
-        self.found_snps = self._define_snplist(snplist)
-        self.found_genes = self._define_genelist(genelist)
+        self.snp_list_path = self._define_snplist(snplist)
+        self.gene_list_path = self._define_genelist(genelist)
 
         # And do final checks to ensure compatibility of inputs with downstream processing
         self._check_filtering_expression()
@@ -71,51 +73,40 @@ class IngestData:
         bgen_index = download_dxfile_by_name(bgen_index)
 
         # and load it into a dict:
-        Path('filtered_bgen/').mkdir(exist_ok=True)  # For downloading later...
         with bgen_index.open('r') as bgen_reader:
             bgen_index_csv = csv.DictReader(bgen_reader, delimiter='\t')
 
-            for chrom in bgen_index_csv:
-                bgen_dict[chrom['chrom']] = {'index': chrom['bgen_index_dxid'], 'sample': chrom['sample_dxid'],
-                                             'bgen': chrom['bgen_dxid'], 'vep': chrom['vep_dxid']}
-
-                # but download the vep index because of how we generate the SNP list:
-                vep = dxpy.DXFile(chrom['vep_dxid'])
-                dxpy.download_dxfile(vep.get_id(), f'filtered_bgen/chr{chrom["chrom"]}.filtered.vep.tsv.gz')
+            for batch in bgen_index_csv:
+                bgen_dict[batch['prefix']] = {'index': batch['bgen_index_dxid'], 'sample': batch['sample_dxid'],
+                                             'bgen': batch['bgen_dxid'], 'vep': batch['vep_dxid']}
 
         return bgen_dict
 
     @staticmethod
-    def _define_snplist(snplist: dict) -> bool:
+    def _define_snplist(snplist: dict) -> Optional[Path]:
         """Download the SNPList file (if provided)
 
         :param snplist: A DXFile ID pointing to the SNPList file on the RAP
         :return: A boolean defining if a SNPList file was found
         """
 
-        found_snps = False
-        if snplist is not None:
-            snplist = dxpy.DXFile(snplist)
-            dxpy.download_dxfile(snplist, 'snp_list.snps')
-            found_snps = True
-
-        return found_snps
+        if snplist:
+            return download_dxfile_by_name(snplist)
+        else:
+            return None
 
     @staticmethod
-    def _define_genelist(genelist: dict) -> bool:
+    def _define_genelist(genelist: dict) -> Optional[Path]:
         """Download the SNPList file (if provided)
 
         :param genelist: A DXFile ID pointing to the GeneList file on the RAP
         :return: A boolean defining if a GeneList file was found
         """
 
-        found_genes = False
-        if genelist is not None:
-            genelist = dxpy.DXFile(genelist)
-            dxpy.download_dxfile(genelist, 'gene_list.genes')
-            found_genes = True
-
-        return found_genes
+        if genelist:
+            return download_dxfile_by_name(genelist)
+        else:
+            return None
 
     def _check_filtering_expression(self) -> None:
         """Check to make sure the filtering expression, SNPFile, and GeneFile is provided in the correct combination

@@ -6,22 +6,6 @@ from general_utilities.association_resources import fix_plink_bgen_sample_sex
 from general_utilities.job_management.command_executor import CommandExecutor
 
 
-class GeneDict(TypedDict):
-    """A TypedDict containing information about all variants collapsed into a given gene
-
-    :cvar CHROM: The chromosome this gene is on
-    :cvar poss: A list of coordinates for all variants within this gene
-    :cvar varIDs: A list of all variant IDs within this gene
-    :cvar min_poss: The minimum coordinate for a variant within this gene. Is not a perfect proxy for gene start, but
-        is good enough for the purposes of the code that needs that information.
-    """
-
-    CHROM: str
-    poss: List[int]
-    varIDs: List[str]
-    min_poss: int
-
-
 def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExecutor) -> Tuple[Dict[str, GeneDict], Dict[str, str]]:
     """Generate input format files that can be provided to SAIGE
 
@@ -69,10 +53,10 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExec
         snp_csv = csv.DictReader(snp_reader, delimiter='\t')
         for snp in snp_csv:
             if snp['chrom'] == chromosome:
-                snp_gene_map[snp['varID']] = snp['ENST']
+                snp_gene_map[snp['ID']] = snp['ENST']
                 if snp['ENST'] in genes:
                     genes[snp['ENST']]['poss'].append(int(snp['pos']))
-                    genes[snp['ENST']]['varIDs'].append(snp['varID'])
+                    genes[snp['ENST']]['IDs'].append(snp['ID'])
                 else:
                     genes[snp['ENST']] = {'CHROM': snp['chrom'],
                                           'poss': [int(snp['pos'])],
@@ -87,7 +71,7 @@ def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExec
             # into string formatting. Could probably write it a more functional way, but don't want to risk
             # disturbing this code that I know works properly
             id_string = "\t".join(["{0}:{1}_{2}/{3}".format(*item2) for item2 in
-                                   [item.split(":") for item in genes[gene]['varIDs']]])
+                                   [item.split("_") for item in genes[gene]['varIDs']]])
             output_setfile_SAIGE.write(f'{gene}\t{id_string}\n')
 
         Path(f'{file_prefix}.{chromosome}.SAIGE.log').unlink()

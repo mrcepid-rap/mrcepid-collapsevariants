@@ -16,4 +16,5 @@ python = "~3.8"
 dxpy = "0.346.0"
 pandas = "1.5.2"
 numpy = "1.23.2"
+bgen = "1.7.2"
 general-utilities = {git = "https://github.com/mrcepid-rap/general_utilities.git", rev = "v1.5.1"}

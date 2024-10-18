@@ -136,11 +136,11 @@ class STAARParser:
 
             variants_list_csv = csv.DictReader(variants_list_file, delimiter='\t', quoting=csv.QUOTE_NONE)
             variants_dict_csv = csv.DictWriter(variants_dict_writer, delimiter='\t', extrasaction='ignore',
-                                               fieldnames=['varID', 'chrom', 'pos', 'ENST', 'column'])
+                                               fieldnames=['ID', 'chrom', 'pos', 'ENST', 'column'])
             variants_dict_csv.writeheader()
             for var in variants_list_csv:
                 if var['chrom'] == self._chromosome or self._chromosome == 'SNP' or self._chromosome == 'GENE':
-                    variants[var['varID']] = row_num
+                    variants[var['ID']] = row_num
 
                     var['column'] = row_num
                     variants_dict_csv.writerow(var)
@@ -190,7 +190,7 @@ class STAARParser:
                 matrix_file.open('w') as matrix_file_writer:
 
             sparse_matrix = csv.DictReader(sparse_matrix, delimiter='\t', quoting=csv.QUOTE_NONE,
-                                           fieldnames=['sample', 'varID', 'genotype'])
+                                           fieldnames=['sample', 'ID', 'genotype'])
 
             # Write the header in %MatrixMarket format
             matrix_file_writer.write('%%MatrixMarket matrix coordinate integer general\n')
@@ -198,7 +198,7 @@ class STAARParser:
             # Write the individual cells in the matrix
             for row in sparse_matrix:
                 gt_val = 1 if row['genotype'] == '0/1' else 2
-                matrix_file_writer.write(f'{samples[row["sample"]]} {variants[row["varID"]]} {gt_val}\n')
+                matrix_file_writer.write(f'{samples[row["sample"]]} {variants[row["ID"]]} {gt_val}\n')
             matrix_file_writer.close()
 
         return matrix_file

@@ -12,29 +12,27 @@ import pandas as pd
 
 from dxpy import DXFile
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict
 
 from general_utilities.association_resources import generate_linked_dx_file
 from general_utilities.job_management.command_executor import CommandExecutor
-from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 
 from collapsevariants.ingest_data import IngestData
 from collapsevariants.snp_list_generator import SNPListGenerator
-from collapsevariants.filtering import filter_bgen, run_filtering
+from collapsevariants.tool_parsers.filtering import BGENFiltering
 from collapsevariants.snp_list_merger import SNPMerger
 from collapsevariants.collapse_logger import CollapseLOGGER
-from plot_lib_test import cmd_exec
 
 # Set up the system logger – this is NOT the same as LOG_FILE below that records info about the filtering itself
 LOGGER = MRCLogger().get_logger()
 
 
-def stat_writer(sample_tables: List[pd.DataFrame], per_chromosome_totals: Dict[str, int], log_file: CollapseLOGGER,
+def stat_writer(sample_table: pd.DataFrame, per_chromosome_totals: Dict[str, int], log_file: CollapseLOGGER,
                 total_sites: int) -> None:
     """ Writes stats about the various collapsing operations performed by this applet
 
-    :param sample_tables: A list of Pandas dataframes (one for each chromosome queried) containing per sample and per
+    :param sample_table: A Pandas dataframe containing per sample and per
         gene information.
     :param per_chromosome_totals: Total number of variants found per-chromosome
     :param log_file: The LOG_FILE for this instance to print to
@@ -43,6 +41,7 @@ def stat_writer(sample_tables: List[pd.DataFrame], per_chromosome_totals: Dict[s
     """
 
     # Write a bunch of stats
+    log_file.write_spacer()
     log_file.write_header('Per-chromosome totals')
 
     found_total_sites = 0
@@ -57,20 +56,19 @@ def stat_writer(sample_tables: List[pd.DataFrame], per_chromosome_totals: Dict[s
     log_file.write_spacer()
 
     # Concatenate and sum sample tables:
-    master_sample_table = pd.concat(sample_tables).groupby(['sample_id']).sum().reset_index()
     log_file.write_header('Per-individual totals')
-    log_file.write_int('Median number of alleles per indv', master_sample_table['ac'].median())
-    log_file.write_int('Median number of genes affected per indv', master_sample_table['ac_gene'].median())
-    log_file.write_float('Mean number of alleles per indv', master_sample_table['ac'].mean())
-    log_file.write_float('Mean number of genes affected per indv', master_sample_table['ac_gene'].mean())
-    log_file.write_int('Max number of alleles', master_sample_table['ac'].max())
+    log_file.write_int('Median number of alleles per indv', sample_table['ac'].median())
+    log_file.write_int('Median number of genes affected per indv', sample_table['ac_gene'].median())
+    log_file.write_float('Mean number of alleles per indv', sample_table['ac'].mean())
+    log_file.write_float('Mean number of genes affected per indv', sample_table['ac_gene'].mean())
+    log_file.write_int('Max number of alleles', sample_table['ac'].max())
     log_file.write_int('Number of individuals with at least 1 allele',
-                       pd.value_counts(master_sample_table['ac'] > 0)[True])
+                       pd.value_counts(sample_table['ac'] > 0)[True])
     log_file.write_spacer()
 
     log_file.write_header('AC Histogram')
     log_file.write_generic('AC_bin\tcount\n')
-    ac_counts = master_sample_table.value_counts('ac')
+    ac_counts = sample_table.value_counts('ac')
     ac_counts = ac_counts.sort_index()
     for ac, count in ac_counts.items():
         log_file.write_histogram(ac, count)
@@ -117,61 +115,24 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
         ingested_data = IngestData(bgen_index, filtering_expression, snplist, genelist)
 
         # First generate a list of ALL variants genome-wide that we want to retain:
-        snp_list_generator = SNPListGenerator(ingested_data,
-                                              log_file)
+        snp_list_generator = SNPListGenerator(ingested_data.bgen_index, ingested_data.filtering_expression,
+                                              ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
 
-        # Next we need to filter the BGEN files according to the SNP list that we generated in snp_list_generator
-        thread_utility = ThreadUtility(error_message='Error in filtering BGEN files')
-
-        for chromosome in snp_list_generator.chromosomes:
-            for prefix in snp_list_generator.chromosomes[chromosome]:
-                thread_utility.launch_job(run_filtering,
-                                          bgen_prefix=prefix,
-                                          chromosome=chromosome,
-                                          chrom_bgen_index=ingested_data.bgen_index[prefix],
-                                          cmd_exec=ingested_data.cmd_exec)
-
-        filtered_bgens = dict()
-        for result in thread_utility:
-
-
-
-        thread_utility.collect_futures()
-
-        thread_utility = ThreadUtility(error_message='Error in merging BGEN files')
-
-
-
-        # Now loop through each chromosome merge the results of the filtering and generate final bgen files
-        # ...launch the requested threads
-        thread_utility = ThreadUtility(error_message='Error in making merged SNP/GENE files')
-
-        for prefix in snp_list_generator.valid_prefixes:
-            chrom_bgen_index = ingested_data.bgen_index[prefix]
-            thread_utility.launch_job(filter_bgen,
-                                      file_prefix=output_prefix,
-                                      bgen_prefix=prefix,
-                                      chrom_bgen_index=chrom_bgen_index,
-                                      cmd_exec=ingested_data.cmd_exec)
-
-        # And gather the resulting futures
-        sample_tables = []
-        chromosome_totals = dict()
-
-        for result in thread_utility:
-            per_chromosome_total, chromosome, sample_table = result
-            sample_tables.append(sample_table)
-            chromosome_totals[chromosome] = per_chromosome_total
-        log_file.write_spacer()
+        # Now we need to filter the bgen files to only include the variants we want to keep
+        bgen_filtering = BGENFiltering(snp_list_generator.genes, ingested_data.bgen_index, output_prefix,
+                                       ingested_data.cmd_exec)
 
         # And write stats about the collected futures
-        stat_writer(sample_tables, chromosome_totals, log_file, snp_list_generator.total_sites)
+        stat_writer(bgen_filtering.sample_table,
+                    bgen_filtering.chromosome_totals,
+                    log_file,
+                    snp_list_generator.total_sites)
 
         # Here we check if we made a SNP-list. If so, we need to merge across all chromosomes into single
         # per-snp/gene files:
-        if ingested_data.found_snps or ingested_data.found_genes:
+        if ingested_data.snp_list_path or ingested_data.gene_list_path:
             LOGGER.info('Making merged SNP/GENE files for burden testing...')
-            SNPMerger(snp_list_generator.chromosomes, output_prefix, ingested_data.found_genes, ingested_data.cmd_exec)
+            SNPMerger(snp_list_generator.genes, output_prefix, ingested_data.found_genes, ingested_data.cmd_exec)
 
         LOGGER.info('Closing LOG file...')
         linked_log_file = log_file.close_writer()
