@@ -3,30 +3,13 @@ import gzip
 import dxpy
 import pandas as pd
 
-from enum import Enum, auto
 from pathlib import Path
-from typing import Dict, TypedDict, List, Set, Optional
+from enum import Enum, auto
+from typing import Dict, Set, Optional, IO
 
-from collapsevariants.ingest_data import BGENIndex
 from collapsevariants.collapse_logger import CollapseLOGGER
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
-
-
-class GeneDict(TypedDict):
-    """A TypedDict containing information about all variants collapsed into a given gene
-
-    :cvar chrom: The chromosome this gene is on
-    :cvar varIDs: A list of all variant IDs within this gene
-    :cvar min_poss: The minimum coordinate for a variant within this gene. Is not a perfect proxy for gene start, but
-        is good enough for the purposes of the code that needs that information.
-    :cvar prefixes: A list of prefixes for the bgen files that contain variants for this gene
-    """
-
-    chrom: str
-    varIDs: List[str]
-    min_poss: int
-    prefixes: List[str]
 
 
 class FilteringMode(Enum):
@@ -77,7 +60,7 @@ class StatDictionary:
         self._update_revel(variant_index['REVEL'])
         self._update_pass_stats(variant_index['FILTER'])
         self._update_loftee_counts(variant_index['LOFTEE'])
-        self._update_parsed_consequence_counts(variant_index['parsed_csq'])
+        self._update_parsed_consequence_counts(variant_index['PARSED_CSQ'])
         self._update_vep_consequence_counts(variant_index['CSQ'])
 
     def write_bgen_stats(self) -> None:
@@ -288,26 +271,27 @@ class SNPListGenerator:
         Unlike the previous two methods, this approach DOES NOT use a filtering expression and relies on the user to
         filter SNPs.
 
-    :param bgen_index: A dict that contains the bgen file prefixes as keys and a BGENIndex TypedDict containing
-        information on filepaths containing filtered & annotated variants.
+    :param vep_dict: A dict that contains the bgen file prefixes as keys and an open VEP reader as values.
     :param filtering_expression: A pandas.query() compatible expression to filter variants on, 'None' if not provided.
     :param gene_list_path: A path to a list of genes to filter against.
     :param snp_list_path: A path to a list of SNPs to filter against.
     :param log_file: A class of CollapseLOGGER to store information on variant filtering
     """
 
-    def __init__(self, bgen_index: Dict[str, BGENIndex], filtering_expression: str,
+    def __init__(self, vep_dict: Dict[str, IO], filtering_expression: str,
                  gene_list_path: Optional[Path], snp_list_path: Optional[Path], log_file: CollapseLOGGER):
 
         self._logger = MRCLogger(__name__).get_logger()
 
         # Set defaults for all class variables
-        self._bgen_index = bgen_index
+        self._vep_dict = vep_dict
         self._filtering_expression = filtering_expression
-        self._gene_list_path = gene_list_path  # This is a boolean if we found a gene list
+
+        self._gene_list_path = gene_list_path  # This is a Path to a found Gene list
         self._gene_list = set()  # Placeholder for a numpy array of gene symbols
         self._found_gene_dict = dict()
-        self._snp_list_path = snp_list_path  # This is a boolean if we found a SNP list
+
+        self._snp_list_path = snp_list_path  # This is a Path to a found SNP list
         self._snp_list = set()  # Placeholder for a numpy array of SNP IDs
         self._found_snp_set = set()  # Placeholder for a numpy array of SNP IDs
 
@@ -319,9 +303,9 @@ class SNPListGenerator:
 
         # Iterate through all possible bgens in parallel and filter them
         thread_utility = ThreadUtility()
-        for prefix, data_dict in self._bgen_index.items():
+        for prefix, vep_io in self._vep_dict.items():
             thread_utility.launch_job(self._query_variant_index,
-                                      vep_id=data_dict['vep'],
+                                      vep_id=vep_io,
                                       prefix=prefix)
 
         # Next we want to take the filtered result and process into a dictionary with keys of chromosomes and values of
@@ -339,45 +323,68 @@ class SNPListGenerator:
         self.total_sites = self._stat_dict.get_total_sites()
 
     def _decide_filtering_mode(self) -> FilteringMode:
+        """Decide on the filtering mode based on the provided input
 
-        if self._filtering_expression is not None and self._gene_list_path:
+        :return: The filtering mode selected in the form of a FilteringMode Enum
+        """
 
-            with self._gene_list_path.open('r') as my_genelist_file:
-                gene_list = my_genelist_file.readlines()
-                self._gene_list = set([gene.rstrip() for gene in gene_list])
+        if self._filtering_expression is not None and self._snp_list_path is None and self._gene_list_path is None:
+            # For logging purposes output the filtering expression provided by the user
+            self._logger.info('Current Filtering Expression:')
+            self._logger.info(self._filtering_expression)
+            filtering_mode = FilteringMode.FILTERING_EXPRESSION
 
-            return FilteringMode.GENE_LIST
+        elif self._filtering_expression is not None and self._snp_list_path is None and self._gene_list_path is not None:
+            self._logger.info('Gene list provided together with filtering expression - will filter for variant '
+                        'classes of interest in gene set')
+            self._logger.info('Current Filtering Expression:')
+            self._logger.info(self._filtering_expression)
 
-        # 2. Filtering expression
-        elif self._filtering_expression is not None:
-            return FilteringMode.FILTERING_EXPRESSION
+            # Read the gene list into a set
+            if self._gene_list_path.exists():
+                with self._gene_list_path.open('r') as my_genelist_file:
+                    gene_list = my_genelist_file.readlines()
+                    self._gene_list = set([gene.rstrip() for gene in gene_list])
 
-        # 3. SNP List
-        elif self._snp_list_path:
+                filtering_mode = FilteringMode.GENE_LIST
 
-            with self._snp_list_path.open('r') as my_snplist_file:
-                snp_list = my_snplist_file.readlines()
-                self._snp_list = set([snp.rstrip() for snp in snp_list])
+            else:
+                raise FileNotFoundError(f'Provided SNP list {self._snp_list_path} does not exist!')
 
-            return FilteringMode.SNP_LIST
+        elif self._filtering_expression is None and self._snp_list_path is not None and self._gene_list_path is None:
+            self._logger.info('Using provided SNPlist to generate a mask...')
+
+            # Read the SNP list into a set
+            if self._snp_list_path.exists():
+                with self._snp_list_path.open('r') as my_snplist_file:
+                    snp_list = my_snplist_file.readlines()
+                    self._snp_list = set([snp.rstrip() for snp in snp_list])
+
+                filtering_mode = FilteringMode.SNP_LIST
+            else:
+                raise FileNotFoundError(f'Provided SNP list {self._snp_list_path} does not exist!')
 
         else:
-            raise ValueError('No filtering expression, SNP list, or Gene list provided!')
+            raise ValueError('Incorrect input for snp/gene/filtering expression provided... exiting!')
+
+        self._logger.info(f'Selected filtering mode is: {filtering_mode.name.lower()}')
+        return filtering_mode
 
     @staticmethod
-    def _load_variant_index(vep_id: str) -> pd.DataFrame:
+    def _load_variant_index(vep_io: IO) -> pd.DataFrame:
         """Load vep annotated *.tsv.gz files into a pandas DataFrame
 
         Note that this method uses the dxpy.open_dxfile method, which streams the file from the DNAnexus platform
         rather than downloading it directly to the local filesystem.
 
-        :param vep_id: DXFile ID for the vep index to load
+        :param vep_io: Pre-opened IO to a vep index file
         :return: A pandas.DataFrame containing variants loaded from all provided chromosomes
         """
 
-        current_vep = pd.read_csv(gzip.open(dxpy.open_dxfile(vep_id, mode='rb'), mode='rt'), sep="\t",
+        current_vep = pd.read_csv(gzip.open(vep_io, mode='rt'), sep="\t",
                                   index_col='varID',
-                                  dtype={'SIFT': str, 'POLYPHEN': str})
+                                  dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
+                                         'AA': str, 'AApos': str})
 
         return current_vep
 
@@ -404,24 +411,18 @@ class SNPListGenerator:
         # 1. Filtering expression + Gene List
         if self._filtering_mode == FilteringMode.GENE_LIST:
             variant_index = self._query_gene_list(variant_index)
-            poss_chrom = 'GENE'
 
         # 2. Filtering expression
         elif self._filtering_mode == FilteringMode.FILTERING_EXPRESSION:
             variant_index = self._query_filtering_expression(variant_index)
-            poss_chrom = variant_index['CHROM'].unique()
-            if len(poss_chrom) > 1:
+            if variant_index['CHROM'].nunique() > 1:
                 raise ValueError(f'More than one chromosome found in bgen {prefix}!')
-            else:
-                poss_chrom = poss_chrom[0]
 
         # 3. SNP List
         elif self._filtering_mode == FilteringMode.SNP_LIST:
             variant_index = self._query_snp_list(variant_index)
-            poss_chrom = 'SNP'
 
-        return {'variant_index': variant_index, 'prefix': prefix, 'chrom': poss_chrom,
-                'vars_found': len(variant_index) > 0, 'min_pos': min_pos}
+        return {'variant_index': variant_index, 'prefix': prefix, 'vars_found': len(variant_index) > 0}
 
     def _query_gene_list(self, variant_index: pd.DataFrame) -> pd.DataFrame:
         """Filter variants by a provided gene list
@@ -430,11 +431,24 @@ class SNPListGenerator:
         :return: A modified version of the variant_index pandas.DataFrame AFTER filtering on provided Gene list
         """
 
-        # First filter to the gene Symbols we care about
-        variant_index = variant_index[variant_index['SYMBOL'].isin(self._gene_list)]
+        # First filter to the gene Symbols / ENSTs we care about
+        # Check if we are using ENST or SYMBOL:
+        query_mode = None
+        is_mixed = [0,0]
+        for name in self._gene_list:
+            if name.startswith('ENST'):
+                is_mixed[0] += 1
+                query_mode = 'ENST'
+            else:
+                is_mixed[1] += 1
+                query_mode = 'SYMBOL'
+        if is_mixed[0] > 0 and is_mixed[1] > 1:
+            raise ValueError('Mixed ENST and gene SYMBOLs. Please run gene filtering with only ONE type!')
+
+        variant_index = variant_index[variant_index[query_mode].isin(self._gene_list)]
 
         # Catalogue genes (and counts) that we did find:
-        symbol_counts = variant_index['SYMBOL'].value_counts().to_dict()
+        symbol_counts = variant_index[query_mode].value_counts().to_dict()
         for symbol, count in symbol_counts.items():
             if symbol in self._found_gene_dict:
                 self._found_gene_dict[symbol] += count
@@ -443,10 +457,6 @@ class SNPListGenerator:
 
         # Now further filter down to the filtering_expression we are interested in
         variant_index = variant_index.query(self._filtering_expression)
-
-        # Set all gene ENSTs to ENST99999999999
-        # This is a dummy value so that association_testing knows we are running a gene list
-        variant_index['ENST'] = 'ENST99999999999'
 
         return variant_index
 
@@ -472,14 +482,12 @@ class SNPListGenerator:
         """
 
         # And finally extract variants here
-        variant_index = variant_index.loc[self._snp_list]
+        # Have to do this in two steps as the snps in the list may not be in the index, which breaks .loc:
+        union_snps = self._snp_list.intersection(variant_index.index)
+        variant_index = variant_index.loc[union_snps]
 
         # Catalogue SNPs that we did find:
         self._found_snp_set.update(variant_index.index)
-
-        # Here we create a fake 'GENE' to collapse on later to make the process of generating a mask easier.
-        # We also use this gene ID to notify runassociationtesting that we are doing a SNP-based mask
-        variant_index['ENST'] = 'ENST00000000000'
 
         return variant_index
 
@@ -495,6 +503,6 @@ class SNPListGenerator:
 
         variant_index = variant_index[['CHROM', 'POS', 'ENST']]
         variant_index = variant_index.sort_values(by='POS')  # Make sure sorted by position
-        variant_index.reset_index(inplace=True)
+        variant_index = variant_index.reset_index() # Make sure we have a numerical index in POS order
 
         return variant_index

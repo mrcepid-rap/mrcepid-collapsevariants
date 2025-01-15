@@ -4,3 +4,5 @@
 /test/.pytest_cache/
 /test/test_data/chr7_10.*
 /test/test_data/old_test_data/*
+/test/test_data/Duat_*
+/test/test_data/chr1_chunk*

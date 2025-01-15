@@ -131,18 +131,18 @@ simulate_base_covariates_and_phenotype <- function() {
   cols <- c('eid', paste0("PC",1:40), 'age', 'sex', 'wes.batch', 'array', 'genetics_qc_pass')
   base_covar_file <- covars[,..cols]
   setnames(base_covar_file, cols, c('eid', paste('22009-0',1:40,sep='.'), '21003-0.0', '22001-0.0', 'wes.batch', '22000-0.0', 'genetics_qc_pass'))
-  fwrite(base_covar_file, 'test_data/test_base_covariates.covariates', sep='\t', col.names = T, row.names = F, quote = F)
+  fwrite(base_covar_file, 'test_data/old_test_data/test_base_covariates.covariates', sep='\t', col.names = T, row.names = F, quote = F)
 
   # 2. Additional covariates file:
   cols <- c('FID','IID','quant_covar_1', 'cat_covar_2')
-  fwrite(covars[,..cols], 'test_data/test_add_covariates.covariates', sep='\t', col.names = T, row.names = F, quote = F)
+  fwrite(covars[,..cols], 'test_data/old_test_data/test_add_covariates.covariates', sep='\t', col.names = T, row.names = F, quote = F)
 
   # 3. A info file of covariate information including expected beta:
   setnames(wes_betas, c("wes.batch","wes.betas"), c("covar","beta"))
   setnames(array_betas, c("array","array.betas"), c("covar","beta"))
   setnames(cat_covar_betas, c("cat_covar_2","cat_covar_2.betas"), c("covar","beta"))
   covar_betas <- rbind(sim_var_cont[,c('covar','beta')], wes_betas, array_betas, cat_covar_betas)
-  fwrite(covar_betas, 'test_data/covar_beta.info', sep='\t', col.names = T, row.names = F, quote = F)
+  fwrite(covar_betas, 'test_data/old_test_data/covar_beta.info', sep='\t', col.names = T, row.names = F, quote = F)
 
   # And return the phenotype so we can continue to modify it with genetic data
   return(covars[,c('FID','IID','sim_pheno')])
@@ -332,7 +332,7 @@ simulate_wes_data <- function(phenotype) {
 }
 
 # Make sure we start with actual genes:
-transcripts <- fread('test_data/transcripts.tsv.gz')
+transcripts <- fread('test_data/old_test_data/transcripts.tsv.gz')
 transcripts <- transcripts[fail == F & chrom != 'Y']
 
 # Simulate two independent phenotypes:
@@ -347,9 +347,9 @@ gene_info <- sim_wes[[2]]
 fam <- data.table(FID=0, IID=1000000:1009999, col3=0, col4=0, col5=0, col6 =-9)
 
 # Write all outputs
-fwrite(phenotype[,c("FID","IID","sim_pheno_1_var","sim_pheno_2_var")], 'test_data/sim_pheno.txt', sep=' ', col.names = T, row.names = F, quote = F)
-fwrite(gene_info, 'test_data/gene_beta.info', sep='\t', col.names = T, row.names = F, quote = F, na = 'NA')
-fwrite(effect_variants, 'test_data/gt_beta.info', sep='\t', col.names = T, row.names = F, quote = F, na = 'NA')
+fwrite(phenotype[,c("FID","IID","sim_pheno_1_var","sim_pheno_2_var")], 'test_data/old_test_data/sim_pheno.txt', sep=' ', col.names = T, row.names = F, quote = F)
+fwrite(gene_info, 'test_data/old_test_data/gene_beta.info', sep='\t', col.names = T, row.names = F, quote = F, na = 'NA')
+fwrite(effect_variants, 'test_data/old_test_data/gt_beta.info', sep='\t', col.names = T, row.names = F, quote = F, na = 'NA')
 fwrite(fam, 'sim_data/filtered.fam', sep=' ', col.names = F, row.names = F, quote = F)
 
 # Read annotations back in so we can generate test data automatically
@@ -358,7 +358,7 @@ for (file in Sys.glob('sim_data/*.vep.tsv')) {
   annotations <- rbind(annotations, fread(file))
 }
 
-gene_info <- fread('test_data/gene_beta.info')
+gene_info <- fread('test_data/old_test_data/gene_beta.info')
 
 # Generate a json of testing parameters for filtering expressions:
 expression_test_data <- data.table('variant_type' = c('PTV', 'MISS', 'SYN'), 'test_type' = 'expression', 'snp_list' = NA, 'gene_list' = NA)
@@ -433,15 +433,15 @@ get_test_data <- function(variant_type, snp_list, gene_list) {
 list_test_data[,c("expected_vars", "test_gene", "test_var", "gene_het_count", "var_het_count", "tot_gene_count", "test_var_count","tot_var_count"):=get_test_data(variant_type, snp_list, gene_list),by=seq_len(nrow(list_test_data))]
 
 # And cat together and print
-cat(toJSON(rbind(expression_test_data, list_test_data), pretty=T, na='null'), file="test_data/expression_test_data.json")
+cat(toJSON(rbind(expression_test_data, list_test_data), pretty=T, na='null'), file= "test_data/old_test_data/expression_test_data.json")
 
 # Generate a set of gene / SNP lists for testing gene / SNP collapsing:
-fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_1',ENST] & PARSED_CSQ == 'MISS','varID'], "test_data/snp_list.pheno_1_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
-fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_1',ENST] & PARSED_CSQ == 'PTV','varID'], "test_data/snp_list.pheno_1_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")
-fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_2',ENST] & PARSED_CSQ == 'MISS','varID'], "test_data/snp_list.pheno_2_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
-fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_2',ENST] & PARSED_CSQ == 'PTV','varID'], "test_data/snp_list.pheno_2_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_1',ENST] & PARSED_CSQ == 'MISS','varID'], "test_data/old_test_data/snp_list.pheno_1_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_1',ENST] & PARSED_CSQ == 'PTV','varID'], "test_data/old_test_data/snp_list.pheno_1_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_2',ENST] & PARSED_CSQ == 'MISS','varID'], "test_data/old_test_data/snp_list.pheno_2_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(annotations[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_2',ENST] & PARSED_CSQ == 'PTV','varID'], "test_data/old_test_data/snp_list.pheno_2_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")
 
-fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_1',ENST],'SYMBOL'], "test_data/gene_list.pheno_1_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
-fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_1',ENST],'SYMBOL'], "test_data/gene_list.pheno_1_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")
-fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_2',ENST],'SYMBOL'], "test_data/gene_list.pheno_2_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
-fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_2',ENST],'SYMBOL'], "test_data/gene_list.pheno_2_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_1',ENST],'SYMBOL'], "test_data/old_test_data/gene_list.pheno_1_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_1',ENST],'SYMBOL'], "test_data/old_test_data/gene_list.pheno_1_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'MISS' & pheno_name == 'sim_pheno_2',ENST],'SYMBOL'], "test_data/old_test_data/gene_list.pheno_2_MISS.txt", row.names=F, col.names=F, quote=F, sep="\t")
+fwrite(transcripts[ENST %in% gene_info[causal == T & causality == 'PTV' & pheno_name == 'sim_pheno_2',ENST],'SYMBOL'], "test_data/old_test_data/gene_list.pheno_2_PTV.txt", row.names=F, col.names=F, quote=F, sep="\t")

@@ -1,110 +1,77 @@
-#
-# Author: Eugene Gardner (eugene.gardner at mrc.epid.cam.ac.uk)
-#
-# Prior to using this script PLEASE follow the instructions in the developer readme (Readme.developer.md) carefully.
-# This Readme provides instructions on how to regenerate testing data necessary to run these tests.
-
-import os
-import time
-import json
-import dxpy
+import numpy as np
 import pytest
 import filecmp
 import pandas as pd
 
 from pathlib import Path
+from scipy.sparse import csr_matrix
 
-from general_utilities.association_resources import fix_plink_bgen_sample_sex
-from general_utilities.job_management.command_executor import build_default_command_executor
-
-from collapsevariants.ingest_data import IngestData
 from collapsevariants.collapse_logger import CollapseLOGGER
+from collapsevariants.collapse_utils import generate_csr_matrix_from_bgen, get_sample_ids, check_matrix_stats
 from collapsevariants.snp_list_generator import SNPListGenerator
-from collapsevariants.snp_list_merger import SNPMerger
-from collapsevariants.filtering import filter_bgen
-from general_utilities.mrc_logger import MRCLogger
-
-test_folder = Path(os.getenv('TEST_DIR'))
-CMD_EXEC = build_default_command_executor()
-LOGGER = MRCLogger(__name__).get_logger()
 
 
-def get_testing_files(file_name: str, download: bool = False) -> dict:
-    """A function to pull named testing files from the provided test folder onto the local storage of this instance
+def generate_expected_counts(test_data: Path, gene_list: Path = None, snp_list: Path = None) -> np.ndarray:
+    gts = pd.read_csv(test_data,
+        sep='\t', names=['CHROM', 'POS', 'ID', 'ENST', 'CSQ', 'LOFTEE', 'MAF', 'SAMPLE', 'GT'])
 
-    Some testing needs to involve downloading / uploading of files from the DNANexus platform. However, testing does
-    not allow us to provide static DNANexus file IDs. Thus, this method is just a wrapper around
-    dxpy.find_one_data_object to enable us to find files by name in the folder of test data used for running tests.
-    The location of all files using this method is hard-coded to the test folder provided to testing at startup.
+    gts['GT'] = gts['GT'].apply(lambda x: 1 if x == '0/1' else 2)
+    gts['SAMPLE'] = gts['SAMPLE'].str.split('_', expand=True)[1].astype(int)
 
-    :param file_name: String name of the file we want
-    :param download: Download the file
-    :return: A 'mock' DNANexus link in the format of a dictionary with key always as '$dnanexus_link' and value as a
-        DNANexus file-id
-    """
-    found_file = dxpy.find_one_data_object(classname='file',
-                                           project=dxpy.PROJECT_CONTEXT_ID,
-                                           name_mode='exact',
-                                           name=file_name,
-                                           folder=f'{test_folder}',
-                                           zero_ok=False)
-    if download:
-        dxpy.download_dxfile(dxid=found_file['id'], project=found_file['project'], filename=file_name)
+    # Filter by ENST if required
+    if gene_list:
+        with gene_list.open('r') as gene_file:
+            gene_list = [gene.rstrip() for gene in gene_file.readlines()]
 
-    return {'$dnanexus_link': found_file['id']}
+        gts = gts[gts['ENST'].isin(gene_list)]
 
+    # Filter by SNP if required
+    if snp_list:
+        with snp_list.open('r') as snp_file:
+            snp_list = [snp.rstrip() for snp in snp_file.readlines()]
 
-testing_expression = 'AF<0.001 & PARSED_CSQ=="PTV" & LOFTEE=="HC" & FILTER=="PASS"'
-bgen_index = {'$dnanexus_link': os.getenv('BGEN_INDEX')}
-snplist = get_testing_files('snp_list.pheno_1_MISS.txt')
-genelist = get_testing_files('gene_list.pheno_1_MISS.txt')
-@pytest.mark.parametrize(
-    argnames=['use_expression', 'use_snplist', 'use_genelist', 'expected_exception'],
-    argvalues=zip([True, False, True, True, False, False],
-                  [False, True, False, True, False, True],
-                  [False, False, True, False, True, True],
-                  [None, None, None, ValueError, ValueError, ValueError])
-)
-def test_ingest_data(use_expression: bool, use_snplist: bool, use_genelist: bool,
-                     expected_exception: Exception):
-    """Test IngestData in CollapseVariants
+        gts = gts[gts['ID'].isin(snp_list)]
 
-    Test in order:
-    1. filtering expression
-    2. SNPList
-    3. gene list + filtering expression
+    gt_totals = gts.groupby('SAMPLE').aggregate(GT_sum=('GT', 'sum'))
 
-    Errors:
-    4. SNPList + expression
-    5. No expression + gene list
-    6. snp list + gene list
+    # Make a dummy frame to make sure we capture all sample IDs
+    dummy = pd.DataFrame(index=range(0, 10000))
+    dummy.index.name = 'SAMPLE'
 
-    :param use_expression: Use the standard filtering expression?
-    :param use_snplist: Use a SNP list?
-    :param use_genelist: Use a gene list?
-    :param expected_exception: Exception that should be thrown by this combination of elements
-    """
+    gt_totals = dummy.merge(gt_totals, left_index=True, right_index=True, how='left')
+    gt_totals = gt_totals.fillna(0)
 
-    # When running this code successive times, 'docker pull' functionality will just assert that the image is already
-    # on the instance, and no need to test...
-    if expected_exception is None:
-        ingested_data = IngestData(bgen_index,
-                                   testing_expression if use_expression else None,
-                                   snplist if use_snplist else None,
-                                   genelist if use_genelist else None)
-        assert sorted([f'{x}' for x in range(1, 23)] + ['X']) == sorted(ingested_data.bgen_index.keys())
-        assert ingested_data.filtering_expression == (testing_expression if use_expression else None)
-        assert ingested_data.found_snps == use_snplist
-        assert ingested_data.found_genes == use_genelist
-    else:
-        with pytest.raises(expected_exception):
-            IngestData(bgen_index,
-                       testing_expression if use_expression else None,
-                       snplist if use_snplist else None,
-                       genelist if use_genelist else None)
+    return gt_totals['GT_sum'].to_numpy()
 
 
-def test_logger():
+# Validated test data:
+test_dir = Path(__file__).parent
+test_data_dir = test_dir / 'test_data/'
+correct_log = test_data_dir / 'correct_log.txt'
+
+# Filtering lists
+snp_path = test_data_dir / 'snp_list.v2.txt'
+gene_enst_path = test_data_dir / 'gene_list.ENST.txt'
+gene_symbol_path = test_data_dir / 'gene_list.SYMBOL.txt'
+
+# Variant information
+bgen_dict = {'chr1_chunk1': {'index': test_data_dir / 'chr1_chunk1.bgen.bgi',
+                             'bgen': test_data_dir / 'chr1_chunk1.bgen',
+                             'sample': test_data_dir / 'chr1_chunk1.sample',
+                             'vep': test_data_dir / 'chr1_chunk1.vep.tsv.gz',
+                             'gts': test_data_dir / 'chr1_chunk1.gts'},
+             'chr1_chunk2': {'index': test_data_dir / 'chr1_chunk2.bgen.bgi',
+                             'bgen': test_data_dir / 'chr1_chunk2.bgen',
+                             'sample': test_data_dir / 'chr1_chunk2.sample',
+                             'vep': test_data_dir / 'chr1_chunk2.vep.tsv.gz',
+                             'gts': test_data_dir / 'chr1_chunk2.gts'},
+             'chr1_chunk3': {'index': test_data_dir / 'chr1_chunk3.bgen.bgi',
+                             'bgen': test_data_dir / 'chr1_chunk3.bgen',
+                             'sample': test_data_dir / 'chr1_chunk3.sample',
+                             'vep': test_data_dir / 'chr1_chunk3.vep.tsv.gz',
+                             'gts': test_data_dir / 'chr1_chunk3.gts'}}
+
+def test_logger(tmp_path):
     """Test the logging functionality coded for tracking variants
 
     This function takes no inputs but uses a correctly formatted log from a previous run of this code
@@ -112,12 +79,10 @@ def test_logger():
     DNANexus file system.
     """
 
-    # Acquire correctly formatted log
-    get_testing_files('correct_log.txt', download=True)
-
-    assert Path('test_log.log').exists() is False
-    LOG_FILE = CollapseLOGGER('test_log')
-    assert Path('test_log.log').exists()
+    log_path = tmp_path / 'test_log.log'
+    assert log_path.exists() is False
+    LOG_FILE = CollapseLOGGER(log_path)
+    assert log_path.exists()
 
     LOG_FILE.write_header('THIS IS A TEST')
     LOG_FILE.write_int('test int no vep', 1, False)
@@ -137,195 +102,135 @@ def test_logger():
     LOG_FILE.write_spacer()
     LOG_FILE.write_int('This text is too long to be included and should be truncated', 1)
     LOG_FILE.write_header('This text is too long to be included and should be truncated')
-    uploaded_file = LOG_FILE.close_writer()
-
-    # The above (close writer) deletes the file on the local system, so test the full loop and make sure it was
-    # uploaded and can be downloaded again.
-    while uploaded_file.closed() == False:
-        time.sleep(5)
-    dxpy.download_dxfile(uploaded_file.get_id(), 'test_log.downloaded')
-    assert Path('test_log.downloaded').exists()
+    LOG_FILE.close()
 
     # And make sure the contents match the known data exactly
-    assert filecmp.cmp('correct_log.txt', 'test_log.downloaded')
+    assert filecmp.cmp(correct_log, log_path)
 
 
-get_testing_files('expression_test_data.json', download=True)
-var_test = json.load(Path('expression_test_data.json').open('r'))
-@pytest.mark.parametrize(
-    argnames=['var_info'],
-    argvalues=zip(var_test)
-)
-def test_filtering(var_info: dict):
-    """Test both the SNPListGenerator and filter_bgen classes / methods for a filtering expression
+@pytest.mark.parametrize("filtering_expression, gene_list_path, snp_list_path, expected_num_sites, check_error", [
+    ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 13592, False),
+    ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 34, False),
+    ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_symbol_path, None, 34, False),
+    (None, None, snp_path, 826, False),
+    (None, None, None, 0, True),
+    (None, gene_enst_path, None, 0, True),
+    ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, snp_path, 0, True),
+    ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, snp_path, 0, True)])
+def test_snp_list_generator(tmp_path: Path, filtering_expression: str, gene_list_path: Path, snp_list_path: Path,
+                            expected_num_sites: int, check_error: bool):
 
-    This test essentially performs an end-to-end test for collapsing using just a filtering expression we 're-ingest'
-    data and use the resulting files to make sure all files are as they should be for chromosome 1 with the assumption
-    that all tests would pass for all chromosomes.
+    log_path = tmp_path / 'HC_PTV-MAF_01.log'
+    test_log = CollapseLOGGER(log_path)
 
-    :param var_info: Dictionary of information necessary for testing. See below for individual parameters
+    # Has to be inside the test function since I have to re-open every time the test is run
+    # Also make sure this is rb, as we wrap gzip around this in the function.
+    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb') for bgen_prefix, bgen_info in bgen_dict.items()}
+
+    # Testing to make sure filtering mode parsing works correctly
+    if check_error:
+        with pytest.raises(ValueError):
+            SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
+                             gene_list_path=gene_list_path, snp_list_path=snp_list_path, log_file=test_log)
+    else:
+        snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
+                                              gene_list_path=gene_list_path, snp_list_path=snp_list_path, log_file=test_log)
+
+        assert snp_list_generator.total_sites == expected_num_sites
+
+        table_sites = 0
+        table_vars = set()
+        table_genes = set()
+        for bgen_prefix, variant_index in snp_list_generator.genes.items():
+            table_sites += variant_index.shape[0]
+            table_vars.update(variant_index['varID'].tolist())
+            table_genes.update(variant_index['ENST'].tolist())
+
+            assert bgen_prefix in vep_dict.keys()
+            assert variant_index.columns.tolist() == ['varID', 'CHROM', 'POS', 'ENST']
+
+        # Make sure we find the correct number of snps / genes if using that mode
+        if snp_list_path:
+            with snp_list_path.open('r') as snp_file:
+                expected_vars = set([var.rstrip() for var in snp_file.readlines()])
+
+            assert len(expected_vars.union(table_vars)) == expected_num_sites
+
+        elif gene_list_path:
+            with gene_list_path.open('r') as gene_file:
+                expected_genes = set([gene.rstrip() for gene in gene_file.readlines()])
+
+            assert len(table_genes) == len(expected_genes)
+
+        assert table_sites == expected_num_sites
+
+    test_log.close()
+
+
+@pytest.mark.parametrize("sample_file", [bgen_info['sample'] for bgen_info in bgen_dict.values()])
+def test_get_sample_ids(sample_file: Path):
+    sample_ids = get_sample_ids(sample_file)
+    assert len(sample_ids) == 10000
+    assert type(sample_ids) is list
+    assert type(sample_ids[0]) is str
+    assert len(sample_ids[0].split()) == 1   # Make sure the sample IDs are non-delimited strings
+
+
+@pytest.mark.parametrize("filtering_expression, gene_list_path, snp_list_path, expected_num_sites",
+                         [('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 13592),
+                          ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 34),
+                          (None, None, snp_path, 826)])
+def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_list_path: Path,
+                               snp_list_path: Path, expected_num_sites: int):
+    """This tests both :func:`generate_csr_matrix_from_bgen` and :func:`check_matrix_stats` functions.
+
+    :param tmp_path:
+    :param filtering_expression:
+    :param gene_list_path:
+    :param snp_list_path:
+    :param expected_num_sites:
+    :return:
     """
 
-    # Set test parameters from the dictionary of known results provided to this method
-    variant_type = var_info['variant_type']  # Specifically one of three PARSED_CSQ fields: PTV, MISS, SYN
-    test_type = var_info['test_type']  # type of test we are running
-    expected_vars = var_info['expected_vars']  # Total number of expected vars on ALL chromosomes after running a filtering expression
-    test_gene = var_info['test_gene']  # Name of the gene that we are using to run tests
-    test_var = var_info['test_var']  # Name of the variant that we are using to run tests
-    gene_het_count = var_info['gene_het_count']  # Total number of het carriers of `test_gene`
-    var_het_count = var_info['var_het_count']  # Total number of het carriers of `test_var`
-    tot_gene_count = var_info['tot_gene_count']  # Total number of genes on chromosome 1 for given `variant_type`
-    test_var_count = var_info['test_var_count']  # Total number of variants in `test_gene`
-    tot_var_count = var_info['tot_var_count']  # Total number of variants on chromosome 1 for given `variant_type`
-    snp_list = get_testing_files(var_info['snp_list'], download=False) if var_info['snp_list'] else None # Get a SNP list as a DXID (if requested)
-    gene_list = get_testing_files(var_info['gene_list'], download=False) if var_info['gene_list'] else None # Get a gene list as a DXID (if requested)
+    log_path = tmp_path / 'HC_PTV-MAF_01.log'
+    test_log = CollapseLOGGER(log_path)
 
-    # Running the actual processing / filtering first and then doing all tests below
-    if not snp_list:
-        filtering_expression = f'MAF<0.001 & PARSED_CSQ=="{variant_type}"'
-    else:
-        filtering_expression = None
-    ingested_data = IngestData(bgen_index, filtering_expression, snp_list, gene_list)
-    LOG_FILE = CollapseLOGGER(f'{variant_type}_{test_type}_test')
-    snp_list_generator = SNPListGenerator(ingested_data, LOG_FILE)
+    # Has to be inside the test function since I have to re-open every time the test is run
+    # Also make sure this is rb, as we wrap gzip around this in the function.
+    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb') for bgen_prefix, bgen_info in bgen_dict.items()}
 
-    filtering_total = 0
-    # Don't want to waste time doing every chromosome unless a SNP or GENE list
-    for chromosome in (snp_list_generator.chromosomes if (gene_list or snp_list) else ['1']):
-        LOGGER.info(f'Running filtering for chromosome {chromosome}...')
-        chrom_bgen_index = ingested_data.bgen_index[chromosome]
-        per_chromosome_total, _, sample_table = filter_bgen(file_prefix=f'{variant_type}_{test_type}_test',
-                                                            chromosome=chromosome,
-                                                            chrom_bgen_index=chrom_bgen_index,
-                                                            cmd_exec=CMD_EXEC)
-        filtering_total += per_chromosome_total
+    snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
+                                          gene_list_path=gene_list_path, snp_list_path=snp_list_path, log_file=test_log)
 
-    LOGGER.info(f'Filtering done...')
+    total_variants = 0
+    for bgen_prefix, variant_list in snp_list_generator.genes.items():
 
-    if snp_list or gene_list:
-        SNPMerger(snp_list_generator.chromosomes, f'{variant_type}_{test_type}_test',
-                  ingested_data.found_genes, cmd_exec=CMD_EXEC)
-    # This is the end of actual processing. All tests follow
+        genotypes = generate_csr_matrix_from_bgen(variant_list,
+                                                  bgen_dict[bgen_prefix]['bgen'],
+                                                  bgen_dict[bgen_prefix]['sample'])
 
-    # Test overall site count as determined by snp_list_generator
-    assert expected_vars == snp_list_generator.total_sites
+        ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
+        assert len(ac_table) == 10000
+        assert len(gene_ac_table) == 10000
+        assert len(gene_totals) == len(variant_list['ENST'].unique())
 
-    # Test composition of the pandas DataFrame of variants
-    expected_cols = ['CHROM', 'POS', 'REF', 'ALT', 'ogVarID', 'FILTER', 'AF', 'F_MISSING', 'AN', 'AC', 'MANE', 'ENST',
-                     'ENSG', 'BIOTYPE', 'SYMBOL', 'CSQ', 'gnomAD_AF', 'CADD', 'REVEL', 'SIFT', 'POLYPHEN', 'LOFTEE',
-                     'AA', 'AApos', 'PARSED_CSQ', 'MULTI', 'INDEL', 'MINOR', 'MAJOR', 'MAF', 'MAC']
-    assert snp_list_generator.variant_index.index.name == 'varID'
-    assert snp_list_generator.variant_index.columns.to_list() == expected_cols
-    assert expected_vars == len(snp_list_generator.variant_index)
+        expected_sites_path = bgen_dict[bgen_prefix]['gts']
+        expected_counts = generate_expected_counts(expected_sites_path,
+                                                   gene_list=gene_list_path, snp_list=snp_list_path)
 
-    # Test contents of the SNP lists
-    with Path('include_snps.txt').open('r') as snp_list,\
-            Path('snp_ENST.txt').open('r') as gene_list:
-        total_snps = 0
-        for _ in snp_list:
-            total_snps += 1
+        # EUGENE – Remember that this fails due to an annotation issue in Duat
+        # The problem is:
+        # 1. There are two variants with identical pos / ref / alt alleles but different CSQ annotations
+        # 2. bcftools annotate cannot tell the difference and just uses the 1st annotation
+        # I have left in this numpy bit so that you can see where the error is. It prints out the offending
+        # sample where compiled gt != expected gt;
+        # tldr: the test data is wrong, not collapsevariants
+        print(bgen_prefix)
+        print(np.argwhere(np.not_equal(ac_table, expected_counts)))
+        assert np.array_equal(ac_table, expected_counts)
 
-        total_genes = 0
-        total_col_errors = 0
-        for data in gene_list:
-            data = data.rstrip()
-            data = data.split('\t')
-            if len(data) != 4:
-                total_col_errors += 1
-            total_genes += 1
+        total_variants += genotypes.shape[1]
 
-        assert total_snps == expected_vars
-        assert total_genes == expected_vars + 1  # Gene list has a header
-        assert total_col_errors == 0
+        assert type(genotypes) is csr_matrix
 
-    # Test contents of the log file:
-    get_testing_files(f'{variant_type}_{test_type}_actual.log', download=True)
-    assert filecmp.cmp(f'{variant_type}_{test_type}_actual.log', f'{variant_type}_{test_type}_test.log')
-
-    # Now test variant filtering. I think we only have to do one chromosome to prove to ourselves that everything
-    # worked? Ultimately just want to make sure all the individual files written by this process do what we think
-    # they do. No need for unit tests in this case.
-    assert snp_list_generator.total_sites == total_snps  # Ensure the different code parts do the same thing
-    assert filtering_total == tot_var_count
-
-    # Using one randomly selected variant / gene pair to ensure proper information exists in the file
-    with Path('extract_gene.txt').open('w') as extract_gene:
-        extract_gene.write(f'{test_gene}\n')
-
-    # Check if all required files exist
-    required_suffixes = ['BOLT.bgen', 'BOLT.sample', 'SAIGE.bcf', 'SAIGE.bcf.csi', 'SAIGE.groupFile.txt',
-                         'STAAR.matrix.rds', 'sample', 'variants_table.STAAR.tsv']
-    # Suffix of final files differs depending on processing performed... Need to account for that here
-    if var_info['snp_list']:
-        chrom_suffix = 'SNP'
-    elif var_info['gene_list']:
-        chrom_suffix = 'GENE'
-    else:
-        chrom_suffix = '1'
-    assert sorted([f'{file}' for file in Path('./').glob(f'{variant_type}_{test_type}_test.{chrom_suffix}.*')]) == \
-           sorted([f'{variant_type}_{test_type}_test.{chrom_suffix}.{suffix}' for suffix in required_suffixes])
-
-    # Also spot check the primary genotype / data files
-    # BOLT.bgen
-    # NOTE: For GENE/SNP lists the number autogenerated by simulate_data.R for gene_het_count will be wrong. I have
-    # manually calculated this value and added it to the json.
-    fix_sample = fix_plink_bgen_sample_sex(Path(f'{variant_type}_{test_type}_test.{chrom_suffix}.BOLT.sample'))
-    test_cmd = f'plink2 --bgen /test/{variant_type}_{test_type}_test.{chrom_suffix}.BOLT.bgen \'ref-last\' ' \
-               f'--sample /test/{fix_sample} ' \
-               f'--extract /test/extract_gene.txt --export AD --out /test/{variant_type}_{test_type}_bolt ' \
-               f'--split-par hg38'
-    CMD_EXEC.run_cmd_on_docker(test_cmd)
-    bolt_test = pd.read_csv(f'{variant_type}_{test_type}_bolt.raw', sep='\t')
-    assert bolt_test[f'{test_gene}_HET'].sum() == gene_het_count  # Alt count correct
-    assert bolt_test[f'{test_gene}_A'].sum() == (20000 - gene_het_count)  # Ref count correct
-    assert len(bolt_test) == 10000  # Total samples correct
-
-    # SAIGE.bcf
-    test_cmd = f'bcftools query -i \'ID == "{test_var}"\' -f \'[%CHROM\\t%POS\\t%REF\\t%ALT\\t%SAMPLE\\t%GT\\n]\' ' \
-               f'/test/{variant_type}_{test_type}_test.{chrom_suffix}.SAIGE.bcf > {variant_type}_{test_type}_saige.tsv'
-    CMD_EXEC.run_cmd_on_docker(test_cmd)
-    saige_test = pd.read_csv(f'{variant_type}_{test_type}_saige.tsv', sep="\t",
-                             names=['chrom', 'pos', 'ref', 'alt', 'FID', 'gt'])
-    assert saige_test['gt'].value_counts()['0/1'] == var_het_count
-    assert saige_test['gt'].value_counts()['0/0'] == 10000 - var_het_count
-    assert len(saige_test) == 10000
-
-    # SAIGE.groupFile.txt
-    with Path(f'{variant_type}_{test_type}_test.{chrom_suffix}.SAIGE.groupFile.txt').open('r') as saige_group:
-        total_genes = 0
-        for line in saige_group:
-            total_genes += 1
-            line = line.rstrip().split('\t')
-            if line[0] == test_var:
-                assert (len(line) - 1) == test_var_count
-
-        assert total_genes == tot_gene_count
-
-    # variants_table.STAAR.tsv
-    staar_variants = pd.read_csv(f'{variant_type}_{test_type}_test.{chrom_suffix}.variants_table.STAAR.tsv', sep='\t')
-    assert len(staar_variants.query(f'varID == @test_var')) == 1
-    assert len(staar_variants.query('ENST == @test_gene')) == test_var_count
-    assert len(staar_variants) == tot_var_count
-    assert staar_variants['column'].max() == tot_var_count
-
-# Code to regenerate logs (if necessary)
-# Drop into section just above if not snp_list
-# logs = [{'variant_type': 'PTV', 'test_type': 'expression', 'snp_list': None, 'gene_list': None},
-#         {'variant_type': 'MISS', 'test_type': 'expression', 'snp_list': None, 'gene_list': None},
-#         {'variant_type': 'SYN', 'test_type': 'expression', 'snp_list': None, 'gene_list': None},
-#         {'variant_type': 'PTV', 'test_type': 'gene', 'snp_list': None, 'gene_list': {'$dnanexus_link': 'file-GQz9330J0zVyXjxgqFzB5Y09'}},
-#         {'variant_type': 'MISS', 'test_type': 'gene', 'snp_list': None, 'gene_list': {'$dnanexus_link': 'file-GQz991QJ0zVjkZfV4QyJxjvg'}},
-#         {'variant_type': 'PTV', 'test_type': 'snp', 'snp_list': {'$dnanexus_link': 'file-GQz9YzjJ0zVV8X3F63Yyjjzf'}, 'gene_list': None},
-#         {'variant_type': 'MISS', 'test_type': 'snp', 'snp_list': {'$dnanexus_link': 'file-GQz9Yv0J0zVfz88KX1p1vgKX'}, 'gene_list': None}]
-# for log in logs:
-#     variant_type = log['variant_type']
-#     test_type = log['test_type']
-#     snp_list = log['snp_list']
-#     gene_list = log['gene_list']
-#     if not snp_list:
-#         filtering_expression = f'MAF<0.001 & PARSED_CSQ=="{variant_type}"'
-#     else:
-#         filtering_expression = None
-#     ingested_data = IngestData(bgen_index, filtering_expression, snp_list, gene_list)
-#     LOG_FILE = CollapseLOGGER(f'{variant_type}_{test_type}_actual')
-#     snp_list_generator = SNPListGenerator(ingested_data, LOG_FILE)
+    assert total_variants == expected_num_sites

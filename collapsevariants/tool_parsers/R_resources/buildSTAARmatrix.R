@@ -9,11 +9,11 @@ library(Matrix)
 # 2. [2] Our list of variants – the columns of our final matrix
 # 3. [3] matrix file – The formated matrix file for readMM
 # 4. [4] Name of the .rds matrix file to save to
-args = commandArgs(trailingOnly = T)
-samples_file = args[1]
-variants_file = args[2]
-matrix_file = args[3]
-out_file = args[4]
+args <-  commandArgs(trailingOnly = T)
+samples_file <- args[1]
+variants_file <- args[2]
+matrix_file <- args[3]
+out_file <- args[4]
 
 # Process the samples file:
 samples <- fread(samples_file)

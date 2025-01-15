@@ -1,79 +1,79 @@
-import csv
+import pandas as pd
+
 from pathlib import Path
-from typing import Tuple, TypedDict, List, Dict
+from typing import Dict, List
+from scipy.sparse import csr_matrix
 
-from general_utilities.association_resources import fix_plink_bgen_sample_sex
-from general_utilities.job_management.command_executor import CommandExecutor
+from collapsevariants.tool_parsers.tool_parser import ToolParser
 
 
-def parse_filters_SAIGE(file_prefix: str, chromosome: str, cmd_exec: CommandExecutor) -> Tuple[Dict[str, GeneDict], Dict[str, str]]:
-    """Generate input format files that can be provided to SAIGE
+class SAIGEParser(ToolParser):
 
-    For the way SAIGE is implemented downstream of this applet, SAIGE requires a standard .bcf file and a 'groupFile'.
-    This groupFile is a simple tab-delimited file with individual genes (here defined as ENSTs) as the first column,
-    followed by all the variant IDs that should be included in that gene per our mask definition.
+    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
+                 output_prefix: str):
+        super().__init__(genes=genes, genotype_index=genotype_index, output_prefix=output_prefix, sample_ids=sample_ids,
+                         tool_name='SAIGE')
 
-    Variant IDs are slightly different from that included in other files produced by this applet, in that they must
-    follow the format of CHR:POS_REF/ALT rather than CHR:POS:REF:ALT as defined in the original .bgen files produced
-    prior to running this applet.
+    def _make_output_files(self, bgen_prefix: str) -> List[Path]:
 
-    This method returns two dictionaries:
+        variant_list = self._genes[bgen_prefix]
 
-    1. keys equal to ENST IDs and values equal to the GeneDict class
-    2. keys equal to variant IDs and values equal to ENST IDs
+        return [self._make_saige_group_file(bgen_prefix, variant_list)]
 
-    :param file_prefix: A name to append to beginning of output files.
-    :param chromosome: The chromosome currently being processed. This must be the short form of the chromosome name
-        (e.g., '1' not 'chr1').
-    :param cmd_exec: A CommandExecutor object to run commands on Docker
-    :return: A tuple containing two dictionaries of ENSTs mapped to variants and variants mapped to ENSTs, respectively
-    """
+    @staticmethod
+    def _reformat_saige_variants(var_id_list: List[str]) -> str:
+        """Format variant IDs according to SAIGE input specifications
 
-    bgen_fix_sample = fix_plink_bgen_sample_sex(Path(f'{file_prefix}.{chromosome}.sample'))
+        This method serves as an input function to :func:`pandas.DataFrame.aggregate` to both reformat variant IDs
+        and join them into a single (tab-delimited) string for output to a file.
 
-    # Easier to run SAIGE with a BCF file as I already have that pipeline set up
-    cmd = f'plink2 --memory 9000 --threads 1 --bgen /test/{file_prefix}.{chromosome}.bgen \'ref-last\' ' \
-          f'--sample /test/{bgen_fix_sample} ' \
-          f'--export bcf ' \
-          f'--out /test/{file_prefix}.{chromosome}.SAIGE ' \
-          f'--split-par hg38'
-    cmd_exec.run_cmd_on_docker(cmd)
-    bgen_fix_sample.unlink()
+        :param var_id_list: A list of N variant IDs from a single ENST group
+        :return: A single tab-delimited string consisting of N variant IDs reformatted for SAIGE input
+        """
 
-    # and index...
-    cmd = f'bcftools index /test/{file_prefix}.{chromosome}.SAIGE.bcf'
-    cmd_exec.run_cmd_on_docker(cmd)
+        reformatted_ids = []
+        for varID in var_id_list:
 
-    # Need to make the SAIGE groupFile. I can use the file 'snp_ENST.txt' created above to generate this...
-    with Path('snp_ENST.txt').open('r') as snp_reader, \
-            Path(f'{file_prefix}.{chromosome}.SAIGE.groupFile.txt').open('w') as output_setfile_SAIGE:
+            split_id = varID.split("_")
+            reformatted_id = "{0}:{1}_{2}/{3}".format(*split_id)
+            reformatted_ids.append(reformatted_id)
 
-        genes: Dict[str, GeneDict] = dict()
-        snp_gene_map: Dict[str, str] = dict()
-        snp_csv = csv.DictReader(snp_reader, delimiter='\t')
-        for snp in snp_csv:
-            if snp['chrom'] == chromosome:
-                snp_gene_map[snp['ID']] = snp['ENST']
-                if snp['ENST'] in genes:
-                    genes[snp['ENST']]['poss'].append(int(snp['pos']))
-                    genes[snp['ENST']]['IDs'].append(snp['ID'])
-                else:
-                    genes[snp['ENST']] = {'CHROM': snp['chrom'],
-                                          'poss': [int(snp['pos'])],
-                                          'varIDs': [snp['varID']]}
+        joined_reformatted_ids = "\t".join(reformatted_ids)
+        return joined_reformatted_ids
 
-        for gene in genes:
-            min_pos = min(genes[gene]['poss'])
-            genes[gene]['min_poss'] = min_pos
+    def _make_saige_group_file(self, bgen_prefix: str, variant_list: pd.DataFrame) -> Path:
+        """Generate input format file that can be provided to SAIGE
 
-        for gene in genes:
-            # This is just using *args to place the four values that will always be here as {0} .. {3} automatically
-            # into string formatting. Could probably write it a more functional way, but don't want to risk
-            # disturbing this code that I know works properly
-            id_string = "\t".join(["{0}:{1}_{2}/{3}".format(*item2) for item2 in
-                                   [item.split("_") for item in genes[gene]['varIDs']]])
-            output_setfile_SAIGE.write(f'{gene}\t{id_string}\n')
+        For the way SAIGE is implemented downstream of this applet, SAIGE requires a standard .bcf file and a 'groupFile'.
+        This groupFile is a simple tab-delimited file with individual genes (here defined as ENSTs) as the first column,
+        followed by all the variant IDs that should be included in that gene per our mask definition.
 
-        Path(f'{file_prefix}.{chromosome}.SAIGE.log').unlink()
+        Variant IDs are slightly different from that included in other files produced by this applet, in that they must
+        follow the format of CHR:POS_REF/ALT rather than CHR_POS_REF_ALT as defined in the original .bgen files produced
+        prior to running this applet.
 
-    return genes, snp_gene_map
+        :param bgen_prefix: A name to append to beginning of output files.
+        :return: A tuple containing two dictionaries of ENSTs mapped to variants and variants mapped to ENSTs, respectively
+        """
+
+        output_group_file = Path(f'{self._output_prefix}.{bgen_prefix}.SAIGE.groupFile.txt')
+
+        with output_group_file.open('w') as output_setfile_SAIGE:
+
+            variants_grouped = variant_list.groupby('ENST').aggregate(
+                MIN=('POS', 'min'),
+                VARS=('varID', self._reformat_saige_variants)
+            )
+            variants_grouped = variants_grouped.reset_index()
+
+            prev_pos = 0
+
+            for gene_info in variants_grouped.sort_values(by='MIN').to_dict(orient='index').values():
+
+                if prev_pos > gene_info['MIN']:
+                    raise ValueError('Genes are not sorted by position!')
+
+                prev_pos = gene_info['MIN']
+                output_setfile_SAIGE.write(f'{gene_info["ENST"]}\t{gene_info["VARS"]}\n')
+
+        return output_group_file
