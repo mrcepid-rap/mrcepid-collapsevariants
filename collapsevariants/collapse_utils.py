@@ -1,17 +1,18 @@
-import pandas as pd
-import numpy as np
-
 from pathlib import Path
-from bgen import BgenReader
 from typing import Tuple, Dict, List
+
+import numpy as np
+import pandas as pd
+from bgen import BgenReader
+from general_utilities.association_resources import download_dxfile_by_name
+from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import coo_matrix, csr_matrix
 
 from collapsevariants.collapse_logger import CollapseLOGGER
-from general_utilities.association_resources import download_dxfile_by_name
 from collapsevariants.ingest_data import BGENIndex
-from general_utilities.mrc_logger import MRCLogger
 
 LOGGER = MRCLogger().get_logger()
+
 
 def download_bgen(chrom_bgen_index: BGENIndex) -> Tuple[Path, Path, Path]:
     """Download the BGEN file from DNANexus
@@ -31,13 +32,14 @@ def download_bgen(chrom_bgen_index: BGENIndex) -> Tuple[Path, Path, Path]:
 
     return bgen_path, index_path, sample_path
 
-def get_sample_ids(sample_path: Path) -> List[str]:
 
+def get_sample_ids(sample_path: Path) -> List[str]:
     with sample_path.open('r') as sample_reader:
         sample_ids = [line.split()[0] for line in sample_reader.readlines()]
         sample_ids = sample_ids[2:]
 
     return sample_ids
+
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path) -> csr_matrix:
     """Generate a sparse matrix of genotypes from a BGEN file.
@@ -103,7 +105,9 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
     return genotypes
 
-def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, Dict[str, int]]:
+
+def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tuple[
+    np.ndarray, np.ndarray, Dict[str, int]]:
     """Get information relating to included variants in csr_matrix format.
 
     This method calculates per-sample and per-gene totals for this chromosome
@@ -128,7 +132,6 @@ def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tup
     # We iterate per-ENST here, as we need to calculate both per-sample and per-gene totals, so no reason to iterate
     # twice.
     for ENST in ENSTs:
-
         current_variant_list = variant_list[variant_list['ENST'] == ENST]
         current_genotypes = genotypes[:, current_variant_list.index]
 
@@ -140,6 +143,7 @@ def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tup
         gene_ac_table = np.add(gene_ac_table, gene_sums)
 
     return ac_table, gene_ac_table, gene_totals
+
 
 def stat_writer(ac_table: np.ndarray, gene_ac_table: np.ndarray, gene_totals: Dict[str, int],
                 expected_total_sites: int, log_file: CollapseLOGGER) -> None:
@@ -168,12 +172,12 @@ def stat_writer(ac_table: np.ndarray, gene_ac_table: np.ndarray, gene_totals: Di
     log_file.write_float('Mean number of alleles per indv', np.mean(ac_table))
     log_file.write_float('Mean number of genes affected per indv', np.mean(gene_ac_table))
     log_file.write_int('Max number of alleles', np.max(ac_table))
-    log_file.write_int('Number of individuals with at least 1 allele',len(ac_table.nonzero()[0]))
+    log_file.write_int('Number of individuals with at least 1 allele', len(ac_table.nonzero()[0]))
     log_file.write_spacer()
 
     log_file.write_header('AC Histogram')
     log_file.write_generic('AC_bin\tcount')
-    acs, counts = np.unique(ac_table,return_counts=True)
+    acs, counts = np.unique(ac_table, return_counts=True)
     for i in range(len(acs)):
         log_file.write_histogram(acs[i], counts[i])
     log_file.write_spacer()

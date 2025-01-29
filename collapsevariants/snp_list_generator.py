@@ -1,15 +1,14 @@
 import gzip
+from enum import Enum, auto
+from pathlib import Path
+from typing import Dict, Set, Optional, IO
 
 import dxpy
 import pandas as pd
-
-from pathlib import Path
-from enum import Enum, auto
-from typing import Dict, Set, Optional, IO
-
-from collapsevariants.collapse_logger import CollapseLOGGER
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
+
+from collapsevariants.collapse_logger import CollapseLOGGER
 
 
 class FilteringMode(Enum):
@@ -336,7 +335,7 @@ class SNPListGenerator:
 
         elif self._filtering_expression is not None and self._snp_list_path is None and self._gene_list_path is not None:
             self._logger.info('Gene list provided together with filtering expression - will filter for variant '
-                        'classes of interest in gene set')
+                              'classes of interest in gene set')
             self._logger.info('Current Filtering Expression:')
             self._logger.info(self._filtering_expression)
 
@@ -434,7 +433,7 @@ class SNPListGenerator:
         # First filter to the gene Symbols / ENSTs we care about
         # Check if we are using ENST or SYMBOL:
         query_mode = None
-        is_mixed = [0,0]
+        is_mixed = [0, 0]
         for name in self._gene_list:
             if name.startswith('ENST'):
                 is_mixed[0] += 1
@@ -503,6 +502,6 @@ class SNPListGenerator:
 
         variant_index = variant_index[['CHROM', 'POS', 'ENST']]
         variant_index = variant_index.sort_values(by='POS')  # Make sure sorted by position
-        variant_index = variant_index.reset_index() # Make sure we have a numerical index in POS order
+        variant_index = variant_index.reset_index()  # Make sure we have a numerical index in POS order
 
         return variant_index

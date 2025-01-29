@@ -1,7 +1,7 @@
-import pandas as pd
-
 from pathlib import Path
 from typing import Dict, List
+
+import pandas as pd
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
@@ -33,8 +33,7 @@ class SAIGEParser(ToolParser):
 
         reformatted_ids = []
         for varID in var_id_list:
-
-            split_id = varID.split("_")
+            split_id = varID.split(":")
             reformatted_id = "{0}:{1}_{2}/{3}".format(*split_id)
             reformatted_ids.append(reformatted_id)
 

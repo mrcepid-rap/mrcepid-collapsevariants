@@ -1,8 +1,8 @@
 import csv
-import pandas as pd
-
 from pathlib import Path
 from typing import Dict, List
+
+import pandas as pd
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
@@ -41,7 +41,6 @@ class STAARParser(ToolParser):
 
         samples_table_path = Path(f'{output_prefix}.{bgen_prefix}.STAAR.samples_table.tsv')
         with samples_table_path.open('w') as samples_dict_writer:
-
             samples_dict_writer.write('sampID\trow\n')
 
             for col_num, sample in enumerate(sample_ids):  # Don't use enumerate due to the 2nd header row!
@@ -70,14 +69,13 @@ class STAARParser(ToolParser):
 
         variants_table_file = Path(f'{output_prefix}.{bgen_prefix}.STAAR.variants_table.tsv')
         with variants_table_file.open('w') as variants_dict_writer:
-
             variants_dict_csv = csv.DictWriter(variants_dict_writer, delimiter='\t', extrasaction='ignore',
-                                               fieldnames=['varID', 'chrom', 'pos', 'ENST', 'column'])
+                                               fieldnames=['varID', 'CHROM', 'POS', 'ENST', 'column'])
             variants_dict_csv.writeheader()
 
             for column_num, var in enumerate(variant_list.sort_values(by='POS').itertuples()):
-
-                out_dict = {'ID': var.varID, 'chrom': var.CHROM, 'pos': var.POS, 'ENST': var.ENST, 'column': column_num}
+                out_dict = {'varID': var.varID, 'CHROM': var.CHROM, 'POS': var.POS, 'ENST': var.ENST,
+                            'column': column_num}
                 variants_dict_csv.writerow(out_dict)
 
         return variants_table_file

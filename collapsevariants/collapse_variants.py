@@ -5,24 +5,20 @@
 # DNAnexus Python Bindings (dxpy) documentation:
 #   http://autodoc.dnanexus.com/bindings/python/current/
 
-import os
-from random import sample
-
-import dxpy
 import tarfile
-
 from pathlib import Path
 from typing import Dict
 
-from collapsevariants.collapse_utils import get_sample_ids
-from collapsevariants.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
-    generate_genotype_matrices, update_log_file
+import dxpy
 from general_utilities.association_resources import generate_linked_dx_file, download_dxfile_by_name
 from general_utilities.mrc_logger import MRCLogger
 
-from collapsevariants.ingest_data import IngestData
-from collapsevariants.snp_list_generator import SNPListGenerator
 from collapsevariants.collapse_logger import CollapseLOGGER
+from collapsevariants.collapse_utils import get_sample_ids
+from collapsevariants.ingest_data import IngestData
+from collapsevariants.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
+    generate_genotype_matrices, update_log_file
+from collapsevariants.snp_list_generator import SNPListGenerator
 
 # Set up the system logger – this is NOT the same as LOG_FILE below that records info about the filtering itself
 LOGGER = MRCLogger().get_logger()
@@ -61,7 +57,8 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     LOGGER.info('Filtering variants according to provided inputs...')
     # This dictionary is generated here to remove all DNANexus functionality from the SNPListGenerator class and
     # allow for unit testing.
-    vep_dict = {bgen_prefix: dxpy.open_dxfile(bgen_info['vep'], mode='rb') for bgen_prefix, bgen_info in ingested_data.bgen_index.items()}
+    vep_dict = {bgen_prefix: dxpy.open_dxfile(bgen_info['vep'], mode='rb') for bgen_prefix, bgen_info in
+                ingested_data.bgen_index.items()}
     snp_list_generator = SNPListGenerator(vep_dict, ingested_data.filtering_expression,
                                           ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
 
@@ -107,5 +104,6 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
               'log_file': dxpy.dxlink(linked_log_file)}
 
     return output
+
 
 dxpy.run()

@@ -1,8 +1,8 @@
 import csv
-import pandas as pd
-
 from pathlib import Path
 from typing import Dict, List
+
+import pandas as pd
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
@@ -29,12 +29,10 @@ class REGENIEParser(ToolParser):
         output_annotation_path = Path(f'{self._output_prefix}.{bgen_prefix}.REGENIE.annotationFile.txt')
 
         with output_annotation_path.open('w') as output_annotation_writer:
-
             output_setfile_csv = csv.DictWriter(output_annotation_writer, delimiter='\t',
                                                 fieldnames=['VAR', 'ENST', 'MASK'])
 
             for var_info in variant_list.itertuples():
-
                 out_dict = {'VAR': var_info.varID, 'ENST': var_info.ENST, 'MASK': self._output_prefix}
                 output_setfile_csv.writerow(out_dict)
 
@@ -73,7 +71,8 @@ class REGENIEParser(ToolParser):
 
         with output_setlist_path.open('w') as output_setlist_writer:
 
-            output_group_csv = csv.DictWriter(output_setlist_writer, delimiter='\t', fieldnames=['ENST', 'CHROM', 'MIN', 'VARS'],
+            output_group_csv = csv.DictWriter(output_setlist_writer, delimiter='\t',
+                                              fieldnames=['ENST', 'CHROM', 'MIN', 'VARS'],
                                               extrasaction='ignore')
 
             variants_grouped = variant_list.groupby('ENST').aggregate(

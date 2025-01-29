@@ -1,10 +1,10 @@
 import csv
-
 from pathlib import Path
 from typing import TypedDict, Dict, Optional
 
-from general_utilities.mrc_logger import MRCLogger
 from general_utilities.association_resources import download_dxfile_by_name
+from general_utilities.mrc_logger import MRCLogger
+
 
 class BGENIndex(TypedDict):
     """A TypedDict containing information on a downloaded bgen file to make for more obvious return types
@@ -35,7 +35,8 @@ class IngestData:
     :param gene_list: A DXFile containing a list of gene symbols to collapse into a custom mask
     """
 
-    def __init__(self, bgen_index: dict, filtering_expression: str, snp_list: Optional[dict], gene_list: Optional[dict]):
+    def __init__(self, bgen_index: dict, filtering_expression: str, snp_list: Optional[dict],
+                 gene_list: Optional[dict]):
 
         # Instantiate the MRC logger
         self._logger = MRCLogger(__name__).get_logger()
@@ -67,7 +68,7 @@ class IngestData:
 
             for batch in bgen_index_csv:
                 bgen_dict[batch['prefix']] = {'index': batch['bgen_index_dxid'], 'sample': batch['sample_dxid'],
-                                             'bgen': batch['bgen_dxid'], 'vep': batch['vep_dxid']}
+                                              'bgen': batch['bgen_dxid'], 'vep': batch['vep_dxid']}
 
         return bgen_dict
 

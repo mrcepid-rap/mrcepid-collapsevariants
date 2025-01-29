@@ -5,6 +5,14 @@
 Tests for this applet are implemented using the [mrcepid-testing](https://github.com/mrcepid-rap/mrcepid-testing) suite.
 Please see this repository for more specifics on how testing works in the DNANexus environment.
 
+Note for development: the test data to run unit tests for this applet are living on GCloud.
+If you would like to gain access, please contact Eugene Gardner.
+If you already have access to GCloud, run this command in the `/test_data/` directory:
+
+```
+gcloud storage rsync gs://iiuk-human-genetics/Syris/test_data/collapsevariants .
+```
+
 ### System Requirements
 
 The following language-specific packages must be installed on your system for tests to run:

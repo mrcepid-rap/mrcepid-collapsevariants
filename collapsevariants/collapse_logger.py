@@ -1,6 +1,7 @@
-from typing import IO
-from dxpy import DXFile
 from pathlib import Path
+from typing import IO
+
+from dxpy import DXFile
 from general_utilities.association_resources import generate_linked_dx_file
 
 
@@ -19,7 +20,6 @@ class CollapseLOGGER:
     """
 
     def __init__(self, log_path: Path):
-
         self._log_path = log_path
         self._LOG_FILE = self._open_writer()
         self._header_width = 30

@@ -7,28 +7,30 @@
 # 2) are methods that directly require DNANexus to run.
 ########################################################################################################################
 
-import pandas as pd
-import numpy as np
-
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-from scipy.sparse import csr_matrix, hstack
+import numpy as np
+import pandas as pd
+from general_utilities.job_management.thread_utility import ThreadUtility
+from general_utilities.mrc_logger import MRCLogger
 from scipy.io import mmwrite
+from scipy.sparse import csr_matrix, hstack
 
 from collapsevariants.collapse_logger import CollapseLOGGER
-from collapsevariants.collapse_utils import download_bgen, generate_csr_matrix_from_bgen, check_matrix_stats, stat_writer
+from collapsevariants.collapse_utils import download_bgen, generate_csr_matrix_from_bgen, check_matrix_stats, \
+    stat_writer
 from collapsevariants.ingest_data import BGENIndex
 from collapsevariants.tool_parsers.bolt_parser import BOLTParser
 from collapsevariants.tool_parsers.regenie_parser import REGENIEParser
 from collapsevariants.tool_parsers.saige_parser import SAIGEParser
 from collapsevariants.tool_parsers.staar_parser import STAARParser
-from general_utilities.job_management.thread_utility import ThreadUtility
-from general_utilities.mrc_logger import MRCLogger
 
 LOGGER = MRCLogger(__name__).get_logger()
 
-def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENIndex]) -> Dict[str, csr_matrix]:
+
+def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENIndex]) -> Dict[
+    str, csr_matrix]:
     """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
 
     This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
@@ -45,10 +47,11 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
         thread_utility.launch_job(generate_genotype_matrix,
                                   bgen_prefix=bgen_prefix,
                                   chrom_bgen_index=bgen_index[bgen_prefix],
-                                  variant_list = genes[bgen_prefix])
+                                  variant_list=genes[bgen_prefix])
     genotype_index = {bgen_prefix: geno_matrix for bgen_prefix, geno_matrix in thread_utility}
 
     return genotype_index
+
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
                              variant_list: pd.DataFrame) -> Tuple[str, csr_matrix]:
@@ -76,6 +79,7 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
     sample_path.unlink()
 
     return bgen_prefix, genotypes
+
 
 def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], n_samples: int,
                     expected_total_sites: int, stat_logger: CollapseLOGGER) -> None:
@@ -111,6 +115,7 @@ def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, cs
 
     stat_writer(ac_table, gene_ac_table, gene_totals, expected_total_sites, stat_logger)
 
+
 def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],
                            sample_ids: List[str], output_prefix: str) -> List[Path]:
     """Wrapper to help generate output files for each tool.
@@ -131,9 +136,9 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
 
     return output_files
 
+
 def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],
                                sample_ids: List[str], output_prefix: str, bgen_type: str) -> List[Path]:
-
     # Need to concatenate all matrices into a single matrix while ensuring concatenation is done in the same order for
     # variant indices AND genotype matrices
     final_variant_index = []
@@ -141,7 +146,7 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     for bgen_prefix, variant_index in genes.items():
         current_matrix = genotype_index[bgen_prefix]
         final_variant_index.append(variant_index)
-        if final_genotype_matrix:
+        if final_genotype_matrix is not None:
             final_genotype_matrix = hstack([final_genotype_matrix, current_matrix])
         else:
             final_genotype_matrix = current_matrix
@@ -154,8 +159,3 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     variant_output_path = STAARParser.make_variants_dict(output_prefix, bgen_type, final_variant_index)
 
     return [matrix_output_path, sample_output_path, variant_output_path]
-
-
-
-
-

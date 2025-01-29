@@ -1,14 +1,13 @@
-import pandas as pd
-import numpy as np
-
 from pathlib import Path
 from typing import Tuple, Dict, List
 
+import numpy as np
+import pandas as pd
 from bgen import BgenWriter
+from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
-from general_utilities.mrc_logger import MRCLogger
 
 LOGGER = MRCLogger(__name__).get_logger()
 
@@ -47,7 +46,6 @@ class BOLTParser(ToolParser):
             MIN=('POS', 'min'))
 
         for current_gene in search_list.itertuples():
-
             current_enst = current_gene.Index
             current_pos = current_gene.MIN
             current_chrom = current_gene.CHROM
@@ -100,7 +98,7 @@ class BOLTParser(ToolParser):
                 genotypes = np.array(
                     [[0., 1., 0.] if genotype == True else [1., 0., 0.] for genotype in gene_info['genotype_boolean']])
 
-                bgen_writer.add_variant(varid=ENST, rsid=ENST, chrom=gene_info['chrom'], pos=gene_info['min_pos'],
+                bgen_writer.add_variant(varid=ENST, rsid=ENST, chrom=str(gene_info['chrom']), pos=gene_info['min_pos'],
                                         alleles=['A', 'C'], genotypes=genotypes, ploidy=2, phased=False, bit_depth=8)
 
         bolt_index = bolt_bgen.with_suffix('.bgen.bgi')
@@ -126,4 +124,3 @@ class BOLTParser(ToolParser):
                 bolt_sample_writer.write(f'{sample} {sample} 0 NA\n')
 
         return bolt_sample
-
