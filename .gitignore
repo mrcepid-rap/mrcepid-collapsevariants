@@ -22,4 +22,5 @@ collapsevariants/__pycache__/
 .idea/
 
 # Test data
-/test/test_data/*
+/test/test_data/
+!test/test_data/expected_outputs/
