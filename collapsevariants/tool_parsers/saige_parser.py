@@ -34,7 +34,7 @@ class SAIGEParser(ToolParser):
         reformatted_ids = []
         for varID in var_id_list:
             split_id = varID.split(":")
-            reformatted_id = "{0}:{1}_{2}/{3}".format(*split_id)
+            reformatted_id = "{0}:{1}:{2}:{3}".format(*split_id)
             reformatted_ids.append(reformatted_id)
 
         joined_reformatted_ids = "\t".join(reformatted_ids)
@@ -73,6 +73,10 @@ class SAIGEParser(ToolParser):
                     raise ValueError('Genes are not sorted by position!')
 
                 prev_pos = gene_info['MIN']
-                output_setfile_SAIGE.write(f'{gene_info["ENST"]}\t{gene_info["VARS"]}\n')
-
+                output_setfile_SAIGE.write(f'{gene_info["ENST"]}\tvar\t{gene_info["VARS"]}\n')
+                # count the number of variants in gene_info["VARS"]
+                length_of_vars = len(gene_info["VARS"].split("\t"))
+                # write the annotation line with 'foo' repeated for each variant
+                anno_line = f'{gene_info["ENST"]}\tanno\t' + "\t".join(["foo"] * length_of_vars) + "\n"
+                output_setfile_SAIGE.write(anno_line)
         return output_group_file
