@@ -13,6 +13,7 @@ poetry.lock
 # Pytest cache
 /test/.pytest_cache/
 /test/__pycache__/
+.pytest_cache/
 
 # Python bytecode
 collapsevariants/tool_parsers/__pycache__/
@@ -23,4 +24,4 @@ collapsevariants/__pycache__/
 
 # Test data
 /test/test_data/
-!test/test_data/expected_outputs/
+!/test/test_data/expected_outputs

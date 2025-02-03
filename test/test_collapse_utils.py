@@ -116,6 +116,6 @@ def test_stat_writer(tmp_path: Path, filtering_expression: str, gene_list_path: 
             new_log = log_file.read()
 
         # also read in the correct log file & make sure they match
-        with open(os.path.join(test_data_dir, f"{bgen_prefix}_log.txt"), 'r') as log_file:
+        with open(os.path.join(test_data_dir, "../expected_outputs", f"{bgen_prefix}_log.txt"), 'r') as log_file:
             log_contents = log_file.read()
             assert set(log_contents) == set(new_log)
