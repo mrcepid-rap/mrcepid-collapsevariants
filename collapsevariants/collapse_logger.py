@@ -15,7 +15,7 @@ class CollapseLOGGER:
     3. A colon ':'
     4. Some piece of information (int, str, etc.)
 
-    :param file_prefix: A name to append to beginning of the output.
+    :param log_path: A name to append to beginning of the output.
     """
 
     def __init__(self, log_path: Path):
