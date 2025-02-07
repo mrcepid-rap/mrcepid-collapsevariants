@@ -51,6 +51,8 @@ class SAIGEParser(ToolParser):
         follow the format of CHR:POS_REF/ALT rather than CHR_POS_REF_ALT as defined in the original .bgen files produced
         prior to running this applet.
 
+        We are also implementing a dummy line for each gene mask, as required by the SAIGE input parameters.
+
         :param bgen_prefix: A name to append to beginning of output files.
         :return: A tuple containing two dictionaries of ENSTs mapped to variants and variants mapped to ENSTs, respectively
         """
@@ -77,6 +79,6 @@ class SAIGEParser(ToolParser):
                 # count the number of variants in gene_info["VARS"]
                 length_of_vars = len(gene_info["VARS"].split("\t"))
                 # write the annotation line with 'foo' repeated for each variant
-                anno_line = f'{gene_info["ENST"]}\tanno\t' + "\t".join(["foo"] * length_of_vars) + "\n"
+                anno_line = f'{gene_info["ENST"]}\tTranscript\t' + "\t".join(["Mask genes"] * length_of_vars) + "\n"
                 output_setfile_SAIGE.write(anno_line)
         return output_group_file

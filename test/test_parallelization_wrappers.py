@@ -1,1 +1,0 @@
-from collapsevariants.parallelization_wrappers import generate_genotype_matrices

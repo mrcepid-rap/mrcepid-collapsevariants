@@ -34,6 +34,14 @@ def download_bgen(chrom_bgen_index: BGENIndex) -> Tuple[Path, Path, Path]:
 
 
 def get_sample_ids(sample_path: Path) -> List[str]:
+    """
+    Extract sample IDs from a sample file.
+
+    This function reads a sample file and extracts the sample IDs, skipping the first two header lines.
+
+    :param sample_path: Path to the sample file.
+    :return: A list of sample IDs.
+    """
     with sample_path.open('r') as sample_reader:
         sample_ids = [line.split()[0] for line in sample_reader.readlines()]
         sample_ids = sample_ids[2:]
