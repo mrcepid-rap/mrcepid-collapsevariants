@@ -36,9 +36,6 @@ class StatDictionary:
         self._total_variants = 0
         self._max_missingness = 0
         self._max_af = 0
-        self._max_cadd = 0
-        self._max_revel = 0
-        self._num_na_revel = 0
         self._num_pass = 0
         self._num_not_pass = 0
         self._loftee_counts = {}
@@ -56,8 +53,6 @@ class StatDictionary:
         self._increment_variant_count(len(variant_index))
         self._update_max_missingness(variant_index['F_MISSING'])
         self._update_max_af(variant_index['AF'])
-        self._update_max_cadd(variant_index['CADD'])
-        self._update_revel(variant_index['REVEL'])
         self._update_pass_stats(variant_index['FILTER'])
         self._update_loftee_counts(variant_index['LOFTEE'])
         self._update_parsed_consequence_counts(variant_index['PARSED_CSQ'])
@@ -76,9 +71,6 @@ class StatDictionary:
         self.log_file.write_int('Total number of variants', self._total_variants)
         self.log_file.write_float('Maximum missingness', self._max_missingness)
         self.log_file.write_scientific('Maximum Allele Frequency', self._max_af)
-        self.log_file.write_float('Minimum CADD Score', self._max_cadd)
-        self.log_file.write_float('Minimum REVEL Score', self._max_revel)
-        self.log_file.write_int('Number of NA REVEL Scores', self._num_na_revel)
         self.log_file.write_int('Total number of PASS variants', self._num_pass)
         self.log_file.write_int('Total number of non-PASS variants', self._num_not_pass)
 
@@ -186,27 +178,6 @@ class StatDictionary:
         :return: None
         """
         self._max_af = max(self._max_af, af_list.max(skipna=True))
-
-    def _update_max_cadd(self, cadd_list: pd.Series) -> None:
-        """Use the max function to update the maximum CADD score for this run
-
-        :param cadd_list: A pandas.Series containing the CADD column from the variant index
-        :return: None
-        """
-        self._max_cadd = max(self._max_cadd, cadd_list.max(skipna=True))
-
-    def _update_revel(self, revel_list: pd.Series) -> None:
-        """Update REVEL-based stats for this run
-
-        Note: This method updates MULTIPLE stats at once (REVEL max and number of NA values)
-
-        :param revel_list: A pandas.Series containing the REVEL column from the variant index
-        :return: None
-        """
-
-        self._max_revel = max(self._max_revel, revel_list.max(skipna=True))
-        num_na = revel_list.isna().sum()
-        self._num_na_revel += num_na
 
     def _update_pass_stats(self, filter_list: pd.Series) -> None:
         """Update PASS / FAIL counts for this run.
