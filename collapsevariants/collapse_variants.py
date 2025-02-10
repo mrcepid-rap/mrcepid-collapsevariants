@@ -5,20 +5,23 @@
 # DNAnexus Python Bindings (dxpy) documentation:
 #   http://autodoc.dnanexus.com/bindings/python/current/
 
+import os
+from random import sample
+
+import dxpy
 import tarfile
+
 from pathlib import Path
 from typing import Dict
 
-import dxpy
+from collapsevariants.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
+    generate_genotype_matrices, update_log_file
 from general_utilities.association_resources import generate_linked_dx_file, download_dxfile_by_name
 from general_utilities.mrc_logger import MRCLogger
 
-from collapsevariants.collapse_logger import CollapseLOGGER
-from collapsevariants.collapse_utils import get_sample_ids
 from collapsevariants.ingest_data import IngestData
-from collapsevariants.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
-    generate_genotype_matrices, update_log_file
 from collapsevariants.snp_list_generator import SNPListGenerator
+from collapsevariants.collapse_logger import CollapseLOGGER
 
 # Set up the system logger – this is NOT the same as LOG_FILE below that records info about the filtering itself
 LOGGER = MRCLogger().get_logger()
@@ -34,8 +37,10 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
 
     1. Ingest required data onto the AWS instance (class IngestData)
     2. Generate a list of variants to collapse on (class SNPListGenerator)
-    3. Filter and format these variants into files appropriate for various burden testing approaches
-    4. Write statistics about the collapsing that has been performed
+    3. Convert variants into genotype matrices for each BGEN file (method generate_genotype_matrices)
+    4. Write statistics about the collapsing that has been performed (method update_log_file)
+    5. Filter and format these variants into files appropriate for various burden testing approaches (methods
+         generate_snp_or_gene_masks and generate_generic_masks)
 
     :param filtering_expression: A string filtering expression to filter variants (must be compatible with
         pandas.query())
@@ -49,43 +54,39 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     # Set up our logfile for recording information on
     log_file = CollapseLOGGER(Path(f'{output_prefix}.log'))
 
-    # This loads all data
+    # Proceeding in the order of the steps above:
+    # 1. Loads all DNANexus-specific data
     LOGGER.info('Ingesting data...')
     ingested_data = IngestData(bgen_index, filtering_expression, snplist, genelist)
 
-    # First generate a list of ALL variants genome-wide that we want to retain:
+    # 2. Generate a list of ALL variants genome-wide that we want to retain:
     LOGGER.info('Filtering variants according to provided inputs...')
-    # This dictionary is generated here to remove all DNANexus functionality from the SNPListGenerator class and
-    # allow for unit testing.
-    vep_dict = {bgen_prefix: dxpy.open_dxfile(bgen_info['vep'], mode='rb') for bgen_prefix, bgen_info in
-                ingested_data.bgen_index.items()}
-    snp_list_generator = SNPListGenerator(vep_dict, ingested_data.filtering_expression,
+    snp_list_generator = SNPListGenerator(ingested_data.vep_dict, ingested_data.filtering_expression,
                                           ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
 
+    # 3. Generate genotype matrices for each bgen file:
     LOGGER.info('Generating genotype matrices for each bgen file...')
     genotype_index = generate_genotype_matrices(snp_list_generator.genes, ingested_data.bgen_index)
 
-    # Get sample IDs for a single BGEN file (they are all the same)
-    sample_ids = get_sample_ids(download_dxfile_by_name(list(bgen_index.values())[0]['sample_dxid'],
-                                                        print_status=False))
-    n_samples = len(sample_ids)
-
+    # 4. Write information about collapsing to the log file
     LOGGER.info('Updating log file with per-sample and per-ENST totals...')
-    update_log_file(snp_list_generator.genes, genotype_index, n_samples, snp_list_generator.total_sites, log_file)
+    update_log_file(snp_list_generator.genes, genotype_index, len(ingested_data.sample_ids),
+                    snp_list_generator.total_sites, log_file)
 
-    # Now we need to filter the bgen files to only include the variants we want to keep
+    # 5. Filter the bgen files to only include the variants we want to keep
     LOGGER.info('Generating final output files for RunAssociationTesting...')
     if ingested_data.snp_list_path:
         LOGGER.info('Making SNP files for burden testing...')
         output_files = generate_snp_or_gene_masks(snp_list_generator.genes, genotype_index,
-                                                  sample_ids, output_prefix, 'SNP')
+                                                  ingested_data.sample_ids, output_prefix, 'SNP')
     elif ingested_data.gene_list_path:
         LOGGER.info('Making GENE files for burden testing...')
         output_files = generate_snp_or_gene_masks(snp_list_generator.genes, genotype_index,
-                                                  sample_ids, output_prefix, 'GENE')
+                                                  ingested_data.sample_ids, output_prefix, 'GENE')
     else:
         LOGGER.info('Making standard files for burden testing...')
-        output_files = generate_generic_masks(snp_list_generator.genes, genotype_index, sample_ids, output_prefix)
+        output_files = generate_generic_masks(snp_list_generator.genes, genotype_index, ingested_data.sample_ids,
+                                              output_prefix)
 
     LOGGER.info('Closing LOG file...')
     linked_log_file = log_file.close_and_upload()
@@ -104,6 +105,5 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
               'log_file': dxpy.dxlink(linked_log_file)}
 
     return output
-
 
 dxpy.run()
