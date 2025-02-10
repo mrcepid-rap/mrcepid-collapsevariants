@@ -9,7 +9,7 @@ description = ""
 authors = ["Eugene Gardner <eugene.gardner@mrc-epid.cam.ac.uk>", ]
 readme = "Readme.md"
 repository = "https://github.com/mrcepid-rap/mrcepid-collapsevariants"
-#licence = "MIT"
+licence = "MIT"
 
 [tool.poetry.dependencies]
 python = "~3.8"
