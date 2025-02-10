@@ -12,10 +12,25 @@ class STAARParser(ToolParser):
 
     def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
                  output_prefix: str):
+        """Generate files used by STAAR for association testing. Implements the abstract class ToolParser.
+
+        This class is used to generate files that can be used by STAAR to perform association testing. STAAR
+        requires 2 files to run: a samples table and a variants table. This class generates these files sequentially.
+
+        :param genes: A dictionary containing a list of genes and their respective variants.
+        :param genotype_index: A dictionary containing a list of genotype matrices for each bgen file.
+        :param sample_ids: A list of sample IDs to write to the sample file.
+        :param output_prefix: A string representing the prefix to use for the output files.
+        """
         super().__init__(genes=genes, genotype_index=genotype_index, output_prefix=output_prefix, sample_ids=sample_ids,
                          tool_name='STAAR')
 
     def _make_output_files(self, bgen_prefix: str) -> List[Path]:
+        """Wrapper method to parallelize the conversion of individual variant data into STAAR compatible files.
+
+        :param bgen_prefix: A string representing the prefix of a BGEN file to convert
+        :return: A list containing the paths to the STAAR samples and variants tables
+        """
 
         variant_list = self._genes[bgen_prefix]
 

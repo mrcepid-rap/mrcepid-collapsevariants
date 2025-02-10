@@ -13,17 +13,28 @@ LOGGER = MRCLogger(__name__).get_logger()
 
 
 class BOLTParser(ToolParser):
+    """Generate files used by BOLT for association testing. Implements the abstract class ToolParser.
+
+    This class is used to generate files that can be used by BOLT-LMM to perform association testing. BOLT-LMM
+    requires 3 files to run: a .bgen file, a .bgen.bgi file, and a .sample file. This class generates these files
+    sequentially.
+
+    :param genes: A dictionary containing a list of genes and their respective variants.
+    :param genotype_index: A dictionary containing a list of genotype matrices for each bgen file.
+    :param sample_ids: A list of sample IDs to write to the sample file.
+    :param output_prefix: A string representing the prefix to use for the output files.
+    """
 
     def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
                  output_prefix: str):
         super().__init__(genes=genes, genotype_index=genotype_index, output_prefix=output_prefix, sample_ids=sample_ids,
                          tool_name='BOLT')
 
-    def _make_output_files(self, bgen_prefix: str) -> Tuple[Path, Path, Path]:
+    def _make_output_files(self, bgen_prefix: str) -> List[Path]:
         """Wrapper method to parallelize the conversion of individual BGEN files into BOLT format genotypes
 
         :param bgen_prefix: A string representing the prefix of a BGEN file to convert
-        :return: A Tuple containing the paths to the BOLT-formatted BGEN file, index file, and sample file
+        :return: A list containing the paths to the BOLT-formatted BGEN file, index file, and sample file
         """
 
         variant_list = self._genes[bgen_prefix]
@@ -33,7 +44,7 @@ class BOLTParser(ToolParser):
         bolt_bgen, bolt_index = self._write_bolt_bgen(bgen_prefix, bolt_matrix)
         bolt_sample = self._write_bolt_sample(bgen_prefix)
 
-        return bolt_bgen, bolt_index, bolt_sample
+        return [bolt_bgen, bolt_index, bolt_sample]
 
     @staticmethod
     def _make_bolt_matrix(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Dict[str, dict]:

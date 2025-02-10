@@ -121,6 +121,7 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
     """Wrapper to help generate output files for each tool.
 
     :param genes: A dictionary containing the genes to collapse with keys of the BGEN file prefixes and values of
+        a Pandas DataFrame containing per-variant information.
     :param genotype_index: A dictionary containing values of csr_matrix and keys of each BGEN file prefix.
     :param sample_ids: A list of sample IDs for processing this file.
     :param output_prefix: A string representing the prefix of the output files.
@@ -139,6 +140,18 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
 
 def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],
                                sample_ids: List[str], output_prefix: str, bgen_type: str) -> List[Path]:
+    """Wrapper similar to generate_generic_masks, but for SNP and GENE masks, create output inputs for various tools.
+
+    This method takes the output of the collapsing process and 'stacks' the resulting matricies. Since only one matrix
+    is required for each GENE / SNP mask, we do not need to create multiple outputs for each .bgen as when running
+    a filtering expression.
+
+    :param genes: A dictionary containing the genes to collapse with keys of the BGEN file prefixes and values of
+        a Pandas DataFrame containing per-variant information.
+    :param genotype_index: A dictionary containing values of csr_matrix and keys of each BGEN file prefix.
+    :param sample_ids: A list of sample IDs for processing this file.
+    :param output_prefix: A string representing the prefix of the output files.
+    """
     # Need to concatenate all matrices into a single matrix while ensuring concatenation is done in the same order for
     # variant indices AND genotype matrices
     final_variant_index = []

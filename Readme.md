@@ -342,8 +342,10 @@ provided to `bgen_index`, a file-specific prefix. For each .bgen file provided t
 * <output_prefix>.<prefix>.STAAR.samples_table.tsv - STAAR ready sample table
 * <output_prefix>.<prefix>.STAAR.variants_table.tsv - per-variant annotations for STAAR
 
-If providing a SNP or GENE list, the only difference for the above is that a single set of files with the prefix `<output_prefix>
-.SNP.*` or `<output_prefix>.GENE.*`, respectively, is generated.
+If providing a SNP or GENE list, the following differences for the above apply:
+
+* a single set of files with the prefix `<output_prefix>.SNP.*` or `<output_prefix>.GENE.*`, respectively, is generated.
+* An additional [matrixmarket format file](https://docs.scipy.org/doc/scipy/reference/generated/scipy.io.mmwrite.html) is generated for STAAR called <output_prefix>.<prefix>.STAAR.mtx 
 
 ##### Tool-Specific Outputs
 
@@ -468,6 +470,20 @@ Where columns are variant ID, chromosome, position, gene ID, and column number [
 ```
 
 Where columns are sample ID and row number [j] of the matrix, respectively.
+
+* <output_prefix>.<prefix>.STAAR.mtx - MatrixMarket format file of the sparse matrix
+
+**Note:** Only for SNP & GENE masks!
+
+```text
+%%MatrixMarket matrix coordinate real general
+%
+10000 34 128
+211 26 1.000000000000000e+00
+243 16 1.000000000000000e+00
+...
+956 31 1.000000000000000e+00
+```
 
 ### Command line example
 
