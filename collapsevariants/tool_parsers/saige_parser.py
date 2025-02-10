@@ -75,9 +75,6 @@ class SAIGEParser(ToolParser):
                     raise ValueError('Genes are not sorted by position!')
 
                 prev_pos = gene_info['MIN']
-                output_setfile_SAIGE.write(f'{gene_info["ENST"]}\t{gene_info["VARS"]}\n')
-
-                prev_pos = gene_info['MIN']
                 output_setfile_SAIGE.write(f'{gene_info["ENST"]}\tvar\t{gene_info["VARS"]}\n')
                 # count the number of variants in gene_info["VARS"]
                 length_of_vars = len(gene_info["VARS"].split("\t"))
