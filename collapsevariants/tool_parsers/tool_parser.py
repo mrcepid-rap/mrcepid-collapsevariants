@@ -3,11 +3,9 @@ from pathlib import Path
 from typing import Dict, List
 
 import pandas as pd
-
-from scipy.sparse import csr_matrix
-
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
+from scipy.sparse import csr_matrix
 
 
 class ToolParser(ABC):

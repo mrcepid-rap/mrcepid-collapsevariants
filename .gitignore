@@ -1,9 +1,27 @@
-/.talismanrc
-/test/sim_data/*
-/test/test_data_old/
+# Logs
+dx_run.log
+
+# Coverage reports
+.coverage
+
+# macOS system files
+.DS_Store
+
+# Poetry lockfile
+poetry.lock
+
+# Pytest cache
 /test/.pytest_cache/
-/test/test_data/chr7_10.*
-/test/test_data/old_test_data/*
-/test/test_data/Duat_*
-/test/test_data/chr1_chunk*
-/poetry.lock
+/test/__pycache__/
+.pytest_cache/
+
+# Python bytecode
+collapsevariants/tool_parsers/__pycache__/
+collapsevariants/__pycache__/
+
+# IDE files
+.idea/
+
+# Test data
+/test/test_data/
+!/test/test_data/expected_outputs
