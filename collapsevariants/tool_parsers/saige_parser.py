@@ -1,7 +1,7 @@
-import pandas as pd
-
 from pathlib import Path
 from typing import Dict, List
+
+import pandas as pd
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
@@ -33,9 +33,8 @@ class SAIGEParser(ToolParser):
 
         reformatted_ids = []
         for varID in var_id_list:
-
-            split_id = varID.split("_")
-            reformatted_id = "{0}:{1}_{2}/{3}".format(*split_id)
+            split_id = varID.split(":")
+            reformatted_id = "{0}:{1}:{2}:{3}".format(*split_id)
             reformatted_ids.append(reformatted_id)
 
         joined_reformatted_ids = "\t".join(reformatted_ids)
@@ -51,6 +50,8 @@ class SAIGEParser(ToolParser):
         Variant IDs are slightly different from that included in other files produced by this applet, in that they must
         follow the format of CHR:POS_REF/ALT rather than CHR_POS_REF_ALT as defined in the original .bgen files produced
         prior to running this applet.
+
+        We are also implementing a dummy line for each gene mask, as required by the SAIGE input parameters.
 
         :param bgen_prefix: A name to append to beginning of output files.
         :return: A tuple containing two dictionaries of ENSTs mapped to variants and variants mapped to ENSTs, respectively

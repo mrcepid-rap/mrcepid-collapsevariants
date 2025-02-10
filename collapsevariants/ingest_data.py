@@ -1,11 +1,10 @@
 import csv
-import dxpy
-
 from pathlib import Path
-from typing import TypedDict, Dict, Optional, IO
+from typing import TypedDict, Dict, Optional, IO, Tuple
 
-from general_utilities.mrc_logger import MRCLogger
+import dxpy
 from general_utilities.association_resources import download_dxfile_by_name
+from general_utilities.mrc_logger import MRCLogger
 
 from collapsevariants.collapse_utils import get_sample_ids
 
@@ -39,7 +38,8 @@ class IngestData:
     :param gene_list: A DXFile containing a list of gene symbols to collapse into a custom mask
     """
 
-    def __init__(self, bgen_index: dict, filtering_expression: str, snp_list: Optional[dict], gene_list: Optional[dict]):
+    def __init__(self, bgen_index: dict, filtering_expression: str, snp_list: Optional[dict],
+                 gene_list: Optional[dict]):
 
         # Instantiate the MRC logger
         self._logger = MRCLogger(__name__).get_logger()
@@ -109,3 +109,22 @@ class IngestData:
             return download_dxfile_by_name(filtering_list)
         else:
             return None
+
+
+def download_bgen(chrom_bgen_index: BGENIndex) -> Tuple[Path, Path, Path]:
+    """Download the BGEN file from DNANexus
+
+    This method downloads the BGEN file from DNANexus using the bgen_index dictionary and the bgen_prefix. It then
+    returns the path to the downloaded BGEN file, index, and sample.
+
+    Note that this method is the only method untested in this package as it requires a DNANexus connection to test.
+
+    :return: A Tuple containing the paths to the BGEN file, index file, and sample file
+    """
+
+    # Download the requisite files for this chromosome according to the index dict:
+    bgen_path = download_dxfile_by_name(chrom_bgen_index['bgen'], print_status=False)
+    index_path = download_dxfile_by_name(chrom_bgen_index['index'], print_status=False)
+    sample_path = download_dxfile_by_name(chrom_bgen_index['sample'], print_status=False)
+
+    return bgen_path, index_path, sample_path
