@@ -26,14 +26,11 @@ https://documentation.dnanexus.com/.
 
 ## Introduction
 
-This applet generates raw data necessary to perform rare variant burden testing
-using [bcftools](https://samtools.github.io/bcftools/bcftools.html)
-or [plink2](https://www.cog-genomics.org/plink/2.0/). Please see these two tool's respective documentation for more
-information on how individual commands used in this applet work.
+This applet generates filtered variant data necessary to perform rare variant burden testing. bcf / vcf and bgen
+manipulation is done using either native python or the [bgen](https://github.com/jeremymcrae/bgen) package.
 
 This README makes use of DNANexus file and project naming conventions. Where applicable, an object available on the
-DNANexus
-platform has a hash ID like:
+DNANexus platform has a hash ID like:
 
 * file – `file-1234567890ABCDEFGHIJKLMN`
 * project – `project-1234567890ABCDEFGHIJKLMN`
@@ -44,10 +41,22 @@ Information about files and projects can be queried using the `dx describe` tool
 dx describe file-1234567890ABCDEFGHIJKLMN
 ```
 
-**Note:** This README pertains to data included as part of the DNANexus project "MRC - Variant Filtering" (
-project-G2XK5zjJXk83yZ598Z7BpGPk)
-
 ### Changelog
+
+* v2.0.0
+  * Major overhaul of the applet to support WGS. A list of major changes is included below; for more information, please see various pull requests. 
+    **These changes are breaking** and will require v2.0.0 of the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) 
+    applet to function correctly.
+    * Implemented testing across the tool using simulated data
+    * Added support for WGS data
+      * .bgen files are no longer tied to chromosomes; they can be 'chunks' of the genome with multiple files representing variant data for a single chromosome
+        * **Note**: This means that genes CANNOT cross chunk boundaries! Please see the documentation in [makebgen](https://github.com/mrcepid-rap/mrcepid-makebgen) for information on how to chunk the genome
+      * Modified the flow of information through the applet; parallelized the majority of the applet to function on individual .bgen files rather than chromosomes
+      * To avoid excessively large outputs, individual variant-level data is no longer stored in output tarballs, except for those used by BOLT.
+      * REGENIE-specific outputs are now included in outputs
+    * Refactor of most of the codebase to be more functional
+    * Several output file formats from v1.* are no longer present. Please refer to the documentation for changes.
+    * Removal of all external system calls to 3rd party software. All file manipulation is now done in native python with additional library support.
 
 * v1.2.2
     * Bugfix release to solve issues with new version of plink2
@@ -92,50 +101,24 @@ project-G2XK5zjJXk83yZ598Z7BpGPk)
 Downstream of this applet, we have implemented four tools / methods for rare variant burden testing:
 
 * [BOLT](https://alkesgroup.broadinstitute.org/BOLT-LMM/BOLT-LMM_manual.html)
+* [REGENIE](https://rgcgithub.github.io/regenie/)
 * [SAIGE-GENE](https://github.com/weizhouUMICH/SAIGE/wiki/Genetic-association-tests-using-SAIGE)
 * [STAAR](https://github.com/xihaoli/STAAR)
-* GLMs – vanilla linear/logistic models implemented with
-  python's [statsmodels module](https://www.statsmodels.org/stable/index.html)
+* GLMs – vanilla linear/logistic models implemented with python's [statsmodels module](https://www.statsmodels.org/stable/index.html)
 
-These four tools / methods require very different input files to run. The purpose of this applet is to generate inputs
+These five tools / methods require very different input files to run. The purpose of this applet is to generate inputs
 that are compatible with each of these tools input requirements. For more information on the format of these input
-files,
-please see the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting)
-documentation.
+files, please see the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) documentation.
 
 ### Dependencies
 
 Due to how the DNANexus platform works, this applet is dependent on itself. In short, this means that at launch,
-the applet will automatically download the latest version of itself from github and and install it as a dependency via
-poetry. This allows the module subpackages (in `collapsevariants`) to be imported by the main class.
+the applet will automatically download the latest version of itself from GitHub and install itself, and other required 
+python dependencies, via poetry. This allows the module subpackages (in `collapsevariants`) to be imported by the main class.
 
 #### Docker
 
-This applet uses [Docker](https://www.docker.com/) to supply dependencies to the underlying AWS instance
-launched by DNANexus. The Dockerfile used to build dependencies is available as part of the MRCEpid organisation at:
-
-https://github.com/mrcepid-rap/dockerimages/blob/main/burdentesting.Dockerfile
-
-This Docker image is built off of the primary 20.04 Ubuntu distribution available
-via [dockerhub](https://hub.docker.com/layers/ubuntu/library/ubuntu/20.04/images/sha256-644e9b64bee38964c4d39b8f9f241b894c00d71a932b5a20e1e8ee8e06ca0fbd?context=explore).
-This image is very light-weight and only provides basic OS installation. Other basic software (e.g. wget, make, and gcc)
-need
-to be installed manually. For more details on how to build a Docker image for use on the UKBiobank RAP, please see:
-
-https://github.com/mrcepid-rap#docker-images
-
-In brief, the primary **bioinformatics software** dependencies required by this Applet (and provided in the associated
-Docker image)
-are:
-
-* [htslib and samtools](http://www.htslib.org/)
-* [bcftools](https://samtools.github.io/bcftools/bcftools.html)
-* [plink2](https://www.cog-genomics.org/plink/2.0/)
-* [qctool](https://www.well.ox.ac.uk/~gav/qctool_v2/index.html)
-* [bgenix](https://enkre.net/cgi-bin/code/bgen/doc/trunk/doc/wiki/bgenix.md)
-
-This list is not exhaustive and does not include dependencies of dependencies and software needed
-to acquire other resources (e.g. wget). See the referenced Dockerfile for more information.
+This applet does not use [Docker](https://www.docker.com/). All dependencies are for native python and installed via poetry.
 
 #### Resource Files
 
@@ -143,7 +126,7 @@ This applet does not have any external dependencies.
 
 ## Methodology
 
-This applet is step 4 (mrc-collapsevariants) of the rare variant testing pipeline developed by Eugene Gardner for the
+This applet is step 4 (mrcepid-collapsevariants) of the rare variant testing pipeline developed by Eugene Gardner for the
 UKBiobank
 RAP at the MRC Epidemiology Unit:
 
@@ -170,9 +153,7 @@ variants for association testing. For details and tutorials on how to construct 
 construct various expressions to generate variants that they want to test during rare variant burden tests.
 These expressions **MUST** be based on fields within the annotation's tsv file provided as output of
 the [mrcepid-makebgen](https://github.com/mrcepid-rap/mrcepid-makebgen)
-step of this pipeline. This file is stored on the RAP as file `file-G857Z4QJJv8x7GXfJ3y5v1qV` in project
-`project-G6BJF50JJv8p4PjGB9yy7YQ2`.
-For possible fields and values that can be used for filtering, please see:
+step of this pipeline. For possible fields and values that can be used for filtering, please see:
 
 https://github.com/mrcepid-rap/mrcepid-annotatecadd#outputs
 
