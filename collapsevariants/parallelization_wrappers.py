@@ -18,9 +18,9 @@ from scipy.io import mmwrite
 from scipy.sparse import csr_matrix, hstack
 
 from collapsevariants.collapse_logger import CollapseLOGGER
-from collapsevariants.collapse_utils import download_bgen, generate_csr_matrix_from_bgen, check_matrix_stats, \
+from collapsevariants.collapse_utils import generate_csr_matrix_from_bgen, check_matrix_stats, \
     stat_writer
-from collapsevariants.ingest_data import BGENIndex
+from collapsevariants.ingest_data import BGENIndex, download_bgen
 from collapsevariants.tool_parsers.bolt_parser import BOLTParser
 from collapsevariants.tool_parsers.regenie_parser import REGENIEParser
 from collapsevariants.tool_parsers.saige_parser import SAIGEParser

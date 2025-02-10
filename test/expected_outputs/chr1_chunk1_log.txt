@@ -2,17 +2,14 @@
 Total number of variants                          : 826
 Maximum missingness                               : 12.300
 Maximum Allele Frequency                          : 9.500e-04
-Minimum CADD Score                                : 0.456
-Minimum REVEL Score                               : 0.000
-Number of NA REVEL Scores                         : 826
 Total number of PASS variants                     : 826
 Total number of non-PASS variants                 : 0
 Number of LOFTEE HC                               : 826
 
 ----Consequence statistics----
 Number of Parsed Consequence – PTV                : 826
-Number of VEP Consequence - PTV&testcsq1&testcsq2                                                                                 : 397
 Number of VEP Consequence - PTV&testcsq1                                                                                          : 429
+Number of VEP Consequence - PTV&testcsq1&testcsq2                                                                                 : 397
 
 Total variants found                              : 826
 Total variants not found                          : 0

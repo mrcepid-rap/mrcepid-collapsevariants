@@ -118,9 +118,6 @@ def test_stat_dictionary(tmp_path,
     assert stat_dict._total_variants == 20897
     assert stat_dict._max_missingness == 12.3
     assert stat_dict._max_af == 0.001
-    assert stat_dict._max_cadd == 0.456
-    assert stat_dict._max_revel == 0.789
-    assert stat_dict._num_na_revel == 14063
     assert stat_dict._num_pass == 20897
     assert stat_dict._num_not_pass == 0
     assert stat_dict._loftee_counts == {'HC': 6930}
@@ -141,9 +138,6 @@ def test_stat_dictionary(tmp_path,
             "Total number of variants",
             "Maximum missingness",
             "Maximum Allele Frequency",
-            "Minimum CADD Score",
-            "Minimum REVEL Score",
-            "Number of NA REVEL Scores",
             "Total number of PASS variants",
             "Total number of non-PASS variants",
             "Number of LOFTEE HC",
@@ -161,9 +155,6 @@ def test_stat_dictionary(tmp_path,
             "20897",
             "12.300",
             "1.000e-03",
-            "0.456",
-            "0.789",
-            "14063",
             "20897",
             "0",
             "6930",
@@ -195,8 +186,6 @@ def test_stat_dictionary(tmp_path,
     stat_dict._increment_variant_count(len(data2))
     stat_dict._update_max_missingness(data2['F_MISSING'])
     stat_dict._update_max_af(data2['AF'])
-    stat_dict._update_max_cadd(data2['CADD'])
-    stat_dict._update_revel(data2['REVEL'])
     stat_dict._update_pass_stats(data2['FILTER'])
     stat_dict._update_loftee_counts(data2['LOFTEE'])
     stat_dict._update_parsed_consequence_counts(data2['PARSED_CSQ'])
@@ -207,9 +196,6 @@ def test_stat_dictionary(tmp_path,
     assert stat_dict._total_variants == 36403
     assert stat_dict._max_missingness == 12.3
     assert stat_dict._max_af == 0.001
-    assert stat_dict._max_cadd == 0.456
-    assert stat_dict._max_revel == 0.789
-    assert stat_dict._num_na_revel == 24366
     assert stat_dict._num_pass == 36398
     assert stat_dict._num_not_pass == 0
     assert stat_dict._loftee_counts == {'HC': 11939}
