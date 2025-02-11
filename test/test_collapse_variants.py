@@ -55,7 +55,6 @@ def temporary_path(tmp_path, monkeypatch):
         persistent_dir = Path(__file__).parent / "temp_test_outputs" / tmp_path.name
         persistent_dir.parent.mkdir(exist_ok=True)
         shutil.copytree(tmp_path, persistent_dir, dirs_exist_ok=True)
-        print(f"Temporary output files have been copied to: {persistent_dir}")
 
 
 # Validated test data:
@@ -206,9 +205,6 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
     pipeline_data['output_snp_and_gene_masks'].extend(
         [temporary_path / output_file.name for output_file in output_files])
 
-    # Debugging print
-    print("Updated stored files in pipeline_data:", pipeline_data['output_snp_and_gene_masks'])
-
     for file in pipeline_data['output_snp_and_gene_masks']:
         assert file.exists(), f"File not found when storing: {file}"
 
@@ -242,7 +238,6 @@ def test_check_file_consistency(temporary_path, pipeline_data, filtering_express
         target = current_dir / file.name
         if not target.exists():
             shutil.copy(file, target)
-            print(f"Copied {file} to {target}")
 
     # -----------------------------
     # Sanity check on sample tables:

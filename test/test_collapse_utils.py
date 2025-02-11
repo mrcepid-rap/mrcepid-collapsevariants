@@ -166,14 +166,14 @@ def test_get_sample_ids(sample_file: Path):
 
 
 @pytest.mark.parametrize(
-    "filtering_expression, gene_list_path, snp_list_path",
+    "name, filtering_expression, gene_list_path, snp_list_path",
     [
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None),
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None),
-        (None, None, snp_path)
+        ('expression', 'PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None),
+        ('gene_list', 'PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None),
+        ('snp_list', None, None, snp_path)
     ]
 )
-def test_stat_writer(tmp_path: Path, filtering_expression: str, gene_list_path: Path,
+def test_stat_writer(tmp_path: Path, name: str, filtering_expression: str, gene_list_path: Path,
                      snp_list_path: Path):
     """
     Test the `stat_writer` function to ensure it correctly writes statistics about the collapsing operations.
@@ -221,6 +221,6 @@ def test_stat_writer(tmp_path: Path, filtering_expression: str, gene_list_path: 
             new_log = log_file.read()
 
         # also read in the correct log file & make sure they match
-        with open(os.path.join(test_data_dir, "../expected_outputs", f"{bgen_prefix}_log.txt"), 'r') as log_file:
+        with open(os.path.join(test_data_dir, "../expected_outputs", f"{bgen_prefix}_{name}_log.txt"), 'r') as log_file:
             log_contents = log_file.read()
             assert set(log_contents) == set(new_log)
