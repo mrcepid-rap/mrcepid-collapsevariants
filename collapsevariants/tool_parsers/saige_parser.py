@@ -46,7 +46,6 @@ class SAIGEParser(ToolParser):
         :param var_id_list: A list of N variant IDs from a single ENST group
         :return: A single tab-delimited string consisting of N variant IDs reformatted for SAIGE input
         """
-
         reformatted_ids = []
         for varID in var_id_list:
             if ':' in varID:
@@ -55,8 +54,12 @@ class SAIGEParser(ToolParser):
                 split_id = varID.split("_")
             else:
                 raise ValueError(f"Invalid variant ID format: {varID}")
-            reformatted_id = "{0}:{1}:{2}:{3}".format(*split_id)
-            reformatted_ids.append(reformatted_id)
+
+            if len(split_id) == 4:
+                reformatted_id = "{0}:{1}:{2}:{3}".format(*split_id)
+                reformatted_ids.append(reformatted_id)
+            else:
+                raise ValueError(f"Invalid variant ID format: {varID} - Expected 4 parts, got {len(split_id)}")
 
         joined_reformatted_ids = "\t".join(reformatted_ids)
         return joined_reformatted_ids
@@ -104,5 +107,3 @@ class SAIGEParser(ToolParser):
                 output_setfile_SAIGE.write(anno_line)
 
         return output_group_file
-
-
