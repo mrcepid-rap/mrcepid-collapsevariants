@@ -59,6 +59,9 @@ class IngestData:
         later in this workflow so that it can be parallelized. This information is stored in a TypedDict (BGENIndex)
         for easier key access.
 
+        This method also collects sample IDs from the first bgen file encountered. This is done as a convenience so extra
+        sample files do not need to be downloaded.
+
         :param bgen_index: A file containing information of bgen files to collapse on
         :return: A dictionary with keys equal to chromosome (with 'chr' prefix) and keys of BGENIndex
         """
@@ -90,6 +93,15 @@ class IngestData:
         return bgen_dict
 
     def _open_vep_filepaths(self) -> Dict[str, IO]:
+        """A convenience method to open an IO stream all VEP files for the bgen files in the bgen_index.
+
+        This method was created to allow for easier testing of downstream methods that require the VEP files to be open
+        rather than opened as part of the downstream method. This is because these files are directly streamed from the
+        DNANexus platform and are not stored locally. This means that they are not available for testing on a local
+        machine.
+
+        :return: A dictionary with keys of bgen_prefix and values of the VEP file IO stream.
+        """
 
         vep_dict = {}
         for bgen_prefix, bgen_info in self.bgen_index.items():

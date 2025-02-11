@@ -8,6 +8,16 @@ from collapsevariants.tool_parsers.tool_parser import ToolParser
 
 
 class SAIGEParser(ToolParser):
+    """Generate files used by SIAGE for association testing. Implements the abstract class ToolParser.
+
+    This class is used to generate files that can be used by SAIGE to perform association testing. SAIGE
+    requires 1 file to run: a groupFile.
+
+    :param genes: A dictionary containing a list of genes and their respective variants.
+    :param genotype_index: A dictionary containing a list of genotype matrices for each bgen file.
+    :param sample_ids: A list of sample IDs to write to the sample file.
+    :param output_prefix: A string representing the prefix to use for the output files.
+    """
 
     def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
                  output_prefix: str):
@@ -15,10 +25,16 @@ class SAIGEParser(ToolParser):
                          tool_name='SAIGE')
 
     def _make_output_files(self, bgen_prefix: str) -> List[Path]:
+        """Wrapper method to parallelize the conversion of individual variant data into SAIGE compatible files.
+
+        :param bgen_prefix: A string representing the prefix of a BGEN file to convert
+        :return: A List containing the paths to the SAIGE group file
+        """
 
         variant_list = self._genes[bgen_prefix]
+        group_file = self._make_saige_group_file(bgen_prefix, variant_list)
 
-        return [self._make_saige_group_file(bgen_prefix, variant_list)]
+        return [group_file]
 
     @staticmethod
     def _reformat_saige_variants(var_id_list: List[str]) -> str:

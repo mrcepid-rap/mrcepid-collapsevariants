@@ -5,9 +5,6 @@
 # DNAnexus Python Bindings (dxpy) documentation:
 #   http://autodoc.dnanexus.com/bindings/python/current/
 
-import os
-from random import sample
-
 import dxpy
 import tarfile
 
@@ -16,7 +13,7 @@ from typing import Dict
 
 from collapsevariants.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
     generate_genotype_matrices, update_log_file
-from general_utilities.association_resources import generate_linked_dx_file, download_dxfile_by_name
+from general_utilities.association_resources import generate_linked_dx_file
 from general_utilities.mrc_logger import MRCLogger
 
 from collapsevariants.ingest_data import IngestData

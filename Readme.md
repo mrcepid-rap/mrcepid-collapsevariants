@@ -7,22 +7,29 @@ https://documentation.dnanexus.com/.
 ### Table of Contents
 
 - [Introduction](#introduction)
-    * [Changelog](#changelog)
-    * [Background](#background)
-    * [Dependencies](#dependencies)
-        + [Docker](#docker)
-        + [Resource Files](#resource-files)
+  * [Changelog](#changelog)
+  * [Background](#background)
+  * [Dependencies](#dependencies)
+    + [Docker](#docker)
+    + [Resource Files](#resource-files)
 - [Methodology](#methodology)
-    * [1. Filtering Variants](#1-filtering-variants)
-        + [i. Filtering With Pandas Query Expressions](#i-filtering-with-pandas-query-expressions)
-        + [ii. Filtering with Variant IDs](#ii-filtering-with-variant-ids)
-        + [iii. Filtering with HGNC gene symbols + query expression](#iii-filtering-with-hgnc-gene-symbols--query-expression)
-    * [2. Generating Outputs](#2-generating-outputs)
+  * [1. Filtering Variants](#1-filtering-variants)
+    + [i. Filtering With Pandas Query Expressions](#filtering-with-pandas-query-expressions)
+    + [ii. Filtering with Variant IDs](#filtering-with-variant-ids)
+    + [iii. Filtering with HGNC gene symbols + query expression](#filtering-with-hgnc-gene-symbols--query-expression)
+  * [2. Generating Outputs](#2-generating-outputs)
 - [Running on DNANexus](#running-on-dnanexus)
-    * [Inputs](#inputs)
-        + [BGEN Index Format](#bgen-index-format)
-    * [Outputs](#outputs)
-    * [Command line example](#command-line-example)
+  * [Inputs](#inputs)
+    + [BGEN Index Format](#bgen-index-format)
+  * [Outputs](#outputs)
+    + [Output Log](#output-log)
+    + [Output Tarball](#output-tarball)
+      - [Tool-Specific Outputs](#tool-specific-outputs)
+        * [BOLT](#bolt)
+        * [SAIGE](#saige)
+        * [REGENIE](#regenie)
+        * [STAAR](#staar)
+  * [Command line example](#command-line-example)
 
 ## Introduction
 
@@ -44,9 +51,9 @@ dx describe file-1234567890ABCDEFGHIJKLMN
 ### Changelog
 
 * v2.0.0
-  * Major overhaul of the applet to support WGS. A list of major changes is included below; for more information, please see various pull requests. 
-    **These changes are breaking** and will require v2.0.0 of the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) 
-    applet to function correctly.
+  * Major overhaul of the applet to support WGS. A list of major changes is included below; for more information, please 
+    see various pull requests. **These changes are breaking** and will require v2.0.0 of the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) 
+    applet to use outputs from this applet for associationtests. 
     * Implemented testing across the tool using simulated data
     * Added support for WGS data
       * .bgen files are no longer tied to chromosomes; they can be 'chunks' of the genome with multiple files representing variant data for a single chromosome
@@ -108,7 +115,7 @@ Downstream of this applet, we have implemented four tools / methods for rare var
 
 These five tools / methods require very different input files to run. The purpose of this applet is to generate inputs
 that are compatible with each of these tools input requirements. For more information on the format of these input
-files, please see the [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) documentation.
+files, please see the [outputs](#outputs) section of this README.
 
 ### Dependencies
 
@@ -141,22 +148,18 @@ This applet has two major steps:
 2. Generate various output files in varying formats per-chromosome to be fed into
    [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
 
-For more details please see the commented source code available at `src/mrcepid-collapsevariants.py` of this repository.
+For more details please see the commented source code available in the `collapsevariants/` python package in this repository.
 
 ### 1. Filtering Variants
 
-#### i. Filtering With Pandas Query Expressions
+#### Filtering With Pandas Query Expressions
 
 The user of this applet can provide a filtering expression that is compatible with the pandas query function to select
 variants for association testing. For details and tutorials on how to construct such queries, please see the
 [pandas query documentation](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.query.html). Briefly, one can
 construct various expressions to generate variants that they want to test during rare variant burden tests.
 These expressions **MUST** be based on fields within the annotation's tsv file provided as output of
-the [mrcepid-makebgen](https://github.com/mrcepid-rap/mrcepid-makebgen)
-step of this pipeline. For possible fields and values that can be used for filtering, please see:
-
-https://github.com/mrcepid-rap/mrcepid-annotatecadd#outputs
-
+the [mrcepid-makebgen](https://github.com/mrcepid-rap/mrcepid-makebgen) step of this pipeline. 
 For possible consequences (PARSED_CSQ) to filter on, please see:
 
 https://github.com/mrcepid-rap/mrcepid-filterbcf#4-parsing-vep-consequences
@@ -196,7 +199,7 @@ variant_index = variant_index.query(
 
 The table `variant_index` is used for the next step.
 
-#### ii. Filtering with Variant IDs
+#### Filtering with Variant IDs
 
 The user can also opt to provide a list of variant IDs that they want to use to build a single mask using the `snplist`
 input. This mode will create a single 'Gene' with the ID ENST00000000000 that includes information for all variants.
@@ -204,8 +207,8 @@ Variants listed can be from multiple chromosomes or a single gene. variant IDs *
 annotation files generated by [mrcepid-makebgen](https://github.com/mrcepid-rap/mrcepid-makebgen) applet:
 
 ```text
-chr1:1234:A:G
-chr2:4567:ATA:A
+1_1234_A_G
+2_4567_ATA_A
 ```
 
 Any number of variants can be included in this mask but we have not tested the limits in terms of compute on generating
@@ -215,12 +218,13 @@ this file.
 
 Use of a SNP list will generate similar files to those generated when using a pandas-compatible filtering expression.
 The only major difference is that instead of a per-chromosome set of files, a single set of files with the prefix 'SNP' will
-be generated. This is to allow [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) to recognise that we are running collapsed SNPs rather than per-GENE tests.
+be generated. This is to allow [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting) to 
+recognise that we are running collapsed SNPs rather than per-GENE tests.
 
 **Big Note** – Masks generated with a SNP-list are currently only compatible with the phewas and extract modes of
 [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
 
-#### iii. Filtering with HGNC gene symbols + query expression
+#### Filtering with HGNC gene symbols + query expression
 
 Another option is to provide a list HGNC gene symbols **combined** with a pandas query expression to create a custom
 mask. The relevant parameter to specify the gene list is `genelist`. As with the SNP list input we create a single 'GENE'
@@ -251,8 +255,7 @@ allow [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-run
 to recognise that we are running a collapse gene list ather than per-GENE tests.
 
 **Big Note** – As with a SNP list mask generated with a gene list combined with a filtering expression are currently
-only compatible with the phewas and extract modes of
-[mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
+only compatible with the phewas and extract modes of [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
 
 ### 2. Generating Outputs
 
@@ -291,11 +294,12 @@ columns "MASK" and "MAF" rather than generic names.
 The BGEN index must follow a strict format and is a required option:
 
 ```
-chrom   vep_dxid   bgen_dxid    bgen_index_dxid   sample_dxid
-1    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
+prefix   vep_dxid   bgen_dxid    bgen_index_dxid   sample_dxid
+1_1_100000    file-1234567890ABCDEFGH   file-0987654321ABCDEFGH   file-1234567890HGFEDCBA   file-0987654321HGFEDCBA
 ```
 
-A more detailed description of what this file looks like and how to make it is included in the following repository:
+Where prefix can be any alphanumeric string that provides a unique identifier to a given bgen. A more detailed 
+description of what this file looks like and how to make it is included in the following repository:
 
 https://github.com/mrcepid-rap/QC_workflow
 
@@ -308,84 +312,100 @@ https://github.com/mrcepid-rap/QC_workflow
 
 The output_tarball and logfile are named based on the value of `output_prefix` like:
 
-`PTV.tar.gz` and `PTV.log`
+`<output_prefix>.tar.gz` and `<output_prefix>.log`
 
-While I am not going into detail about the format of the files contained in this tar file, I list here the files for
-record-keeping purposes. All files have a standard prefix identical to that of the tarball with an extra descriptor,
-with one set of files for each chromosome (please see below for more detailed descriptions of each file):
-
-* <output_prefix>.<chr>.BOLT.bgen – BOLT-ready .bgen file of per-gene 'genotypes'.
-* <output_prefix>.<chr>.BOLT.sample – BOLT-ready bgen sample file of per-gene 'genotypes'.
-* <output_prefix>.<chr>.SAIGE.groupFile.txt – TSV file of variants assigned to each gene.
-* <output_prefix>.<chr>.REGENIE.annotationFile.txt – TSV of variant assigned to gene and mask.
-* <output_prefix>.<chr>.REGENIE.setListFile.txt – TSV of variants assigned to genes with coordinate information
-* <output_prefix>.<chr>.REGENIE.maskefile.txt – TSV of masks in the given output
-* <output_prefix>.<chr>.STAAR.matrix.rds - STAAR-ready matrix sample - variant - genotype sets in R .rds format
-* <output_prefix>.<chr>.variants_table.STAAR.tsv - per-variant annotations for STAAR
+#### Output Log
 
 The `.log` file contains information on total number of variants, number of variants per-participant, annotations, and a
 histogram of allele counts. Please see this file for more information.
 
-If providing a SNP list, the only difference for the above is that a single set of files with the prefix <output_prefix>
-.SNP
-is generated. The log file is identical except for a section that documents variant IDs that were NOT found during
+For SNP masks, the log file is identical except for a section that documents variant IDs that were NOT found during
 filtering.
 
-If we provide a gene list combined with a pandas query expression the only relevant difference is that a single set of
-files
-with the prefix <output_prefix>.GENE is generated. The log file is again identical except for a section in the beginning
-that lists how many variants that fulfil the filtering criteria were found in each gene. Also, in the log file that is
-automatically generated by DNAnexus (accessible from the "Monitor" tab in your project) information is given on genes
-that for a range of reasons did not contribute any variants to the analysis (see section 1 iii above).
+For GENE masks, The log file is again identical except for a section in the beginning that lists how many variants that
+fulfil the filtering criteria were found in each gene. Also, in the log file that is automatically generated by DNAnexus
+(accessible from the "Monitor" tab in your project) information is given on genes that for a range of reasons did not
+contribute any variants to the analysis (see [above](#filtering-with-hgnc-gene-symbols--query-expression) for more information).
 
-#### Tool-Specific Outputs
+#### Output Tarball
 
-##### BOLT
+Within `<output_prefix>.tar.gz`, all output files have a standard name that composed of two parts: 1) the requested `output_prefix` and 2) for each file 
+provided to `bgen_index`, a file-specific prefix. For each .bgen file provided to the applet, the following files are generated:
 
-* <output_prefix>.<chr>.BOLT.bgen – BOLT-ready .bgen file of per-gene 'genotypes'.
+* <output_prefix>.<prefix>.BOLT.bgen – BOLT-ready .bgen file of per-gene 'genotypes'.
+* <output_prefix>.<prefix>.BOLT.bgen.bgi – BOLT-ready .bgen.bgi bgen index of per-gene 'genotypes'.
+* <output_prefix>.<prefix>.BOLT.sample – BOLT-ready bgen sample file of per-gene 'genotypes'.
+* <output_prefix>.<prefix>.SAIGE.groupFile.txt – TSV file of variants assigned to each gene.
+* <output_prefix>.<prefix>.REGENIE.annotationFile.txt – TSV of variant assigned to gene and mask.
+* <output_prefix>.<prefix>.REGENIE.setListFile.txt – TSV of variants assigned to genes with coordinate information
+* <output_prefix>.<prefix>.REGENIE.maskfile.txt – TSV of masks in the given output
+* <output_prefix>.<prefix>.STAAR.samples_table.tsv - STAAR ready sample table
+* <output_prefix>.<prefix>.STAAR.variants_table.tsv - per-variant annotations for STAAR
+
+If providing a SNP or GENE list, the following differences for the above apply:
+
+* a single set of files with the prefix `<output_prefix>.SNP.*` or `<output_prefix>.GENE.*`, respectively, is generated.
+* An additional [matrixmarket format file](https://docs.scipy.org/doc/scipy/reference/generated/scipy.io.mmwrite.html) is generated for STAAR called <output_prefix>.<prefix>.STAAR.mtx 
+
+##### Tool-Specific Outputs
+
+###### BOLT
+
+* <output_prefix>.<prefix>.BOLT.bgen – BOLT-ready .bgen file of per-gene 'genotypes'.
 
 BOLT does not allow for gene collapsing tests by default. To enable burden tests with BOLT we generate a dummy .bgen
 file that collapses all variants in a given gene-mask pair into a set of biallelic variants. In brief, individuals 
 with a variant specified by the current mask are assigned a heterozygous genotype (0/1) and individuals without the 
 variant are assigned a homozygous reference genotype (0/0). Resulting genotypes are then encoded into bgen v1.2 
-format. As .bgen can only encode nucleotide information as REF / ALT, we encode each gene mask with REF = C and ALT = A.
+format. As .bgen can only encode nucleotide information as REF / ALT, we encode each gene mask with REF = A and ALT = C.
 *This bgen file is REF FIRST*. To be clear, this was an arbitrary choice to ensure consistency throughout this 
 pipeline. ID for each variant is encoded as the *ENST* for the current transcript. The text representation of this 
 variant is the following (roughly in bgen specification format):
 
 ```text
 varID   rsID    chr pos ref alt genotype_block
-ENST00000000001 ENST00000000001 1 100000 C A <genotypes>
+ENST00000000001 ENST00000000001 1 100000 A C <genotypes>
 ```
 
-* <output_prefix>.<chr>.BOLT.sample – BOLT-ready bgen sample file of per-gene 'genotypes'.
+* <output_prefix>.<prefix>.BOLT.bgen.bgi
+
+An index file to enable random access of the .bgen file. Please see [bgenix](https://enkre.net/cgi-bin/code/bgen/doc/trunk/doc/wiki/bgenix.md)
+for more information.
+
+* <output_prefix>.<prefix>.BOLT.sample – BOLT-ready bgen sample file of per-gene 'genotypes'.
 
 A standard .bgen .sample file. To be clear, this is *NOT* the sample-v2 file. An example of the format is
 
 ```text
 ID_1 ID_2 missing sex
+0   0   0   D
 1000000 1000000 0 NA
 1000001 1000001 0 NA
 ```
 
-##### SAIGE
+###### SAIGE
 
-* <output_prefix>.<chr>.SAIGE.groupFile.txt – TSV file of variants assigned to each gene.
+* <output_prefix>.<prefix>.SAIGE.groupFile.txt – TSV file of variants assigned to each gene.
 
-SAIGE only requires a single group file that assigns variants to genes. This file is generated as a TSV file with the
-following no-header format:
+SAIGE only requires a single group file that assigns variants to genes and then variants to masks. This file is generated
+as a TSV file with the following no-header format:
 
 ```text
-ENST00000000001 1:100000_C/A    1:100010_T/G    1:100020_G/A
-ENST00000000002 1:100100_T/A    1:100110_G/C    1:100200_C/A
+ENST00000000001 var 1:100000:C:A    1:100010:T:G    1:100020:G:A
+ENST00000000001 anno    foo foo foo
+ENST00000000002 var 1:100100:T:A    1:100110:G:C    1:100200:C:A
+ENST00000000002 anno    foo foo foo
 ```
 
 Note that the variant ID is the same as the one used in other variant files. SAIGE requires that the variant ID is encoded
-as `chr:pos_REF/ALT`. This is opposed to that stored in the vep.tsv files of `chr:pos:REF:ALT`.
+as `chr:pos:REF:ALT`. This is opposed to that stored in the vep.tsv files of `chr_pos_REF_ALT`. The value of 'foo' 
+in the annotation line is a dummy placeholder and is used to by SAIGE when running burden tests. Do not change `foo` unless 
+you also change the burden module. In theory, it can be the name of the mask, but does not make a difference to the downstream
+workflow.
 
-##### REGENIE
+###### REGENIE
 
-* <output_prefix>.<chr>.REGENIE.annotationFile.txt – TSV of variant assigned to gene and mask.
+* <output_prefix>.<prefix>.REGENIE.annotationFile.txt – TSV of variant assigned to gene and mask.
 
 This file assigns individual variants to genes and a mask. The format is a TSV file with the following no-header format:
 
@@ -398,7 +418,7 @@ This file assigns individual variants to genes and a mask. The format is a TSV f
 1_100200_C_A    ENST00000000002    HC_PTV-MAF_01
 ```
 
-* <output_prefix>.<chr>.REGENIE.setListFile.txt – TSV of variants assigned to genes with coordinate information
+* <output_prefix>.<prefix>.REGENIE.setListFile.txt – TSV of variants assigned to genes with coordinate information
 
 This file assigns individuals variants to a gene and provides gene-level coordinate information. This file is 
 similar to that generated for SAIGE, except it also encodes chromosome and position and separates variant IDs by comma 
@@ -411,7 +431,7 @@ ENST00000000002 1   100100  1_100100_T_A,1_100110_G_C,1_100200_C_A
 
 Where rows are ENST, chromosome, position, and a comma-separated list of variant IDs, respectively.
 
-* <output_prefix>.<chr>.REGENIE.maskfile.txt – TSV of masks in the given output
+* <output_prefix>.<prefix>.REGENIE.maskfile.txt – TSV of masks in the given output
 
 This file just lists possible masks in a given run. It is a TSV format file, but should only ever contain ONE line per
 chromosome-mask pair. The format is:
@@ -420,14 +440,14 @@ chromosome-mask pair. The format is:
 HC_PTV-MAF_01   HC_PTV-MAF_01
 ```
 
-##### STAAR
+###### STAAR
 
 Raw variant-level genetic data is NOT stored in the output files; however, variant-level data _is_ required for STAAR
 to perform association testing. Therefore, we create the column (variants_table.tsv) and rows (samples_table.tsv) files
 of a sparse matrix to describe what data should be filled into the matrix. This data is then generated on-the-fly at 
 the time of running the association test. The format of these files is as follows:
 
-* <output_prefix>.<chr>.STAAR.variants_table.tsv – TSV of variant assigned to columns
+* <output_prefix>.<prefix>.STAAR.variants_table.tsv – TSV of variant assigned to columns
 
 ```text
 1_100000_C_A    1    100000  ENST00000000001 1
@@ -440,7 +460,7 @@ the time of running the association test. The format of these files is as follow
 
 Where columns are variant ID, chromosome, position, gene ID, and column number [i] of the matrix, respectively.
 
-* <output_prefix>.<chr>.STAAR.samples_table.tsv - TSV of sample IDs assigned to rows
+* <output_prefix>.<prefix>.STAAR.samples_table.tsv - TSV of sample IDs assigned to rows
 
 ```text
 1000000 1
@@ -451,23 +471,32 @@ Where columns are variant ID, chromosome, position, gene ID, and column number [
 
 Where columns are sample ID and row number [j] of the matrix, respectively.
 
+* <output_prefix>.<prefix>.STAAR.mtx - MatrixMarket format file of the sparse matrix
+
+**Note:** Only for SNP & GENE masks!
+
+```text
+%%MatrixMarket matrix coordinate real general
+%
+10000 34 128
+211 26 1.000000000000000e+00
+243 16 1.000000000000000e+00
+...
+956 31 1.000000000000000e+00
+```
+
 ### Command line example
 
 There are two ways to acquire this applet:
 
 1. As an **applet** – clone the repository from github and `dx build` an APPLET into your own workspace. If this is your
-   first time doing
-   this within a project other than "MRC - Variant Filtering", please see our organisational documentation on how to
-   download
-   and build this app on the DNANexus Research Access Platform:
+   first time doing this within a project other than "MRC - Variant Filtering", please see our organisational documentation on how to
+   download and build this app on the DNANexus Research Access Platform:
 
 https://github.com/mrcepid-rap
 
 2. As an **app** – use the app that has been provided in the DNANexus global namespace. This will ensure you are always
-   using
-   the latest version and keeps you from having to manually update your local version. To be able to access this app,
-   you
-   will need to be an authorised member of `org-mrc_epid_group_1_2`.
+   using the latest version and keeps you from having to manually update your local version.
 
 **Note:** All commands below have been provided as if using option (2) above!
 
@@ -508,8 +537,6 @@ dx run mrcepid-collapsevariants --help
 ```
 
 I have set a sensible (and tested) default for compute resources on DNANexus that is baked into the json used for
-building
-the app (at `dxapp.json`) so setting an instance type is unnecessary. This current default is for a mem3_ssd1_v2_x32
-instance
-(32 CPUs, 256 Gb RAM, 1200Gb storage). If necessary to adjust compute resources, one can provide a flag like
+building the app (at `dxapp.json`) so setting an instance type is unnecessary. This current default is for a mem3_ssd1_v2_x32
+instance (32 CPUs, 256 Gb RAM, 1200Gb storage). If necessary to adjust compute resources, one can provide a flag like
 `--instance-type mem1_ssd1_v2_x4`.

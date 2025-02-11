@@ -47,11 +47,8 @@ class ToolParser(ABC):
         self._output_prefix = output_prefix
         self._tool_name = tool_name
 
-        # Initialize the output files list
-        self._output_files = []
-
         # Call the multithreaded file creation method
-        self._multithread_file_creation()
+        self._output_files = self._multithread_file_creation()
 
     def get_output_files(self) -> List[Path]:
         """Getter for the file-based output of this interface / implementing classes
@@ -61,14 +58,15 @@ class ToolParser(ABC):
 
         return self._output_files
 
-    def _multithread_file_creation(self):
+    def _multithread_file_creation(self) -> List[Path]:
         """Parallelize the creation of files for burden testing.
 
         This method uses the ThreadUtility class to parallelize the abstract method :func:`_make_output_files`. This
         method is automatically called by the constructor of this class and should not be called directly by
         implementing classes.
 
-        :return: None
+        :return: A List of Path objects representing the output files created by the implementing class'
+            :func:`_make_output_files` method.
         """
 
         self._logger.info(f'Generating {self._tool_name} files for burden testing')
@@ -82,9 +80,11 @@ class ToolParser(ABC):
         for bgen_prefix in self._genes.keys():
             thread_utility.launch_job(self._make_output_files,
                                       bgen_prefix=bgen_prefix)
-
+        output_files = []
         for result in thread_utility:
-            self._output_files.extend(result)
+            output_files.extend(result)
+
+        return output_files
 
     @abstractmethod
     def _make_output_files(self, bgen_prefix: str) -> List[Path]:

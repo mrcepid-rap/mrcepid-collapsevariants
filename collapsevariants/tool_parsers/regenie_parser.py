@@ -9,6 +9,17 @@ from collapsevariants.tool_parsers.tool_parser import ToolParser
 
 
 class REGENIEParser(ToolParser):
+    """Generate files used by REGENIE for association testing. Implements the abstract class ToolParser.
+
+    This class is used to generate files that can be used by REGENIE to perform association testing. REGENIE
+    requires 3 files to run: a setlist file, an annotation file, and a mask file. This class generates these files
+    sequentially.
+
+    :param genes: A dictionary containing a list of genes and their respective variants.
+    :param genotype_index: A dictionary containing a list of genotype matrices for each bgen file.
+    :param sample_ids: A list of sample IDs to write to the sample file.
+    :param output_prefix: A string representing the prefix to use for the output files.
+    """
 
     def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
                  output_prefix: str):
@@ -16,6 +27,11 @@ class REGENIEParser(ToolParser):
                          tool_name='REGENIE')
 
     def _make_output_files(self, bgen_prefix: str) -> List[Path]:
+        """Wrapper method to parallelize the conversion of individual variant data into REGENIE-compatible files.
+
+        :param bgen_prefix: A string representing the prefix of a BGEN file to convert
+        :return: A list containing the paths to the REGENIE-formatted setlist, annotation, and mask files
+        """
 
         variant_list = self._genes[bgen_prefix]
         setlist_path = self._make_regenie_setlist_file(bgen_prefix, variant_list)
@@ -25,6 +41,17 @@ class REGENIEParser(ToolParser):
         return [setlist_path, annotation_path, mask_path]
 
     def _make_regenie_annotation_file(self, bgen_prefix: str, variant_list: pd.DataFrame) -> Path:
+        """Generate the annotation file for REGENIE (*.REGENIE.annotationFile.txt).
+
+        The output of this method is in a tab-delimited format with the following columns:
+        - VAR: The variant ID
+        - ENST: The ENST ID
+        - MASK: The mask name
+
+        :param bgen_prefix: A name to append to beginning of output files.
+        :param variant_list: A DataFrame containing the variants to be included in the annotation file.
+        :return: A Path object representing the path to the annotation file.
+        """
 
         output_annotation_path = Path(f'{self._output_prefix}.{bgen_prefix}.REGENIE.annotationFile.txt')
 
@@ -53,7 +80,7 @@ class REGENIEParser(ToolParser):
         return joined_reformatted_ids
 
     def _make_regenie_setlist_file(self, bgen_prefix: str, variant_list: pd.DataFrame) -> Path:
-        """Generate input format file that can be provided to REGENIE
+        """Generate input format file that can be provided to REGENIE (*.REGENIE.setListFile.txt)
 
         For the way SAIGE is implemented downstream of this applet, SAIGE requires a standard .bcf file and a 'groupFile'.
         This groupFile is a simple tab-delimited file with individual genes (here defined as ENSTs) as the first column,
@@ -95,6 +122,15 @@ class REGENIEParser(ToolParser):
         return output_setlist_path
 
     def _make_regenie_mask_file(self, bgen_prefix: str) -> Path:
+        """Create the required mask file for REGENIE (*.REGENIE.maskfile.txt).
+
+        This method creates a mask file for REGENIE, which is a simple tab-delimited file with one row and two columns,
+        both with the same value: the output prefix. This is a dummy file that is not used in the downstream analysis,
+        but is required by REGENIE to run.
+
+        :param bgen_prefix: A name to append to beginning of output files.
+        :return: A Path object representing the path to the mask file.
+        """
 
         output_mask_path = Path(f'{self._output_prefix}.{bgen_prefix}.REGENIE.maskfile.txt')
 
