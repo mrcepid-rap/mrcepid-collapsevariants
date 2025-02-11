@@ -33,7 +33,12 @@ class SAIGEParser(ToolParser):
 
         reformatted_ids = []
         for varID in var_id_list:
-            split_id = varID.split(":")
+            if ':' in varID:
+                split_id = varID.split(":")
+            elif '_' in varID:
+                split_id = varID.split("_")
+            else:
+                raise ValueError(f"Invalid variant ID format: {varID}")
             reformatted_id = "{0}:{1}:{2}:{3}".format(*split_id)
             reformatted_ids.append(reformatted_id)
 
