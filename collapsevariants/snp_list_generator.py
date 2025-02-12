@@ -457,6 +457,12 @@ class SNPListGenerator:
         union_snps = self._snp_list.intersection(variant_index.index)
         variant_index = variant_index.loc[union_snps]
 
+        # bug fix for wes
+        print(type(variant_index))
+        print(variant_index.index)
+        variant_index.index = variant_index.index.str.replace('_', ':')
+        print(variant_index.index)
+
         # Catalogue SNPs that we did find:
         self._found_snp_set.update(variant_index.index)
 
