@@ -484,7 +484,7 @@ class SNPListGenerator:
 
         # bug fix
         variant_index = variant_index[pd.to_numeric(variant_index['CHROM'], errors='coerce').notnull()]
-        variant_index['varID'] = variant_index['varID'].str.replace('_', ':')
+        #variant_index['varID'] = variant_index['varID'].str.replace('_', ':')
         # print(variant_index)
 
         return variant_index

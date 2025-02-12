@@ -58,7 +58,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
     # bug fix
     variant_list = variant_list[pd.to_numeric(variant_list['CHROM'], errors='coerce').notnull()]
-    variant_list['varID'] = variant_list['varID'].str.replace('_', ':')
+    #variant_list['varID'] = variant_list['varID'].str.replace('_', ':')
     #print(variant_list)
 
     j_lookup = j_lookup.reset_index()
@@ -74,7 +74,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         for current_gene in search_list.itertuples():
 
             # bug fix
-            search_list['VARS'] = search_list['VARS'].apply(lambda x: [var.replace('_', ':') for var in x])
+            #search_list['VARS'] = search_list['VARS'].apply(lambda x: [var.replace('_', ':') for var in x])
             #print(search_list)
 
             # Note to future devs: it is MUCH faster to fetch a window of variants and iterate through them, checking if
