@@ -46,6 +46,10 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     :return: A csr_matrix with columns (j) representing variants and rows (i) representing samples.
     """
 
+    # Filter the variant_list to keep only numeric values in the 'CHROM' column
+    # bug fix
+    variant_list = variant_list[pd.to_numeric(variant_list['CHROM'], errors='coerce').notnull()]
+
     # First aggregate across genes to generate a list of genes and their respective variants
     search_list = variant_list.groupby('ENST').aggregate(
         CHROM=('CHROM', 'first'),
@@ -55,6 +59,10 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     )
 
     j_lookup = variant_list[['varID']]
+
+    # bug fix
+    variant_list['varID'] = variant_list['varID'].str.replace('_', ':')
+
     j_lookup = j_lookup.reset_index()
     j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
 
@@ -67,6 +75,9 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
         for current_gene in search_list.itertuples():
 
+            search_list['CHROM'] = pd.to_numeric(search_list['CHROM'], errors='coerce').dropna().astype(int)
+            search_list['VARS'] = search_list['VARS'].apply(lambda x: [var.replace('_', ':') for var in x])
+
             # Note to future devs: it is MUCH faster to fetch a window of variants and iterate through them, checking if
             # they are in our list of variants, then to iterate through the list of variants and fetch each one individually.
             # Important to note that this holds true for SNP and GENE masks as well, as we store the original data in
@@ -74,6 +85,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
+
                 if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
 
