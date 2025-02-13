@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Tuple, Dict, List
+import re
 
 import numpy as np
 import pandas as pd
@@ -46,8 +47,6 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     :return: A csr_matrix with columns (j) representing variants and rows (i) representing samples.
     """
 
-    pd.set_option('display.max_columns', None)
-
     # First aggregate across genes to generate a list of genes and their respective variants
     search_list = variant_list.groupby('ENST').aggregate(
         CHROM=('CHROM', 'first'),
@@ -74,16 +73,28 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # they are in our list of variants, then to iterate through the list of variants and fetch each one individually.
             # Important to note that this holds true for SNP and GENE masks as well, as we store the original data in
             # variant_list by gene and LATER modify the name of the ENST to be our dummy values.
-            variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
+            print('Current gene incoming:')
             print(current_gene.CHROM)
+
+            processed_chrom = int(re.search(r'\d+', str(current_gene.CHROM)).group()) if isinstance(current_gene.CHROM,
+                                                                                                    str) and re.search(
+                r'\d+', str(current_gene.CHROM)) else current_gene.CHROM
+
+            print('Current gene outgoing:')
+            print(processed_chrom)
+
+            variants = bgen_reader.fetch(processed_chrom, current_gene.MIN, current_gene.MAX)
+
 
             for current_variant in variants:
 
+                print('Current variant:')
                 print(current_variant)
 
                 modified_rsid = current_variant.rsid.replace('_', ':')
 
+                print('Modified variant:')
                 print(modified_rsid)
 
                 if modified_rsid in current_gene.VARS:
