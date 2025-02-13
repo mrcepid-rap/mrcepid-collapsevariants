@@ -457,9 +457,7 @@ class SNPListGenerator:
         union_snps = self._snp_list.intersection(variant_index.index)
         variant_index = variant_index.loc[union_snps]
 
-        print("query_snp_list_variant_index")
-        print(variant_index)
-        print(variant_index)
+        # bug fix: remove string 'chr' from CHROM column
         # Check if there are any non-integer values
         if not pd.api.types.is_integer_dtype(variant_index['CHROM']):
             # Convert everything to string first
@@ -468,7 +466,6 @@ class SNPListGenerator:
             variant_index['CHROM'] = variant_index['CHROM'].str.extract(r'(\d+)$')
             # Convert to integer where possible
             variant_index['CHROM'] = pd.to_numeric(variant_index['CHROM'], errors='coerce')
-        print(variant_index)
 
         # Catalogue SNPs that we did find:
         self._found_snp_set.update(variant_index.index)

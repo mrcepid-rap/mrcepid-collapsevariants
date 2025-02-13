@@ -94,9 +94,6 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
         for current_gene in search_list.itertuples():
 
-            print("current_gene")
-            print(current_gene)
-
             # Note to future devs: it is MUCH faster to fetch a window of variants and iterate through them, checking if
             # they are in our list of variants, then to iterate through the list of variants and fetch each one individually.
             # Important to note that this holds true for SNP and GENE masks as well, as we store the original data in
