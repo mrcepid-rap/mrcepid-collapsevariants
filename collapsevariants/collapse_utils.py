@@ -82,6 +82,10 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
                 print(current_variant.rsid)
 
+                current_variant.rsid = current_variant.rsid.replace('_', ':')
+
+                print(current_gene.VARS)
+
                 if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
 
