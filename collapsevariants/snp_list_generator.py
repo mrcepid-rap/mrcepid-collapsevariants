@@ -457,11 +457,8 @@ class SNPListGenerator:
         union_snps = self._snp_list.intersection(variant_index.index)
         variant_index = variant_index.loc[union_snps]
 
-        # bug fix for wes
-        # print(type(variant_index))
-        # print(variant_index.index)
-        variant_index.index = variant_index.index.str.replace('_', ':')
-        # print(variant_index.index)
+        print("query_snp_list_variant_index")
+        print(variant_index)
 
         # Catalogue SNPs that we did find:
         self._found_snp_set.update(variant_index.index)
@@ -482,9 +479,7 @@ class SNPListGenerator:
         variant_index = variant_index.sort_values(by='POS')  # Make sure sorted by position
         variant_index = variant_index.reset_index()  # Make sure we have a numerical index in POS order
 
-        # bug fix
-        variant_index = variant_index[pd.to_numeric(variant_index['CHROM'], errors='coerce').notnull()]
-        #variant_index['varID'] = variant_index['varID'].str.replace('_', ':')
-        # print(variant_index)
+        print("make_gene_dict_variant_index")
+        print(variant_index)
 
         return variant_index

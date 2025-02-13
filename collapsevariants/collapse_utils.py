@@ -56,13 +56,14 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
     j_lookup = variant_list[['varID']]
 
-    # bug fix
-    variant_list = variant_list[pd.to_numeric(variant_list['CHROM'], errors='coerce').notnull()]
-    #variant_list['varID'] = variant_list['varID'].str.replace('_', ':')
-    #print(variant_list)
+    print("generate_csr_matrix_variant_list")
+    print(variant_list)
 
     j_lookup = j_lookup.reset_index()
     j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
+
+    print("generate_csr_matrix_search_list")
+    print(search_list)
 
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         current_samples = np.array(bgen_reader.samples)
@@ -72,10 +73,6 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         d_array = []
 
         for current_gene in search_list.itertuples():
-
-            # bug fix
-            #search_list['VARS'] = search_list['VARS'].apply(lambda x: [var.replace('_', ':') for var in x])
-            #print(search_list)
 
             # Note to future devs: it is MUCH faster to fetch a window of variants and iterate through them, checking if
             # they are in our list of variants, then to iterate through the list of variants and fetch each one individually.
