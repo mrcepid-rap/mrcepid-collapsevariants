@@ -293,6 +293,7 @@ class SNPListGenerator:
                 #     result_dict['variant_index']['CHROM'] = result_dict['variant_index']['CHROM'].str.extract(r'(\d+)$')
                 #     # Convert to integer where possible
                 #     result_dict['variant_index']['CHROM'] = pd.to_numeric(result_dict['variant_index']['CHROM'], errors='coerce')
+
                 self.genes[result_dict['prefix']] = self._make_gene_dict(result_dict['variant_index'])
 
         # Check the stats of the bgen files

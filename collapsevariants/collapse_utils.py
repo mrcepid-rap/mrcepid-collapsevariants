@@ -80,13 +80,13 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
             for current_variant in variants:
 
-                print(current_variant.rsid)
+                print(current_variant)
 
-                current_variant.rsid = current_variant.rsid.replace('_', ':')
+                modified_rsid = current_variant.rsid.replace('_', ':')
 
-                print(current_gene.VARS)
+                print(modified_rsid)
 
-                if current_variant.rsid in current_gene.VARS:
+                if modified_rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
 
                     genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
