@@ -58,32 +58,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
     j_lookup = variant_list[['varID']]
 
-    print("generate_csr_matrix_variant_list")
-    print(variant_list)
-    # Check if there are any non-integer values
-    if not pd.api.types.is_integer_dtype(variant_list['CHROM']):
-        # Convert everything to string first
-        variant_list['CHROM'] = variant_list['CHROM'].astype(str)
-        # Extract only the numeric part at the end of each value
-        variant_list['CHROM'] = variant_list['CHROM'].str.extract(r'(\d+)$')
-        # Convert to integer where possible
-        variant_list['CHROM'] = pd.to_numeric(variant_list['CHROM'], errors='coerce')
-    print(variant_list)
-
     j_lookup = j_lookup.reset_index()
     j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
-
-    print("generate_csr_matrix_search_list")
-    print(search_list)
-    # Check if there are any non-integer values
-    if not pd.api.types.is_integer_dtype(search_list['CHROM']):
-        # Convert everything to string first
-        search_list['CHROM'] = search_list['CHROM'].astype(str)
-        # Extract only the numeric part at the end of each value
-        search_list['CHROM'] = search_list['CHROM'].str.extract(r'(\d+)$')
-        # Convert to integer where possible
-        search_list['CHROM'] = pd.to_numeric(search_list['CHROM'], errors='coerce')
-    print(search_list)
 
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         current_samples = np.array(bgen_reader.samples)
@@ -100,7 +76,11 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # variant_list by gene and LATER modify the name of the ENST to be our dummy values.
             variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
+            print(current_gene.CHROM)
+
             for current_variant in variants:
+
+                print(current_variant.rsid)
 
                 if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities

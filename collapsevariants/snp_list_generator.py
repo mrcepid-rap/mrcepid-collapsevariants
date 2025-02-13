@@ -284,6 +284,14 @@ class SNPListGenerator:
         self.genes = dict()
         for result_dict in thread_utility:
             if result_dict['vars_found']:
+                # WES bug fix: remove string 'chr' from CHROM column
+                if not pd.api.types.is_integer_dtype(result_dict['CHROM']):
+                    # Convert everything to string first
+                    result_dict['CHROM'] = result_dict['CHROM'].astype(str)
+                    # Extract only the numeric part at the end of each value
+                    result_dict['CHROM'] = result_dict['CHROM'].str.extract(r'(\d+)$')
+                    # Convert to integer where possible
+                    result_dict['CHROM'] = pd.to_numeric(result_dict['CHROM'], errors='coerce')
                 self.genes[result_dict['prefix']] = self._make_gene_dict(result_dict['variant_index'])
 
         # Check the stats of the bgen files
@@ -457,16 +465,6 @@ class SNPListGenerator:
         union_snps = self._snp_list.intersection(variant_index.index)
         variant_index = variant_index.loc[union_snps]
 
-        # bug fix: remove string 'chr' from CHROM column
-        # Check if there are any non-integer values
-        if not pd.api.types.is_integer_dtype(variant_index['CHROM']):
-            # Convert everything to string first
-            variant_index['CHROM'] = variant_index['CHROM'].astype(str)
-            # Extract only the numeric part at the end of each value
-            variant_index['CHROM'] = variant_index['CHROM'].str.extract(r'(\d+)$')
-            # Convert to integer where possible
-            variant_index['CHROM'] = pd.to_numeric(variant_index['CHROM'], errors='coerce')
-
         # Catalogue SNPs that we did find:
         self._found_snp_set.update(variant_index.index)
 
@@ -485,18 +483,5 @@ class SNPListGenerator:
         variant_index = variant_index[['CHROM', 'POS', 'ENST']]
         variant_index = variant_index.sort_values(by='POS')  # Make sure sorted by position
         variant_index = variant_index.reset_index()  # Make sure we have a numerical index in POS order
-
-        print("make_gene_dict_variant_index")
-        print(variant_index)
-        print(variant_index)
-        # Check if there are any non-integer values
-        if not pd.api.types.is_integer_dtype(variant_index['CHROM']):
-            # Convert everything to string first
-            variant_index['CHROM'] = variant_index['CHROM'].astype(str)
-            # Extract only the numeric part at the end of each value
-            variant_index['CHROM'] = variant_index['CHROM'].str.extract(r'(\d+)$')
-            # Convert to integer where possible
-            variant_index['CHROM'] = pd.to_numeric(variant_index['CHROM'], errors='coerce')
-        print(variant_index)
 
         return variant_index
