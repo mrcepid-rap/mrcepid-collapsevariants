@@ -46,6 +46,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     :return: A csr_matrix with columns (j) representing variants and rows (i) representing samples.
     """
 
+    pd.set_option('display.max_columns', None)
+
     # First aggregate across genes to generate a list of genes and their respective variants
     search_list = variant_list.groupby('ENST').aggregate(
         CHROM=('CHROM', 'first'),
@@ -58,11 +60,29 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
     print("generate_csr_matrix_variant_list")
     print(variant_list)
+    # Check if there are any non-integer values
+    if not pd.api.types.is_integer_dtype(variant_list['CHROM']):
+        # Convert everything to string first
+        variant_list['CHROM'] = variant_list['CHROM'].astype(str)
+        # Extract only the numeric part at the end of each value
+        variant_list['CHROM'] = variant_list['CHROM'].str.extract(r'(\d+)$')
+        # Convert to integer where possible
+        variant_list['CHROM'] = pd.to_numeric(variant_list['CHROM'], errors='coerce')
+    print(variant_list)
 
     j_lookup = j_lookup.reset_index()
     j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
 
     print("generate_csr_matrix_search_list")
+    print(search_list)
+    # Check if there are any non-integer values
+    if not pd.api.types.is_integer_dtype(search_list['CHROM']):
+        # Convert everything to string first
+        search_list['CHROM'] = search_list['CHROM'].astype(str)
+        # Extract only the numeric part at the end of each value
+        search_list['CHROM'] = search_list['CHROM'].str.extract(r'(\d+)$')
+        # Convert to integer where possible
+        search_list['CHROM'] = pd.to_numeric(search_list['CHROM'], errors='coerce')
     print(search_list)
 
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
@@ -73,6 +93,9 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         d_array = []
 
         for current_gene in search_list.itertuples():
+
+            print("current_gene")
+            print(current_gene)
 
             # Note to future devs: it is MUCH faster to fetch a window of variants and iterate through them, checking if
             # they are in our list of variants, then to iterate through the list of variants and fetch each one individually.

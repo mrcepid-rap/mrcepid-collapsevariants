@@ -459,6 +459,16 @@ class SNPListGenerator:
 
         print("query_snp_list_variant_index")
         print(variant_index)
+        print(variant_index)
+        # Check if there are any non-integer values
+        if not pd.api.types.is_integer_dtype(variant_index['CHROM']):
+            # Convert everything to string first
+            variant_index['CHROM'] = variant_index['CHROM'].astype(str)
+            # Extract only the numeric part at the end of each value
+            variant_index['CHROM'] = variant_index['CHROM'].str.extract(r'(\d+)$')
+            # Convert to integer where possible
+            variant_index['CHROM'] = pd.to_numeric(variant_index['CHROM'], errors='coerce')
+        print(variant_index)
 
         # Catalogue SNPs that we did find:
         self._found_snp_set.update(variant_index.index)
@@ -480,6 +490,16 @@ class SNPListGenerator:
         variant_index = variant_index.reset_index()  # Make sure we have a numerical index in POS order
 
         print("make_gene_dict_variant_index")
+        print(variant_index)
+        print(variant_index)
+        # Check if there are any non-integer values
+        if not pd.api.types.is_integer_dtype(variant_index['CHROM']):
+            # Convert everything to string first
+            variant_index['CHROM'] = variant_index['CHROM'].astype(str)
+            # Extract only the numeric part at the end of each value
+            variant_index['CHROM'] = variant_index['CHROM'].str.extract(r'(\d+)$')
+            # Convert to integer where possible
+            variant_index['CHROM'] = pd.to_numeric(variant_index['CHROM'], errors='coerce')
         print(variant_index)
 
         return variant_index
