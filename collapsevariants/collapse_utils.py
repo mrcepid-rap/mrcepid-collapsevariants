@@ -88,7 +88,10 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # first let's find the variants in the bgen file
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
             # # now we need to inspect them
-            print('here')
+            print(list(variants))
+
+            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+
             # values = list(variants)
             # # Check if the list is empty
             # if not values:
@@ -104,6 +107,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             #     variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
+
+                print('here')
 
                 # print('Current variant:')
                 # print(current_variant)
