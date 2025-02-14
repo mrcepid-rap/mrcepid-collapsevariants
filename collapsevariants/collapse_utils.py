@@ -6,6 +6,7 @@ import pandas as pd
 from bgen import BgenReader
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import coo_matrix, csr_matrix
+from general_utilities.job_management.thread_utility import ThreadUtility
 
 from collapsevariants.collapse_logger import CollapseLOGGER
 
@@ -84,23 +85,36 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
-                if current_variant.rsid in current_gene.VARS:
-                    try:
-                        current_probabilities = current_variant.probabilities
-                        genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                                  np.where(current_probabilities[:, 2] == 1, 2., 0.))
-                        current_i = genotype_array.nonzero()[0]
-                        current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
-                        current_d = genotype_array[current_i].tolist()
 
-                        i_array.extend(current_i.tolist())
-                        j_array.extend(current_j)
-                        d_array.extend(current_d)
-                    except Exception as e:
-                        print(f"Error processing variant {current_variant.rsid}: {e}")
-                        continue
+                thread_utility = ThreadUtility()
+                thread_utility.launch_job(generate_arrays,
+                                            current_variant=current_variant,
+                                            current_gene=current_gene,
+                                            j_lookup=j_lookup,
+                                            i_array=i_array,
+                                            j_array=j_array,
+                                            d_array=d_array)
+
+
+                # if current_variant.rsid in current_gene.VARS:
+                #     try:
+                #         current_probabilities = current_variant.probabilities
+                #         genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                #                                   np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                #         current_i = genotype_array.nonzero()[0]
+                #         current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
+                #         current_d = genotype_array[current_i].tolist()
+                #
+                #         i_array.extend(current_i.tolist())
+                #         j_array.extend(current_j)
+                #         d_array.extend(current_d)
 
             print('Done with the loop for current gene', current_gene)
+
+            for result in thread_utility:
+                i_array = result[0]
+                j_array = result[1]
+                d_array = result[2]
 
         print('Done with the loop for all genes')
 
@@ -122,6 +136,24 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         print(f"Genotypes: {genotypes}")
     return genotypes
 
+
+def generate_arrays(current_variant, current_gene, j_lookup, i_array, j_array, d_array):
+    if current_variant.rsid in current_gene.VARS:
+        try:
+            current_probabilities = current_variant.probabilities
+            genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                                      np.where(current_probabilities[:, 2] == 1, 2., 0.))
+            current_i = genotype_array.nonzero()[0]
+            current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
+            current_d = genotype_array[current_i].tolist()
+
+            i_array.extend(current_i.tolist())
+            j_array.extend(current_j)
+            d_array.extend(current_d)
+        except Exception as e:
+            LOGGER.error(f"Error processing variant {current_variant.rsid}: {e}")
+
+    return i_array, j_array, d_array
 
 def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tuple[
     np.ndarray, np.ndarray, Dict[str, int]]:
