@@ -4,9 +4,9 @@ from typing import Tuple, Dict, List
 import numpy as np
 import pandas as pd
 from bgen import BgenReader
+from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import coo_matrix, csr_matrix
-from general_utilities.job_management.thread_utility import ThreadUtility
 
 from collapsevariants.collapse_logger import CollapseLOGGER
 
@@ -60,100 +60,81 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     j_lookup = j_lookup.reset_index()
     j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
 
+    j_array = []
+    i_array = []
+    d_array = []
+
+    for current_gene in search_list.itertuples():
+        thread_utility = ThreadUtility()
+        thread_utility.launch_job(process_gene,
+                                  current_gene=current_gene,
+                                  bgen_path=bgen_path,
+                                  sample_path=sample_path,
+                                  j_lookup=j_lookup,
+                                  i_array=i_array,
+                                  j_array=j_array,
+                                  d_array=d_array,
+                                  variant_list=variant_list)
+
+
+    for result in thread_utility:
+        genotypes = result
+
+    return genotypes
+
+
+def process_gene(current_gene, bgen_path, sample_path, j_lookup, i_array, j_array, d_array, variant_list):
+    """
+    Process a gene to fetch variants and update the genotype arrays.
+
+    :param current_gene: The current gene being processed.
+    :param bgen_reader: The BgenReader object to fetch variants.
+    :param j_lookup: A dictionary to look up variant indices.
+    :param i_array: List to store row indices of the sparse matrix.
+    :param j_array: List to store column indices of the sparse matrix.
+    :param d_array: List to store data values of the sparse matrix.
+    :param variant_list: A Pandas DataFrame containing the list of variants to extract from the BGEN file.
+    """
+
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         current_samples = np.array(bgen_reader.samples)
 
-        i_array = []
-        j_array = []
-        d_array = []
+        # if current_gene.CHROM is a string, remove the "chr" from the beginning
+        chrom = current_gene.CHROM
+        if isinstance(chrom, str):
+            chrom = chrom.replace("chr", "").strip()
+            chrom = int(chrom)
 
-        for current_gene in search_list.itertuples():
+        variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
 
-            print("Processing gene:", current_gene)
+        for current_variant in variants:
+            if current_variant.rsid in current_gene.VARS:
+                try:
+                    current_probabilities = current_variant.probabilities
+                    genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                    current_i = genotype_array.nonzero()[0]
+                    current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
+                    current_d = genotype_array[current_i].tolist()
 
-            # Note to future devs: it is MUCH faster to fetch a window of variants and iterate through them, checking if
-            # they are in our list of variants, then to iterate through the list of variants and fetch each one individually.
-            # Important to note that this holds true for SNP and GENE masks as well, as we store the original data in
-            # variant_list by gene and LATER modify the name of the ENST to be our dummy values.
-
-            # if current_gene.CHROM is a string, remove the "chr" from the beginning
-            chrom = current_gene.CHROM
-            if isinstance(chrom, str):
-                chrom = chrom.replace("chr", "").strip()
-                chrom = int(chrom)
-
-            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-
-            for current_variant in variants:
-
-                thread_utility = ThreadUtility()
-                thread_utility.launch_job(generate_arrays,
-                                            current_variant=current_variant,
-                                            current_gene=current_gene,
-                                            j_lookup=j_lookup,
-                                            i_array=i_array,
-                                            j_array=j_array,
-                                            d_array=d_array)
-
-
-                # if current_variant.rsid in current_gene.VARS:
-                #     try:
-                #         current_probabilities = current_variant.probabilities
-                #         genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                #                                   np.where(current_probabilities[:, 2] == 1, 2., 0.))
-                #         current_i = genotype_array.nonzero()[0]
-                #         current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
-                #         current_d = genotype_array[current_i].tolist()
-                #
-                #         i_array.extend(current_i.tolist())
-                #         j_array.extend(current_j)
-                #         d_array.extend(current_d)
-
-            print('Done with the loop for current gene', current_gene)
-
-            for result in thread_utility:
-                i_array = result[0]
-                j_array = result[1]
-                d_array = result[2]
-
-        print('Done with the loop for all genes')
-
-        print(i_array)
-        print(j_array)
-        print(d_array)
-
-        print('Done with the loop for current gene', current_gene)
-
-    print('done with the loop for all genes')
+                    i_array.extend(current_i.tolist())
+                    j_array.extend(current_j)
+                    d_array.extend(current_d)
+                except Exception as e:
+                    print(f"Error processing variant {current_variant.rsid}: {e}")
+                    continue
 
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
     # make sure the matrix is not empty
     # if it is, throw an error
-    if genotypes.nnz == 0:
-        print(f"No variants found in {bgen_path}.")
-    else :
-        print(f"Genotypes: {genotypes}")
+    # if genotypes.nnz == 0:
+    #     print(f"No variants found in {bgen_path}.")
+    # else:
+    #     print(f"Genotypes: {genotypes}")
+
     return genotypes
 
-
-def generate_arrays(current_variant, current_gene, j_lookup, i_array, j_array, d_array):
-    if current_variant.rsid in current_gene.VARS:
-        try:
-            current_probabilities = current_variant.probabilities
-            genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                      np.where(current_probabilities[:, 2] == 1, 2., 0.))
-            current_i = genotype_array.nonzero()[0]
-            current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
-            current_d = genotype_array[current_i].tolist()
-
-            i_array.extend(current_i.tolist())
-            j_array.extend(current_j)
-            d_array.extend(current_d)
-        except Exception as e:
-            LOGGER.error(f"Error processing variant {current_variant.rsid}: {e}")
-
-    return i_array, j_array, d_array
 
 def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tuple[
     np.ndarray, np.ndarray, Dict[str, int]]:
