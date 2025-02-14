@@ -84,7 +84,6 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
-                print("Processing variant:", current_variant.rsid)
                 if current_variant.rsid in current_gene.VARS:
                     try:
                         current_probabilities = current_variant.probabilities
