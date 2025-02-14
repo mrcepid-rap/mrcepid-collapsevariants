@@ -114,7 +114,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
                 print(current_variant.probabilities)
 
-                print(current_variant.rsid['index'])
+                print(j_lookup[current_variant.rsid]['index'])
                 # print('Current variant:')
                 # print(current_variant)
                 #
