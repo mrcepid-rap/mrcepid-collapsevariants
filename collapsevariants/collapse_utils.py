@@ -84,20 +84,30 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
-
+                print("Processing variant:", current_variant.rsid)
                 if current_variant.rsid in current_gene.VARS:
+                    try:
+                        current_probabilities = current_variant.probabilities
+                        genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                                                  np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                        current_i = genotype_array.nonzero()[0]
+                        current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
+                        current_d = genotype_array[current_i].tolist()
 
-                    current_probabilities = current_variant.probabilities
+                        i_array.extend(current_i.tolist())
+                        j_array.extend(current_j)
+                        d_array.extend(current_d)
+                    except Exception as e:
+                        print(f"Error processing variant {current_variant.rsid}: {e}")
+                        continue
 
-                    genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
-                    current_i = genotype_array.nonzero()[0]
-                    current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
-                    current_d = genotype_array[current_i].tolist()
+            print('Done with the loop for current gene', current_gene)
 
-                    i_array.extend(current_i.tolist())
-                    j_array.extend(current_j)
-                    d_array.extend(current_d)
+        print('Done with the loop for all genes')
+
+        print(i_array)
+        print(j_array)
+        print(d_array)
 
         print('Done with the loop for current gene', current_gene)
 
