@@ -73,6 +73,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # Important to note that this holds true for SNP and GENE masks as well, as we store the original data in
             # variant_list by gene and LATER modify the name of the ENST to be our dummy values.
 
+            print(current_gene)
             # bug fixing
             # first let's find the variants in the bgen file
             variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
@@ -93,8 +94,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
             for current_variant in variants:
 
-                print('Current variant:')
-                print(current_variant)
+                # print('Current variant:')
+                # print(current_variant)
                 #
                 # modified_rsid = current_variant.rsid.replace('_', ':')
                 #
@@ -117,9 +118,11 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                     d_array.extend(current_d)
 
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
-    print(genotypes)
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
-
+    # make sure the matrix is not empty
+    # if it is, throw an error
+    if genotypes.nnz == 0:
+        LOGGER.warning(f"No variants found in {bgen_path}.")
     return genotypes
 
 
