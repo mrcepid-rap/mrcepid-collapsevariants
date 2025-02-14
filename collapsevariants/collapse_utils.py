@@ -96,8 +96,19 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                     i_array.extend(current_i.tolist())
                     j_array.extend(current_j)
                     d_array.extend(current_d)
+
+                else:
+
+                    print('no variant found for current rsid', current_variant.rsid)
+
+                print('done with the loop for current rsid', current_variant.rsid)
+
+            print('done with the loop for current variant', current_variant)
+
         print('done with the loop for current gene', current_gene)
+
     print('done with the loop for all genes')
+
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
     # make sure the matrix is not empty
