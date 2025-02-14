@@ -75,14 +75,18 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
             print(current_gene)
             # if current_gene.CHROM is a string, remove the "chr" from the beginning
-            if isinstance(current_gene.CHROM, str):
-                current_gene.CHROM = current_gene.CHROM.replace("chr", "").strip()
-                # save as integer
-                current_gene.CHROM = int(current_gene.CHROM)
+            chrom = current_gene.CHROM
+            if isinstance(chrom, str):
+                chrom = chrom.replace("chr", "").strip()
+                chrom = int(chrom)
+            # if isinstance(current_gene.CHROM, str):
+            #     current_gene.CHROM = current_gene.CHROM.replace("chr", "").strip()
+            #     # save as integer
+            #     current_gene.CHROM = int(current_gene.CHROM)
 
             # bug fixing
             # first let's find the variants in the bgen file
-            variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
+            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
             # # now we need to inspect them
             print('here')
             # values = list(variants)
