@@ -73,62 +73,17 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # Important to note that this holds true for SNP and GENE masks as well, as we store the original data in
             # variant_list by gene and LATER modify the name of the ENST to be our dummy values.
 
-            print(current_gene)
             # if current_gene.CHROM is a string, remove the "chr" from the beginning
             chrom = current_gene.CHROM
             if isinstance(chrom, str):
                 chrom = chrom.replace("chr", "").strip()
                 chrom = int(chrom)
-            # if isinstance(current_gene.CHROM, str):
-            #     current_gene.CHROM = current_gene.CHROM.replace("chr", "").strip()
-            #     # save as integer
-            #     current_gene.CHROM = int(current_gene.CHROM)
-
-            # bug fixing
-            # first let's find the variants in the bgen file
-            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-            # # now we need to inspect them
-            print(list(variants))
 
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-
-            # values = list(variants)
-            # # Check if the list is empty
-            # if not values:
-            #     # if the list is empty, we need to change how we are fetching the variants
-            #     # one thing we can do is remove the "chr" from the chromosome
-            #     chrom_str = str(current_gene.CHROM).replace("chr", "").strip()
-            #     processed_chrom = int(chrom_str) if chrom_str.isdigit() else chrom_str
-            #     # then we can fetch the variants
-            #     variants = bgen_reader.fetch(processed_chrom, current_gene.MIN, current_gene.MAX)
-            #
-            # else:
-            #     # if the list is not empty, we need to re-fetch them from the bgen file
-            #     variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
 
-                print('here')
-
-                print(current_variant.rsid)
-
-                print(current_variant.probabilities)
-
-                # print('Current variant:')
-                # print(current_variant)
-                #
-                # modified_rsid = current_variant.rsid.replace('_', ':')
-                #
-                # print('Modified variant:')
-                # print(modified_rsid)
-
-                # print('Current variant:', current_variant.rsid)
-
                 if current_variant.rsid in current_gene.VARS:
-
-                    print('here doing matrix stuff')
-
-                    print(j_lookup[current_variant.rsid]['index'])
 
                     current_probabilities = current_variant.probabilities
 
@@ -141,7 +96,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                     i_array.extend(current_i.tolist())
                     j_array.extend(current_j)
                     d_array.extend(current_d)
-
+        print('done with the loop for current gene', current_gene)
+    print('done with the loop for all genes')
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
     # make sure the matrix is not empty
