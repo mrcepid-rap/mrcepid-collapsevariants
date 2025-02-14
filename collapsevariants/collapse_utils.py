@@ -1,6 +1,5 @@
 from pathlib import Path
 from typing import Tuple, Dict, List
-import re
 
 import numpy as np
 import pandas as pd
@@ -77,19 +76,20 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # bug fixing
             # first let's find the variants in the bgen file
             variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
-            # now we need to inspect them
-            values = list(variants)
-            # Check if the list is empty
-            if not values:
-                # if the list is empty, we need to change how we are fetching the variants
-                # one thing we can do is to extract the chrom number
-                processed_chrom = int(''.join(filter(str.isdigit, str(current_gene.CHROM))))
-                # then we can fetch the variants
-                variants = bgen_reader.fetch(processed_chrom, current_gene.MIN, current_gene.MAX)
-
-            else:
-                # if the list is not empty, we need to re-fetch them from the bgen file
-                variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
+            # # now we need to inspect them
+            # values = list(variants)
+            # # Check if the list is empty
+            # if not values:
+            #     # if the list is empty, we need to change how we are fetching the variants
+            #     # one thing we can do is remove the "chr" from the chromosome
+            #     chrom_str = str(current_gene.CHROM).replace("chr", "").strip()
+            #     processed_chrom = int(chrom_str) if chrom_str.isdigit() else chrom_str
+            #     # then we can fetch the variants
+            #     variants = bgen_reader.fetch(processed_chrom, current_gene.MIN, current_gene.MAX)
+            #
+            # else:
+            #     # if the list is not empty, we need to re-fetch them from the bgen file
+            #     variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
 
@@ -117,7 +117,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                     d_array.extend(current_d)
 
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
-    # print(genotypes)
+    print(genotypes)
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
 
     return genotypes
