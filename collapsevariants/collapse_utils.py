@@ -114,7 +114,6 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
                 print(current_variant.probabilities)
 
-                print(j_lookup[current_variant.rsid]['index'])
                 # print('Current variant:')
                 # print(current_variant)
                 #
@@ -128,6 +127,9 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                 if current_variant.rsid in current_gene.VARS:
 
                     print('here doing matrix stuff')
+
+                    print(j_lookup[current_variant.rsid]['index'])
+
                     current_probabilities = current_variant.probabilities
 
                     genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
