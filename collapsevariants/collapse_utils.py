@@ -74,30 +74,36 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # Important to note that this holds true for SNP and GENE masks as well, as we store the original data in
             # variant_list by gene and LATER modify the name of the ENST to be our dummy values.
 
-            print('Current gene incoming:')
-            print(current_gene.CHROM)
+            # bug fixing
+            # first let's find the variants in the bgen file
+            variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
+            # now we need to inspect them
+            values = list(variants)
+            # Check if the list is empty
+            if not values:
+                # if the list is empty, we need to change how we are fetching the variants
+                # one thing we can do is to extract the chrom number
+                processed_chrom = int(''.join(filter(str.isdigit, str(current_gene.CHROM))))
+                # then we can fetch the variants
+                variants = bgen_reader.fetch(processed_chrom, current_gene.MIN, current_gene.MAX)
 
-            processed_chrom = int(re.search(r'\d+', str(current_gene.CHROM)).group()) if isinstance(current_gene.CHROM,
-                                                                                                    str) and re.search(
-                r'\d+', str(current_gene.CHROM)) else current_gene.CHROM
-
-            print('Current gene outgoing:')
-            print(processed_chrom)
-
-            variants = bgen_reader.fetch(processed_chrom, current_gene.MIN, current_gene.MAX)
-
+            else:
+                # if the list is not empty, we need to re-fetch them from the bgen file
+                variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             for current_variant in variants:
 
                 print('Current variant:')
                 print(current_variant)
+                #
+                # modified_rsid = current_variant.rsid.replace('_', ':')
+                #
+                # print('Modified variant:')
+                # print(modified_rsid)
 
-                modified_rsid = current_variant.rsid.replace('_', ':')
+                # print('Current variant:', current_variant.rsid)
 
-                print('Modified variant:')
-                print(modified_rsid)
-
-                if modified_rsid in current_gene.VARS:
+                if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
 
                     genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
@@ -111,6 +117,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                     d_array.extend(current_d)
 
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
+    # print(genotypes)
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
 
     return genotypes
