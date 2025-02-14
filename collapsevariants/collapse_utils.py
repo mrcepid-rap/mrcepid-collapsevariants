@@ -112,6 +112,9 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
                 print(current_variant.rsid)
 
+                print(current_variant.probabilities)
+
+                print(current_variant.rsid['index'])
                 # print('Current variant:')
                 # print(current_variant)
                 #
@@ -123,6 +126,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                 # print('Current variant:', current_variant.rsid)
 
                 if current_variant.rsid in current_gene.VARS:
+
+                    print('here doing matrix stuff')
                     current_probabilities = current_variant.probabilities
 
                     genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
@@ -141,6 +146,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     # if it is, throw an error
     if genotypes.nnz == 0:
         print(f"No variants found in {bgen_path}.")
+    else :
+        print(f"Genotypes: {genotypes}")
     return genotypes
 
 
