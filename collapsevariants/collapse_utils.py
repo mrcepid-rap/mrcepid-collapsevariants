@@ -74,10 +74,17 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # variant_list by gene and LATER modify the name of the ENST to be our dummy values.
 
             print(current_gene)
+            # if current_gene.CHROM is a string, remove the "chr" from the beginning
+            if isinstance(current_gene.CHROM, str):
+                current_gene.CHROM = current_gene.CHROM.replace("chr", "").strip()
+                # save as integer
+                current_gene.CHROM = int(current_gene.CHROM)
+
             # bug fixing
             # first let's find the variants in the bgen file
             variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
             # # now we need to inspect them
+            print('here')
             # values = list(variants)
             # # Check if the list is empty
             # if not values:
@@ -122,7 +129,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     # make sure the matrix is not empty
     # if it is, throw an error
     if genotypes.nnz == 0:
-        LOGGER.warning(f"No variants found in {bgen_path}.")
+        print(f"No variants found in {bgen_path}.")
     return genotypes
 
 
