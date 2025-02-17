@@ -2,6 +2,7 @@ import os
 import tempfile
 from pathlib import Path
 from typing import Tuple, Dict, List
+from general_utilities.job_management.thread_utility import ThreadUtility
 
 import numpy as np
 import pandas as pd
@@ -30,23 +31,39 @@ def get_sample_ids(sample_path: Path) -> List[str]:
     return sample_ids
 
 
+
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
-                                  chunk_size: int = 100) -> csr_matrix:
-    """Generate a sparse matrix of genotypes from a BGEN file.
+                                  chunk_size: int = 150) -> csr_matrix:
+    """
+    Generate a sparse matrix of genotypes from a BGEN file.
 
-    Independent of a specific method, the goal of this method is to convert bgen outputs into a sparse matrix format
-    that is manipulable outside bgen format. In reality, this method enables the use of STAAR / GLMs in downstream
-    association testing software.
+    This function converts BGEN file outputs into a sparse matrix format (CSR) that can be used in downstream
+    association testing software such as STAAR or GLMs. The process involves extracting all variants, filtering out
+    individuals with a non-alternate genotype, and converting the data into a COO matrix for efficient creation,
+    which is then converted into a CSR matrix for efficient slicing operations on the columns (variants).
 
-    We first extract all variants and filter out individuals with a non-alternate genotype. This is converted into a
-    coo_matrix for the purposes of efficient creation, and then immediately converted into a csr_matrix for efficient
-    slicing operations on the columns (i.e., variants) in the matrix. We choose a csr_matrix as sample-level filtering
-    is NOT done by methods that use this matrix.
+    Parameters:
+    variant_list (pd.DataFrame): A Pandas DataFrame containing the list of variants to extract from the BGEN file.
+                                 It should include columns such as 'ENST', 'CHROM', 'POS', and 'varID'.
+    bgen_path (Path): The path to the local BGEN file for conversion.
+    sample_path (Path): The path to the associated sample file for the BGEN file.
+    chunk_size (int): The number of genes to process in each chunk. Default is 100.
 
-    :param variant_list: A Pandas DataFrame containing the list of variants to extract from the BGEN file.
-    :param bgen_path: A path to a local bgen file for conversion.
-    :param sample_path: The associated sample file for the bgen file.
-    :return: A csr_matrix with columns (j) representing variants and rows (i) representing samples.
+    Returns:
+    csr_matrix: A sparse matrix with columns (j) representing variants and rows (i) representing samples.
+
+    The function performs the following steps:
+    1. Aggregates the variant list by gene to get minimal region fetch.
+    2. Builds a lookup dictionary (j_lookup) mapping variant IDs to column indices.
+    3. Creates a temporary directory to store partial results.
+    4. Opens the BGEN file and reads the sample list.
+    5. Splits the gene list into chunks and processes each chunk to produce partial (i, j, d) arrays, which are saved to disk.
+    6. Reads the partial files back and concatenates them in a second pass.
+    7. Builds the final arrays for the COO matrix.
+    8. Constructs and returns the final CSR matrix.
+
+    Edge Cases:
+    - If no data is found at all, the function returns an empty CSR matrix with the appropriate shape.
     """
 
     # 1) Aggregate by gene to get minimal region fetch
@@ -85,7 +102,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             chunk_file_paths.append(tmp_file_path)
 
             # Process this chunk: parse, produce (i,j,d), save to disk
-            _process_gene_chunk(
+            process_gene_chunk(
                 bgen_reader=bgen_reader,
                 chunk_df=chunk_df,
                 j_lookup=j_lookup,
@@ -125,15 +142,46 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     return csr_matrix(coo, dtype=np.float32)
 
 
-def _process_gene_chunk(
+def process_gene_chunk(
         bgen_reader,
         chunk_df: pd.DataFrame,
         j_lookup: dict,
         tmp_file_path: str
 ):
     """
-    Process a chunk of genes (rows of chunk_df), and write partial (i, j, d) arrays to disk (NPZ).
+    Process a chunk of genes and write partial (i, j, d) arrays to disk in NPZ format.
+
+    This function processes a subset of genes (rows of chunk_df) by fetching variants from a BGEN file,
+    extracting genotype probabilities, and converting them into sparse matrix format. The results are
+    saved as partial (i, j, d) arrays to a specified temporary file.
+
+    Parameters:
+    bgen_reader (BgenReader): An instance of BgenReader used to fetch variant data from the BGEN file.
+    chunk_df (pd.DataFrame): A DataFrame containing a subset of genes to process. Each row should include
+                             columns 'CHROM', 'MIN', 'MAX', and 'VARS'.
+    j_lookup (dict): A dictionary mapping variant IDs (varID) to their corresponding column indices in the
+                     final sparse matrix. The dictionary should have the structure {varID: {'index': col_index}}.
+    tmp_file_path (str): The path to the temporary file where the partial results will be saved in NPZ format.
+
+    Returns:
+    None: This function does not return any value. It writes the partial results to the specified temporary file.
+
+    The function performs the following steps:
+    1. Initializes empty lists to store the row indices (i), column indices (j), and data values (d) for the sparse matrix.
+    2. Iterates over each gene in the chunk DataFrame.
+    3. For each gene, fetches variants from the BGEN file within the specified chromosomal range.
+    4. For each variant, checks if it is in the list of variants to process (gene.VARS).
+    5. Extracts genotype probabilities and converts them into a genotype array.
+    6. Identifies non-zero entries in the genotype array and maps them to the appropriate row and column indices.
+    7. Appends the non-zero entries to the lists of row indices, column indices, and data values.
+    8. Concatenates the partial results and saves them to the specified temporary file in NPZ format.
+    9. If no variants are found in the chunk, saves empty arrays to the temporary file.
+
+    Edge Cases:
+    - If no variants are found in the chunk, the function saves empty arrays to the temporary file.
+    - If the chromosome information is in string format, it removes the "chr" prefix and converts it to an integer.
     """
+
     chunks_i = []
     chunks_j = []
     chunks_d = []
