@@ -4,7 +4,6 @@ from typing import Tuple, Dict, List
 import numpy as np
 import pandas as pd
 from bgen import BgenReader
-from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import coo_matrix, csr_matrix
 
@@ -56,82 +55,74 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     )
 
     j_lookup = variant_list[['varID']]
-
     j_lookup = j_lookup.reset_index()
     j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
 
-    j_array = []
-    i_array = []
-    d_array = []
+    # --------------------------
+    # 1) First pass: count rows
+    # --------------------------
+    total_rows = 0
+    with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
+        for current_gene in search_list.itertuples():
+            chrom = current_gene.CHROM
+            # if chrom is a string like "chr12", strip "chr"
+            if isinstance(chrom, str):
+                chrom = chrom.replace("chr", "").strip()
+            chrom = int(chrom)
 
-    for current_gene in search_list.itertuples():
-        thread_utility = ThreadUtility()
-        thread_utility.launch_job(process_gene,
-                                  current_gene=current_gene,
-                                  bgen_path=bgen_path,
-                                  sample_path=sample_path,
-                                  j_lookup=j_lookup,
-                                  i_array=i_array,
-                                  j_array=j_array,
-                                  d_array=d_array,
-                                  variant_list=variant_list)
+            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+            for current_variant in variants:
+                if current_variant.rsid in current_gene.VARS:
+                    current_probabilities = current_variant.probabilities
+                    # Convert probabilities to 0/1/2 genotype
+                    genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                    # Count how many non-zero positions
+                    current_i = genotype_array.nonzero()[0]
+                    total_rows += len(current_i)
 
+    # --------------------------------
+    # 2) Allocate + fill in one pass
+    # --------------------------------
+    # Pre-allocate NumPy arrays of the correct length
+    # (use int64, float32, etc. based on your needs)
+    i_array = np.zeros(total_rows, dtype=np.int64)
+    j_array = np.zeros(total_rows, dtype=np.int64)
+    d_array = np.zeros(total_rows, dtype=np.float32)
 
-    for result in thread_utility:
-        genotypes = result
-
-    return genotypes
-
-
-def process_gene(current_gene, bgen_path, sample_path, j_lookup, i_array, j_array, d_array, variant_list):
-    """
-    Process a gene to fetch variants and update the genotype arrays.
-
-    :param current_gene: The current gene being processed.
-    :param bgen_reader: The BgenReader object to fetch variants.
-    :param j_lookup: A dictionary to look up variant indices.
-    :param i_array: List to store row indices of the sparse matrix.
-    :param j_array: List to store column indices of the sparse matrix.
-    :param d_array: List to store data values of the sparse matrix.
-    :param variant_list: A Pandas DataFrame containing the list of variants to extract from the BGEN file.
-    """
-
+    offset = 0
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         current_samples = np.array(bgen_reader.samples)
 
-        # if current_gene.CHROM is a string, remove the "chr" from the beginning
-        chrom = current_gene.CHROM
-        if isinstance(chrom, str):
-            chrom = chrom.replace("chr", "").strip()
+        for current_gene in search_list.itertuples():
+            chrom = current_gene.CHROM
+            if isinstance(chrom, str):
+                chrom = chrom.replace("chr", "").strip()
             chrom = int(chrom)
 
-        variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-
-        for current_variant in variants:
-            if current_variant.rsid in current_gene.VARS:
-                try:
+            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+            for current_variant in variants:
+                if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
                     genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
                                               np.where(current_probabilities[:, 2] == 1, 2., 0.))
-                    current_i = genotype_array.nonzero()[0]
-                    current_j = [j_lookup[current_variant.rsid]['index']] * len(current_i)
-                    current_d = genotype_array[current_i].tolist()
 
-                    i_array.extend(current_i.tolist())
-                    j_array.extend(current_j)
-                    d_array.extend(current_d)
-                except Exception as e:
-                    print(f"Error processing variant {current_variant.rsid}: {e}")
-                    continue
+                    # Non-zero positions
+                    current_i = genotype_array.nonzero()[0]
+                    length = len(current_i)
+                    if length == 0:
+                        continue  # nothing to store
+
+                    # Fill our big arrays in the correct slice
+                    i_array[offset: offset + length] = current_i
+                    # j_lookup[current_variant.rsid]['index'] is the same for all i in this variant
+                    j_array[offset: offset + length] = j_lookup[current_variant.rsid]['index']
+                    d_array[offset: offset + length] = genotype_array[current_i]
+
+                    offset += length
 
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
-    # make sure the matrix is not empty
-    # if it is, throw an error
-    # if genotypes.nnz == 0:
-    #     print(f"No variants found in {bgen_path}.")
-    # else:
-    #     print(f"Genotypes: {genotypes}")
 
     return genotypes
 
