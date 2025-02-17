@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -29,7 +30,8 @@ def get_sample_ids(sample_path: Path) -> List[str]:
     return sample_ids
 
 
-def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path) -> csr_matrix:
+def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
+                                  chunk_size: int = 100) -> csr_matrix:
     """Generate a sparse matrix of genotypes from a BGEN file.
 
     Independent of a specific method, the goal of this method is to convert bgen outputs into a sparse matrix format
@@ -47,90 +49,136 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     :return: A csr_matrix with columns (j) representing variants and rows (i) representing samples.
     """
 
-    # Define file paths for storing temporary arrays
-    temp_dir = "temp_arrays"
-    os.makedirs(temp_dir, exist_ok=True)
-
-    i_file = os.path.join(temp_dir, "i_array.npy")
-    j_file = os.path.join(temp_dir, "j_array.npy")
-    d_file = os.path.join(temp_dir, "d_array.npy")
-
-    # Create empty binary files (initial size can be guessed or use append mode)
-    with open(i_file, 'wb'), open(j_file, 'wb'), open(d_file, 'wb'):
-        pass  # Just to ensure files are reset
-
-    # First aggregate across genes to generate a list of genes and their respective variants
+    # 1) Aggregate by gene to get minimal region fetch
     search_list = variant_list.groupby('ENST').aggregate(
         CHROM=('CHROM', 'first'),
         MIN=('POS', 'min'),
         MAX=('POS', 'max'),
         VARS=('varID', list)
+    ).reset_index(drop=True)  # optionally reset_index
+
+    # 2) Build j_lookup: varID -> {'index': col_index}
+    j_lookup = (
+        variant_list[['varID']]
+        .reset_index()
+        .set_index('varID')
+        .to_dict(orient='index')
     )
+    n_variants = len(variant_list)
 
-    j_lookup = variant_list[['varID']].reset_index().set_index('varID').to_dict(orient='index')
+    # 3) We'll store partial results in a temporary directory
+    temp_dir = tempfile.mkdtemp(prefix="bgen_sparse_")
 
+    # 4) Open BGEN once, read the sample list
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
-        current_samples = np.array(bgen_reader.samples)
+        samples = np.array(bgen_reader.samples)
+        n_samples = len(samples)
 
-        # Process genes one by one
-        for current_gene in search_list.itertuples():
-            chrom = current_gene.CHROM
-            if isinstance(chrom, str):
-                chrom = chrom.replace("chr", "").strip()
-            chrom = int(chrom)
+        # 5) Split the gene list into chunks
+        chunk_file_paths = []  # store the paths to partial npz files
+        for start_idx in range(0, len(search_list), chunk_size):
+            end_idx = start_idx + chunk_size
+            chunk_df = search_list.iloc[start_idx:end_idx]
 
-            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+            # We'll name a temporary file for each chunk
+            tmp_file_path = os.path.join(temp_dir, f"chunk_{start_idx}.npz")
+            chunk_file_paths.append(tmp_file_path)
 
-            chunk_i = []
-            chunk_j = []
-            chunk_d = []
+            # Process this chunk: parse, produce (i,j,d), save to disk
+            _process_gene_chunk(
+                bgen_reader=bgen_reader,
+                chunk_df=chunk_df,
+                j_lookup=j_lookup,
+                tmp_file_path=tmp_file_path
+            )
 
-            for current_variant in variants:
-                if current_variant.rsid in current_gene.VARS:
-                    current_probabilities = current_variant.probabilities
+    # 6) Read partial files back and concatenate in a second pass
+    all_i = []
+    all_j = []
+    all_d = []
+    for file_path in chunk_file_paths:
+        with np.load(file_path) as data:
+            i_array = data['i']
+            j_array = data['j']
+            d_array = data['d']
+            if len(i_array) > 0:
+                all_i.append(i_array)
+                all_j.append(j_array)
+                all_d.append(d_array)
+        # Optionally delete the chunk file as soon as we’ve used it
+        os.remove(file_path)
 
-                    genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
-                    current_i = genotype_array.nonzero()[0]  # e.g. array([3, 10, 25, ...])
-                    if len(current_i) == 0:
-                        continue
+    # Optionally remove the entire temp directory
+    os.rmdir(temp_dir)
 
-                    current_j = np.full_like(current_i, fill_value=j_lookup[current_variant.rsid]['index'],
-                                             dtype=np.int64)
-                    current_d = genotype_array[current_i]  # e.g. array([1., 2., ...])
+    # Edge case: no data found at all
+    if len(all_i) == 0:
+        return csr_matrix((n_samples, n_variants), dtype=np.float32)
 
-                    chunk_i.append(current_i)
-                    chunk_j.append(current_j)
-                    chunk_d.append(current_d)
+    # 7) Build final arrays
+    i_array = np.concatenate(all_i)
+    j_array = np.concatenate(all_j)
+    d_array = np.concatenate(all_d)
 
-            # Convert lists to numpy arrays
-            if chunk_i:
-                chunk_i = np.concatenate(chunk_i)
-                chunk_j = np.concatenate(chunk_j)
-                chunk_d = np.concatenate(chunk_d)
+    # 8) Construct the final CSR matrix
+    coo = coo_matrix((d_array, (i_array, j_array)), shape=(n_samples, n_variants))
+    return csr_matrix(coo, dtype=np.float32)
 
-                # Append to disk
-                with open(i_file, 'ab') as f:
-                    f.write(chunk_i.tobytes())
-                with open(j_file, 'ab') as f:
-                    f.write(chunk_j.tobytes())
-                with open(d_file, 'ab') as f:
-                    f.write(chunk_d.tobytes())
 
-    # Read back arrays
-    i_array = np.fromfile(i_file, dtype=np.int64)
-    j_array = np.fromfile(j_file, dtype=np.int64)
-    d_array = np.fromfile(d_file, dtype=np.float64)
+def _process_gene_chunk(
+        bgen_reader,
+        chunk_df: pd.DataFrame,
+        j_lookup: dict,
+        tmp_file_path: str
+):
+    """
+    Process a chunk of genes (rows of chunk_df), and write partial (i, j, d) arrays to disk (NPZ).
+    """
+    chunks_i = []
+    chunks_j = []
+    chunks_d = []
 
-    # Construct sparse matrix
-    genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
-    genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for fast access
+    # For each gene in the chunk, fetch variants from the BGEN
+    for gene in chunk_df.itertuples():
+        chrom = gene.CHROM
+        if isinstance(chrom, str):
+            chrom = chrom.replace("chr", "").strip()
+        chrom = int(chrom)
 
-    # Clean up temporary files
-    os.remove(i_file)
-    os.remove(j_file)
-    os.remove(d_file)
-    return genotypes
+        variants = bgen_reader.fetch(chrom, gene.MIN, gene.MAX)
+        for current_variant in variants:
+            if current_variant.rsid in gene.VARS:
+                probs = current_variant.probabilities
+                genotype_array = np.where(probs[:, 1] == 1, 1.,
+                                          np.where(probs[:, 2] == 1, 2., 0.))
+
+                current_i = genotype_array.nonzero()[0]
+                if len(current_i) == 0:
+                    continue
+
+                # global column index from j_lookup
+                col_idx = j_lookup[current_variant.rsid]['index']
+                current_j = np.full_like(current_i, fill_value=col_idx, dtype=np.int64)
+                current_d = genotype_array[current_i]
+
+                chunks_i.append(current_i)
+                chunks_j.append(current_j)
+                chunks_d.append(current_d)
+
+    # Concatenate partial results for this chunk
+    if len(chunks_i) == 0:
+        # Nothing to write (maybe no variants in this chunk)
+        np.savez_compressed(
+            tmp_file_path,
+            i=np.array([], dtype=np.int64),
+            j=np.array([], dtype=np.int64),
+            d=np.array([], dtype=np.float32)
+        )
+    else:
+        i_array = np.concatenate(chunks_i)
+        j_array = np.concatenate(chunks_j)
+        d_array = np.concatenate(chunks_d).astype(np.float32, copy=False)
+        np.savez_compressed(tmp_file_path, i=i_array, j=j_array, d=d_array)
 
 
 def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tuple[
