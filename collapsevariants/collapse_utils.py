@@ -58,42 +58,15 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     j_lookup = j_lookup.reset_index()
     j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
 
-    # --------------------------
-    # 1) First pass: count rows
-    # --------------------------
-    total_rows = 0
-    with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
-        for current_gene in search_list.itertuples():
-            chrom = current_gene.CHROM
-            # if chrom is a string like "chr12", strip "chr"
-            if isinstance(chrom, str):
-                chrom = chrom.replace("chr", "").strip()
-            chrom = int(chrom)
+    # Lists to hold chunk arrays
+    chunks_i = []
+    chunks_j = []
+    chunks_d = []
 
-            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-            for current_variant in variants:
-                if current_variant.rsid in current_gene.VARS:
-                    current_probabilities = current_variant.probabilities
-                    # Convert probabilities to 0/1/2 genotype
-                    genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
-                    # Count how many non-zero positions
-                    current_i = genotype_array.nonzero()[0]
-                    total_rows += len(current_i)
-
-    # --------------------------------
-    # 2) Allocate + fill in one pass
-    # --------------------------------
-    # Pre-allocate NumPy arrays of the correct length
-    # (use int64, float32, etc. based on your needs)
-    i_array = np.zeros(total_rows, dtype=np.int64)
-    j_array = np.zeros(total_rows, dtype=np.int64)
-    d_array = np.zeros(total_rows, dtype=np.float32)
-
-    offset = 0
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         current_samples = np.array(bgen_reader.samples)
 
+        # single pass over your genes and variants
         for current_gene in search_list.itertuples():
             chrom = current_gene.CHROM
             if isinstance(chrom, str):
@@ -101,25 +74,31 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             chrom = int(chrom)
 
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+
             for current_variant in variants:
                 if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
+
                     genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
                                               np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                    current_i = genotype_array.nonzero()[0]  # e.g. array([3, 10, 25, ...])
+                    if len(current_i) == 0:
+                        continue
 
-                    # Non-zero positions
-                    current_i = genotype_array.nonzero()[0]
-                    length = len(current_i)
-                    if length == 0:
-                        continue  # nothing to store
+                    current_j = np.full_like(current_i,
+                                             fill_value=j_lookup[current_variant.rsid]['index'],
+                                             dtype=np.int64)
+                    current_d = genotype_array[current_i]  # e.g. array([1., 2., ...])
 
-                    # Fill our big arrays in the correct slice
-                    i_array[offset: offset + length] = current_i
-                    # j_lookup[current_variant.rsid]['index'] is the same for all i in this variant
-                    j_array[offset: offset + length] = j_lookup[current_variant.rsid]['index']
-                    d_array[offset: offset + length] = genotype_array[current_i]
+                    # Instead of extend, we just append the small arrays
+                    chunks_i.append(current_i)
+                    chunks_j.append(current_j)
+                    chunks_d.append(current_d)
 
-                    offset += length
+    # After this loop finishes, we do ONE big concatenate per array
+    i_array = np.concatenate(chunks_i)
+    j_array = np.concatenate(chunks_j)
+    d_array = np.concatenate(chunks_d)
 
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
