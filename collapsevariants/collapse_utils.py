@@ -1,6 +1,7 @@
+import os
 from pathlib import Path
 from typing import Tuple, Dict, List
-import polars as pl
+
 import numpy as np
 import pandas as pd
 from bgen import BgenReader
@@ -46,6 +47,18 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     :return: A csr_matrix with columns (j) representing variants and rows (i) representing samples.
     """
 
+    # Define file paths for storing temporary arrays
+    temp_dir = "temp_arrays"
+    os.makedirs(temp_dir, exist_ok=True)
+
+    i_file = os.path.join(temp_dir, "i_array.npy")
+    j_file = os.path.join(temp_dir, "j_array.npy")
+    d_file = os.path.join(temp_dir, "d_array.npy")
+
+    # Create empty binary files (initial size can be guessed or use append mode)
+    with open(i_file, 'wb'), open(j_file, 'wb'), open(d_file, 'wb'):
+        pass  # Just to ensure files are reset
+
     # First aggregate across genes to generate a list of genes and their respective variants
     search_list = variant_list.groupby('ENST').aggregate(
         CHROM=('CHROM', 'first'),
@@ -54,90 +67,69 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         VARS=('varID', list)
     )
 
-    j_lookup = variant_list[['varID']]
-    j_lookup = j_lookup.reset_index()
-    j_lookup = j_lookup.set_index('varID').to_dict(orient='index')
+    j_lookup = variant_list[['varID']].reset_index().set_index('varID').to_dict(orient='index')
 
-    # Lists to hold chunk arrays
-    chunks_i = []
-    chunks_j = []
-    chunks_d = []
-
-    # Ensure output directory exists
-    output_dir = Path('parquet_chunks')
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Track Parquet file names
-    parquet_files = []
-
-    # Read from BGEN
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         current_samples = np.array(bgen_reader.samples)
 
-        file_index = 0
-        # Iterate over the gene list
+        # Process genes one by one
         for current_gene in search_list.itertuples():
             chrom = current_gene.CHROM
             if isinstance(chrom, str):
                 chrom = chrom.replace("chr", "").strip()
             chrom = int(chrom)
 
-            # Fetch variants in [MIN, MAX]
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
 
-            # Store collected (i, j, d) for this chunk
-            i_arrays, j_arrays, d_arrays = [], [], []
+            chunk_i = []
+            chunk_j = []
+            chunk_d = []
 
             for current_variant in variants:
                 if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
-                    genotype_array = np.where(
-                        current_probabilities[:, 1] == 1, 1.0,
-                        np.where(current_probabilities[:, 2] == 1, 2.0, 0.0)
-                    )
 
-                    # Find nonzero indices
-                    current_i = genotype_array.nonzero()[0]
+                    genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                    current_i = genotype_array.nonzero()[0]  # e.g. array([3, 10, 25, ...])
                     if len(current_i) == 0:
                         continue
 
-                    col_index = j_lookup[current_variant.rsid]['index']
-                    current_j = np.full_like(current_i, fill_value=col_index, dtype=np.int64)
-                    current_d = genotype_array[current_i]
+                    current_j = np.full_like(current_i, fill_value=j_lookup[current_variant.rsid]['index'],
+                                             dtype=np.int64)
+                    current_d = genotype_array[current_i]  # e.g. array([1., 2., ...])
 
-                    # Collect arrays
-                    i_arrays.append(current_i)
-                    j_arrays.append(current_j)
-                    d_arrays.append(current_d)
+                    chunk_i.append(current_i)
+                    chunk_j.append(current_j)
+                    chunk_d.append(current_d)
 
-            # If we found data, write it to a new Parquet file
-            if i_arrays:
-                df_chunk = pl.DataFrame({
-                    "i": np.concatenate(i_arrays),
-                    "j": np.concatenate(j_arrays),
-                    "d": np.concatenate(d_arrays)
-                })
+            # Convert lists to numpy arrays
+            if chunk_i:
+                chunk_i = np.concatenate(chunk_i)
+                chunk_j = np.concatenate(chunk_j)
+                chunk_d = np.concatenate(chunk_d)
 
-                # Write to a new Parquet file
-                parquet_path = output_dir / f"temp_data_{file_index}.parquet"
-                df_chunk.write_parquet(parquet_path)
-                parquet_files.append(str(parquet_path))
-                file_index += 1
+                # Append to disk
+                with open(i_file, 'ab') as f:
+                    f.write(chunk_i.tobytes())
+                with open(j_file, 'ab') as f:
+                    f.write(chunk_j.tobytes())
+                with open(d_file, 'ab') as f:
+                    f.write(chunk_d.tobytes())
 
-    # Read all Parquet files lazily
-    df_lazy = pl.scan_parquet(parquet_files)
+    # Read back arrays
+    i_array = np.fromfile(i_file, dtype=np.int64)
+    j_array = np.fromfile(j_file, dtype=np.int64)
+    d_array = np.fromfile(d_file, dtype=np.float64)
 
-    # Collect all data into a single Polars DataFrame
-    df_eager = df_lazy.collect()
-
-    # Convert to NumPy arrays
-    i_array = df_eager["i"].to_numpy()
-    j_array = df_eager["j"].to_numpy()
-    d_array = df_eager["d"].to_numpy()
-
+    # Construct sparse matrix
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
-    genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
+    genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for fast access
 
+    # Clean up temporary files
+    os.remove(i_file)
+    os.remove(j_file)
+    os.remove(d_file)
     return genotypes
 
 
