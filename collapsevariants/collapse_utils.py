@@ -33,7 +33,7 @@ def get_sample_ids(sample_path: Path) -> List[str]:
 
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
-                                  chunk_size: int = 150) -> csr_matrix:
+                                  chunk_size: int = 10) -> csr_matrix:
     """
     Generate a sparse matrix of genotypes from a BGEN file.
 
