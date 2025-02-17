@@ -154,20 +154,29 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     """
     # Need to concatenate all matrices into a single matrix while ensuring concatenation is done in the same order for
     # variant indices AND genotype matrices
-    final_variant_index = []
-    final_genotype_matrix = None
-    for bgen_prefix, variant_index in genes.items():
-        current_matrix = genotype_index[bgen_prefix]
-        final_variant_index.append(variant_index)
-        if final_genotype_matrix is not None:
-            final_genotype_matrix = hstack([final_genotype_matrix, current_matrix])
-        else:
-            final_genotype_matrix = current_matrix
-    final_variant_index = pd.concat(final_variant_index)
 
-    # Write the final data_files to disk
+    # 1. Collect submatrices and variant indices
+    final_variant_index_list = []
+    matrix_list = []
+
+    for bgen_prefix, variant_index in genes.items():
+        # 'genotype_index[bgen_prefix]' is assumed to be a sparse CSR matrix (or similar)
+        current_matrix = genotype_index[bgen_prefix]
+        # Collect the variant index DataFrame
+        final_variant_index_list.append(variant_index)
+        # Collect the sparse matrix for later concatenation
+        matrix_list.append(current_matrix)
+
+    # 2. Concatenate all variant indices
+    final_variant_index = pd.concat(final_variant_index_list)
+
+    # 3. Perform one hstack on the list of sparse matrices
+    final_genotype_matrix = hstack(matrix_list)
+
+    # 4. Write the final data to disk (Matrix Market format)
     matrix_output_path = Path(f'{output_prefix}.{bgen_type}.STAAR.mtx')
     mmwrite(matrix_output_path, final_genotype_matrix)
+
     sample_output_path = STAARParser.make_samples_dict(output_prefix, bgen_type, sample_ids)
     variant_output_path = STAARParser.make_variants_dict(output_prefix, bgen_type, final_variant_index)
 
