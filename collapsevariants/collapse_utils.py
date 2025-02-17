@@ -1,6 +1,6 @@
 from pathlib import Path
 from typing import Tuple, Dict, List
-
+import polars as pl
 import numpy as np
 import pandas as pd
 from bgen import BgenReader
@@ -63,42 +63,77 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     chunks_j = []
     chunks_d = []
 
+    # Ensure output directory exists
+    output_dir = Path('parquet_chunks')
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Track Parquet file names
+    parquet_files = []
+
+    # Read from BGEN
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         current_samples = np.array(bgen_reader.samples)
 
-        # single pass over your genes and variants
+        file_index = 0
+        # Iterate over the gene list
         for current_gene in search_list.itertuples():
             chrom = current_gene.CHROM
             if isinstance(chrom, str):
                 chrom = chrom.replace("chr", "").strip()
             chrom = int(chrom)
 
+            # Fetch variants in [MIN, MAX]
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+
+            # Store collected (i, j, d) for this chunk
+            i_arrays, j_arrays, d_arrays = [], [], []
 
             for current_variant in variants:
                 if current_variant.rsid in current_gene.VARS:
                     current_probabilities = current_variant.probabilities
+                    genotype_array = np.where(
+                        current_probabilities[:, 1] == 1, 1.0,
+                        np.where(current_probabilities[:, 2] == 1, 2.0, 0.0)
+                    )
 
-                    genotype_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
-                    current_i = genotype_array.nonzero()[0]  # e.g. array([3, 10, 25, ...])
+                    # Find nonzero indices
+                    current_i = genotype_array.nonzero()[0]
                     if len(current_i) == 0:
                         continue
 
-                    current_j = np.full_like(current_i,
-                                             fill_value=j_lookup[current_variant.rsid]['index'],
-                                             dtype=np.int64)
-                    current_d = genotype_array[current_i]  # e.g. array([1., 2., ...])
+                    col_index = j_lookup[current_variant.rsid]['index']
+                    current_j = np.full_like(current_i, fill_value=col_index, dtype=np.int64)
+                    current_d = genotype_array[current_i]
 
-                    # Instead of extend, we just append the small arrays
-                    chunks_i.append(current_i)
-                    chunks_j.append(current_j)
-                    chunks_d.append(current_d)
+                    # Collect arrays
+                    i_arrays.append(current_i)
+                    j_arrays.append(current_j)
+                    d_arrays.append(current_d)
 
-    # After this loop finishes, we do ONE big concatenate per array
-    i_array = np.concatenate(chunks_i)
-    j_array = np.concatenate(chunks_j)
-    d_array = np.concatenate(chunks_d)
+            # If we found data, write it to a new Parquet file
+            if i_arrays:
+                df_chunk = pl.DataFrame({
+                    "i": np.concatenate(i_arrays),
+                    "j": np.concatenate(j_arrays),
+                    "d": np.concatenate(d_arrays)
+                })
+
+                # Write to a new Parquet file
+                parquet_path = output_dir / f"temp_data_{file_index}.parquet"
+                df_chunk.write_parquet(parquet_path)
+                parquet_files.append(str(parquet_path))
+                file_index += 1
+
+    # Read all Parquet files lazily
+    df_lazy = pl.scan_parquet(parquet_files)
+
+    # Collect all data into a single Polars DataFrame
+    df_eager = df_lazy.collect()
+
+    # Convert to NumPy arrays
+    i_array = df_eager["i"].to_numpy()
+    j_array = df_eager["j"].to_numpy()
+    d_array = df_eager["d"].to_numpy()
 
     genotypes = coo_matrix((d_array, (i_array, j_array)), shape=(len(current_samples), len(variant_list)))
     genotypes = csr_matrix(genotypes)  # Convert to csr_matrix for quick slicing / calculations of variants
