@@ -66,7 +66,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     - If no data is found at all, the function returns an empty CSR matrix with the appropriate shape.
     """
 
-    # 1) Aggregate by gene to get minimal region fetch
+    # Aggregate by gene to get minimal region fetch
     search_list = variant_list.groupby('ENST').aggregate(
         CHROM=('CHROM', 'first'),
         MIN=('POS', 'min'),
@@ -74,7 +74,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         VARS=('varID', list)
     ).reset_index(drop=True)  # optionally reset_index
 
-    # 2) Build j_lookup: varID -> {'index': col_index}
+    # Build j_lookup: varID -> {'index': col_index}
     j_lookup = (
         variant_list[['varID']]
         .reset_index()
@@ -83,15 +83,15 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     )
     n_variants = len(variant_list)
 
-    # 3) We'll store partial results in a temporary directory
+    # We'll store partial results in a temporary directory
     temp_dir = tempfile.mkdtemp(prefix="bgen_sparse_")
 
-    # 4) Open BGEN once, read the sample list
+    # Open BGEN once, read the sample list
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
         samples = np.array(bgen_reader.samples)
         n_samples = len(samples)
 
-        # 5) Split the gene list into chunks
+        # split the gene list into chunks
         chunk_file_paths = []  # store the paths to partial npz files
         for start_idx in range(0, len(search_list), chunk_size):
             end_idx = start_idx + chunk_size
@@ -109,35 +109,34 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                 tmp_file_path=tmp_file_path
             )
 
-    # 6) Read partial files back and concatenate in a second pass
-    all_i = []
-    all_j = []
-    all_d = []
+    # Read partial files back and concatenate in a second pass
+    print("Reading the files back in")
+    # Pre-calculate total number of non-zero elements
+    total_nnz = 0
     for file_path in chunk_file_paths:
         with np.load(file_path) as data:
-            i_array = data['i']
-            j_array = data['j']
-            d_array = data['d']
-            if len(i_array) > 0:
-                all_i.append(i_array)
-                all_j.append(j_array)
-                all_d.append(d_array)
-        # Optionally delete the chunk file as soon as we’ve used it
+            total_nnz += len(data['i'])
+
+    # Pre-allocate final arrays
+    i_array = np.empty(total_nnz, dtype=np.int64)
+    j_array = np.empty(total_nnz, dtype=np.int64)
+    d_array = np.empty(total_nnz, dtype=np.float32)
+
+    # Fill arrays sequentially
+    pos = 0
+    for file_path in chunk_file_paths:
+        with np.load(file_path) as data:
+            chunk_size = len(data['i'])
+            if chunk_size > 0:
+                i_array[pos:pos + chunk_size] = data['i']
+                j_array[pos:pos + chunk_size] = data['j']
+                d_array[pos:pos + chunk_size] = data['d']
+                pos += chunk_size
         os.remove(file_path)
 
-    # Optionally remove the entire temp directory
     os.rmdir(temp_dir)
 
-    # Edge case: no data found at all
-    if len(all_i) == 0:
-        return csr_matrix((n_samples, n_variants), dtype=np.float32)
-
-    # 7) Build final arrays
-    i_array = np.concatenate(all_i)
-    j_array = np.concatenate(all_j)
-    d_array = np.concatenate(all_d)
-
-    # 8) Construct the final CSR matrix
+    # Construct the final CSR matrix
     coo = coo_matrix((d_array, (i_array, j_array)), shape=(n_samples, n_variants))
     return csr_matrix(coo, dtype=np.float32)
 
