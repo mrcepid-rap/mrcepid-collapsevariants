@@ -137,6 +137,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     os.rmdir(temp_dir)
 
     # Construct the final CSR matrix
+    print("Constructing final matrix")
     coo = coo_matrix((d_array, (i_array, j_array)), shape=(n_samples, n_variants))
     return csr_matrix(coo, dtype=np.float32)
 
