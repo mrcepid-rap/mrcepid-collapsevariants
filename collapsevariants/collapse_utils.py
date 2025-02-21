@@ -75,11 +75,10 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             print(chrom)
             # Attempt to fetch variants
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-            if not variants:
+            if hasattr(variants, "is_empty"):
                 variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             print(variants)
-
             # create a store for the variant level information
             variant_arrays = []
 
