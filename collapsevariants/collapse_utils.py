@@ -65,22 +65,38 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         # iterate through each gene in our search list
         for gene_n, current_gene in enumerate(search_list.itertuples()):
 
-            # implement a fix to ensure we are pulling out chromosomes as integers
-            # chrom = current_gene.CHROM
-            # if isinstance(chrom, str):
-            #     chrom = chrom.replace("chr", "").strip()
-            #     if chrom not in ['X', 'Y']:
-            #         chrom = int(chrom)
+            # Extract chromosome information from current_gene
+            chrom = current_gene.CHROM
 
-            # get the actual data from the bgen file
-            variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
+            # Implement a fix to ensure we are pulling out chromosomes as integers
+            # Get an example variant
+            var_example = bgen_reader.rsids()[0]
+
+            # Split the string by ":"
+            parts = var_example.split(":")
+
+            # Check if the variant starts with "chr"
+            if parts[0].startswith("chr"):
+                # Fetch actual data from the BGEN file using the chromosome as-is
+                variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+            else:
+                # Ensure chrom is an integer if it's a string and not a sex chromosome
+                if isinstance(chrom, str):
+                    chrom = chrom.replace("chr", "").strip()
+                    if chrom not in {"X", "Y"}:
+                        try:
+                            chrom = int(chrom)
+                        except ValueError:
+                            raise ValueError(f"Invalid chromosome format: {chrom}")
+
+                # Fetch actual data from the BGEN file
+                variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
 
             # create a store for the variant level information
             variant_arrays = []
 
             # collect genotype arrays for each variant
             for current_variant in variants:
-                LOGGER.info('current variant')
 
                 if current_variant.rsid in current_gene.VARS:
                     # pull out the actual genotypes
