@@ -64,7 +64,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
         # iterate through each gene in our search list
         for gene_n, current_gene in enumerate(search_list.itertuples()):
-            #LOGGER.info(f'gene number is: {gene_n}')
+            LOGGER.info(f'gene number is: {gene_n}')
 
             # implement a fix to ensure we are pulling out chromosomes as integers
             chrom = current_gene.CHROM
@@ -82,7 +82,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
             # collect genotype arrays for each variant
             for current_variant in variants:
-                #LOGGER.info(f'current variant is: {current_variant}')
+                LOGGER.info(f'current variant is: {current_variant}')
 
                 if current_variant.rsid in current_gene.VARS:
                     # pull out the actual genotypes
