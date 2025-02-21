@@ -72,9 +72,11 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             print(chrom)
             if isinstance(chrom, str) and "chr" in chrom:
                 chrom = chrom.replace("chr", "").strip()
-
+            print(chrom)
             # get the actual data from the bgen file
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+
+            print(variants)
 
             # create a store for the variant level information
             variant_arrays = []
