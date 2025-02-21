@@ -1,3 +1,4 @@
+import pickle
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -5,7 +6,9 @@ import numpy as np
 import pandas as pd
 from bgen import BgenReader
 from general_utilities.mrc_logger import MRCLogger
-from scipy.sparse import csr_matrix
+from rapidfuzz.process_cpp_impl import Matrix
+from scipy.io import mmwrite
+from scipy.sparse import coo_matrix, csr_matrix
 
 from collapsevariants.collapse_logger import CollapseLOGGER
 
@@ -29,7 +32,7 @@ def get_sample_ids(sample_path: Path) -> List[str]:
 
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
-                                  uncollapsed_matrix: bool = False) -> tuple:
+                                 uncollapsed_matrix: bool = False) -> tuple:
     """Convert BGEN genotypes into a sparse matrix format.
 
     Creates a CSR matrix from BGEN file genotypes for use in STAAR/GLM association testing.
@@ -64,35 +67,33 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
         # iterate through each gene in our search list
         for gene_n, current_gene in enumerate(search_list.itertuples()):
-            LOGGER.info(f'gene number is: {gene_n}')
-            print(current_gene)
+            LOGGER.info('gene number is:', gene_n)
 
-            # implement a fix to ensure we are pulling out chromosomes
-            chrom = current_gene.CHROM
-            print(chrom)
-            if isinstance(chrom, str) and "chr" in chrom:
-                chrom = chrom.replace("chr", "").strip()
-            print(chrom)
-            # Attempt to fetch variants
-            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-            if hasattr(variants, "is_empty"):
-                variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
+            # implement a fix to ensure we are pulling out chromosomes as integers
+            # chrom = current_gene.CHROM
+            # if isinstance(chrom, str):
+            #     chrom = chrom.replace("chr", "").strip()
+            #     if chrom not in ['X', 'Y']:
+            #         chrom = int(chrom)
 
-            print(variants)
+            # get the actual data from the bgen file
+            variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
+
             # create a store for the variant level information
             variant_arrays = []
 
             # collect genotype arrays for each variant
             for current_variant in variants:
-                LOGGER.info(f'current variant is: {current_variant}')
+                LOGGER.info('current variant is:', current_variant)
 
                 if current_variant.rsid in current_gene.VARS:
+
                     # pull out the actual genotypes
                     current_probabilities = current_variant.probabilities
 
                     # store variant codings
                     variant_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                             np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
 
                     # store variant level information in the array we created
                     variant_arrays.append(variant_array)
@@ -115,7 +116,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # record the per-gene stats in a dict
             summary_dict[current_gene.Index] = {
                 'sum': np.sum(stacked_variants),  # use np.sum to get total of all values
-                'variants_per_gene': len(variant_arrays),  # get number of variants
+                'variants_per_gene': len(variant_arrays), # get number of variants
                 'gene_index': gene_n,
             }
 
@@ -126,7 +127,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         # convert this to a csr matrix
         LOGGER.info('finished making csr matrix')
 
-        final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples), len(search_list)))
+        final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples),len(search_list)))
 
     return final_genotypes, summary_dict
 
