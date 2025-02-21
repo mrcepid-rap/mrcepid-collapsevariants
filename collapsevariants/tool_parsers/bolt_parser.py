@@ -47,10 +47,13 @@ class BOLTParser(ToolParser):
         return [bolt_bgen, bolt_index, bolt_sample]
 
     @staticmethod
-    def _make_bolt_matrix(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Dict[str, dict]:
+    def _make_bolt_matrix(genotypes: Dict, variant_list: pd.DataFrame) -> Dict[str, dict]:
 
         # Iterate through the provided .bgen file and collect genotypes for each gene
         gene_arrays = {}
+
+        # unpack the tuple
+        genotype_matrix, summary_dict = genotypes
 
         search_list = variant_list.groupby('ENST').aggregate(
             CHROM=('CHROM', 'first'),
@@ -62,8 +65,7 @@ class BOLTParser(ToolParser):
             current_chrom = current_gene.CHROM
 
             # Subset to variants in the current ENST
-            current_variant_list = variant_list[variant_list['ENST'] == current_enst]
-            current_genotypes = genotypes[:, current_variant_list.index]
+            current_genotypes = genotype_matrix[:, summary_dict[current_enst]['gene_index']]
             sample_sums = current_genotypes.sum(axis=1).A1
             sample_booleans = np.where(sample_sums > 0., True, False)
 

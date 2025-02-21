@@ -1,3 +1,4 @@
+import pickle
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -5,6 +6,8 @@ import numpy as np
 import pandas as pd
 from bgen import BgenReader
 from general_utilities.mrc_logger import MRCLogger
+from rapidfuzz.process_cpp_impl import Matrix
+from scipy.io import mmwrite
 from scipy.sparse import coo_matrix, csr_matrix
 
 from collapsevariants.collapse_logger import CollapseLOGGER
@@ -29,8 +32,25 @@ def get_sample_ids(sample_path: Path) -> List[str]:
 
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
-                                  temp_dir=None, max_genes_per_batch=10) -> csr_matrix:
-    """Generate a sparse matrix of genotypes from a BGEN file."""
+                                 uncollapsed_matrix: bool = False) -> tuple:
+    """Convert BGEN genotypes into a sparse matrix format.
+
+    Creates a CSR matrix from BGEN file genotypes for use in STAAR/GLM association testing.
+    The matrix represents samples as rows and either genes or variants as columns.
+    Non-alternate genotypes are filtered out during conversion.
+
+    Args:
+        variant_list: DataFrame containing variants to extract
+        bgen_path: Path to BGEN file
+        sample_path: Path to sample file
+        uncollapsed_matrix: If True, keep variants separate. If False, sum variants per gene.
+
+    Returns:
+        tuple: (csr_matrix, summary_dict) where csr_matrix has shape (n_samples, n_genes_or_variants)
+    """
+    LOGGER.info('Generating matrix')
+
+    # First aggregate across genes to generate a list of genes and their respective variants
     search_list = variant_list.groupby('ENST').aggregate(
         CHROM=('CHROM', 'first'),
         MIN=('POS', 'min'),
@@ -38,67 +58,79 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         VARS=('varID', list)
     )
 
-    j_lookup = {var: idx for idx, var in enumerate(variant_list['varID'])}
-    temp_dir = temp_dir or Path('/tmp')
-
     with BgenReader(bgen_path, sample_path=sample_path, delay_parsing=True) as bgen_reader:
-        num_samples = len(bgen_reader.samples)
-        num_variants = len(variant_list)
+        current_samples = np.array(bgen_reader.samples)
 
-        # Pre-allocate memory-mapped arrays with estimated size
-        estimated_nonzero = len(variant_list) * num_samples // 10  # Assume ~10% density
-        i_array = np.memmap(temp_dir / 'i_array.memmap', dtype=np.int64, mode='w+', shape=(estimated_nonzero,))
-        j_array = np.memmap(temp_dir / 'j_array.memmap', dtype=np.int64, mode='w+', shape=(estimated_nonzero,))
-        d_array = np.memmap(temp_dir / 'd_array.memmap', dtype=np.float64, mode='w+', shape=(estimated_nonzero,))
+        # create a list to store genotype arrays
+        genotype_arrays = []
+        summary_dict = {}
 
-        pos = 0
-        for batch_start in range(0, len(search_list), max_genes_per_batch):
-            batch_end = min(batch_start + max_genes_per_batch, len(search_list))
-            batch_genes = search_list.iloc[batch_start:batch_end]
+        # iterate through each gene in our search list
+        for gene_n, current_gene in enumerate(search_list.itertuples()):
+            LOGGER.info('gene number is:', gene_n)
 
-            for gene in batch_genes.itertuples():
-                chrom = str(gene.CHROM).replace("chr", "").strip()
-                chrom = int(chrom) if chrom not in ['X', 'Y'] else chrom
-                variants = bgen_reader.fetch(chrom, gene.MIN, gene.MAX)
+            # implement a fix to ensure we are pulling out chromosomes as integers
+            chrom = current_gene.CHROM
+            if 'chr' in chrom:
+                chrom = chrom.replace("chr", "").strip()
 
-                for variant in variants:
-                    if variant.rsid in gene.VARS:
-                        prob = variant.probabilities
-                        genotypes = np.where(prob[:, 1] == 1, 1., np.where(prob[:, 2] == 1, 2., 0.))
-                        nonzero_idx = genotypes.nonzero()[0]
+            # get the actual data from the bgen file
+            variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
 
-                        if len(nonzero_idx) > 0:
-                            # Resize arrays if needed
-                            if pos + len(nonzero_idx) > len(i_array):
-                                new_size = int(len(i_array) * 1.5)
-                                i_array.flush()
-                                j_array.flush()
-                                d_array.flush()
-                                i_array = np.memmap(temp_dir / 'i_array.memmap', dtype=np.int64, mode='r+',
-                                                   shape=(new_size,))
-                                j_array = np.memmap(temp_dir / 'j_array.memmap', dtype=np.int64, mode='r+',
-                                                   shape=(new_size,))
-                                d_array = np.memmap(temp_dir / 'd_array.memmap', dtype=np.float64, mode='r+',
-                                                   shape=(new_size,))
+            # create a store for the variant level information
+            variant_arrays = []
 
-                            chunk_size = len(nonzero_idx)
-                            i_array[pos:pos + chunk_size] = nonzero_idx
-                            j_array[pos:pos + chunk_size] = j_lookup[variant.rsid]
-                            d_array[pos:pos + chunk_size] = genotypes[nonzero_idx]
-                            pos += chunk_size
+            # collect genotype arrays for each variant
+            for current_variant in variants:
+                LOGGER.info('current variant is:', current_variant)
 
-        # Create final matrix
-        matrix = csr_matrix((d_array[:pos], (i_array[:pos], j_array[:pos])),
-                           shape=(num_samples, num_variants))
+                if current_variant.rsid in current_gene.VARS:
 
-        # Clean up
-        for name in ['i_array.memmap', 'j_array.memmap', 'd_array.memmap']:
-            (temp_dir / name).unlink()
+                    # pull out the actual genotypes
+                    current_probabilities = current_variant.probabilities
 
-        return matrix
+                    # store variant codings
+                    variant_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
+
+                    # store variant level information in the array we created
+                    variant_arrays.append(variant_array)
+
+            # stack the variant information for all variants in the gene
+            stacked_variants = np.column_stack(variant_arrays)
+            LOGGER.info('finished appending variants')
+
+            # if we are collapsing here (to save on memory), leave as False. If set to True, we won't collapse
+            # and instead the uncollapsed stacked variants will be appended
+            # note the vector naming convention in this small section is a bit hacky but we want the vectors naming
+            # to be consistent so it works for the rest of the function
+            if uncollapsed_matrix is not True:
+                stacked_variants = stacked_variants.sum(axis=1)
+
+            # append the variant arrays to the genotype array
+            genotype_arrays.append(stacked_variants)
+            LOGGER.info('finished stacking variants')
+
+            # record the per-gene stats in a dict
+            summary_dict[current_gene.Index] = {
+                'sum': np.sum(stacked_variants),  # use np.sum to get total of all values
+                'variants_per_gene': len(variant_arrays), # get number of variants
+                'gene_index': gene_n,
+            }
+
+        # stack all genotype arrays into a matrix (samples × variants)
+        final_genotypes = np.column_stack(genotype_arrays)
+        LOGGER.info('finished stacking genotypes')
+
+        # convert this to a csr matrix
+        LOGGER.info('finished making csr matrix')
+
+        final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples),len(search_list)))
+
+    return final_genotypes, summary_dict
 
 
-def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tuple[
+def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
     np.ndarray, np.ndarray, Dict[str, int]]:
     """Get information relating to included variants in csr_matrix format.
 
@@ -114,9 +146,10 @@ def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tup
         3) A dictionary containing the total number of variants per transcript. The first two are numpy arrays to enable
         fast additions across multiple bgen files
     """
+    genotype_matrix, summary_dict = genotypes
 
-    ac_table = np.zeros(genotypes.shape[0])
-    gene_ac_table = np.zeros(genotypes.shape[0])
+    ac_table = np.zeros(genotype_matrix.shape[0])
+    gene_ac_table = np.zeros(genotype_matrix.shape[0])
 
     ENSTs = variant_list['ENST'].unique()
     gene_totals = dict.fromkeys(variant_list['ENST'].unique(), 0)  # Quickly make a blank dictionary
@@ -124,8 +157,7 @@ def check_matrix_stats(genotypes: csr_matrix, variant_list: pd.DataFrame) -> Tup
     # We iterate per-ENST here, as we need to calculate both per-sample and per-gene totals, so no reason to iterate
     # twice.
     for ENST in ENSTs:
-        current_variant_list = variant_list[variant_list['ENST'] == ENST]
-        current_genotypes = genotypes[:, current_variant_list.index]
+        current_genotypes = genotype_matrix[:, summary_dict[ENST]['gene_index']]
 
         sample_sums = current_genotypes.sum(axis=1).A1  # Get genotype totals per-sample
         gene_sums = np.where(sample_sums > 0., 1., 0.)  # Get total number of individuals with at least 1 allele

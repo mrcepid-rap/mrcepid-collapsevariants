@@ -165,7 +165,7 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
         # Collect the variant index DataFrame
         final_variant_index_list.append(variant_index)
         # Collect the sparse matrix for later concatenation
-        matrix_list.append(current_matrix)
+        matrix_list.append(current_matrix[0])
 
     # 2. Concatenate all variant indices
     final_variant_index = pd.concat(final_variant_index_list)
@@ -175,6 +175,8 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
 
     # 4. Write the final data to disk (Matrix Market format)
     matrix_output_path = Path(f'{output_prefix}.{bgen_type}.STAAR.mtx')
+
+    ## make sure the output is in the correct format
     mmwrite(matrix_output_path, final_genotype_matrix)
 
     sample_output_path = STAARParser.make_samples_dict(output_prefix, bgen_type, sample_ids)
