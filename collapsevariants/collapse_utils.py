@@ -1,4 +1,4 @@
-import pickle
+from pathlib import Path
 from pathlib import Path
 from typing import Tuple, Dict, List
 
@@ -6,9 +6,7 @@ import numpy as np
 import pandas as pd
 from bgen import BgenReader
 from general_utilities.mrc_logger import MRCLogger
-from rapidfuzz.process_cpp_impl import Matrix
-from scipy.io import mmwrite
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import csr_matrix
 
 from collapsevariants.collapse_logger import CollapseLOGGER
 
@@ -32,7 +30,7 @@ def get_sample_ids(sample_path: Path) -> List[str]:
 
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
-                                 uncollapsed_matrix: bool = False) -> tuple:
+                                  uncollapsed_matrix: bool = False) -> tuple:
     """Convert BGEN genotypes into a sparse matrix format.
 
     Creates a CSR matrix from BGEN file genotypes for use in STAAR/GLM association testing.
@@ -87,13 +85,12 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                 LOGGER.info('current variant is:', current_variant)
 
                 if current_variant.rsid in current_gene.VARS:
-
                     # pull out the actual genotypes
                     current_probabilities = current_variant.probabilities
 
                     # store variant codings
                     variant_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                              np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                                             np.where(current_probabilities[:, 2] == 1, 2., 0.))
 
                     # store variant level information in the array we created
                     variant_arrays.append(variant_array)
@@ -116,7 +113,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # record the per-gene stats in a dict
             summary_dict[current_gene.Index] = {
                 'sum': np.sum(stacked_variants),  # use np.sum to get total of all values
-                'variants_per_gene': len(variant_arrays), # get number of variants
+                'variants_per_gene': len(variant_arrays),  # get number of variants
                 'gene_index': gene_n,
             }
 
@@ -127,7 +124,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         # convert this to a csr matrix
         LOGGER.info('finished making csr matrix')
 
-        final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples),len(search_list)))
+        final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples), len(search_list)))
 
     return final_genotypes, summary_dict
 
