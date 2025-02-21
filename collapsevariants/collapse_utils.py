@@ -81,7 +81,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
             # collect genotype arrays for each variant
             for current_variant in variants:
-                LOGGER.info(f'current variant is: {current_variant}')
+                #LOGGER.info(f'current variant is: {current_variant}')
 
                 if current_variant.rsid in current_gene.VARS:
                     # pull out the actual genotypes
