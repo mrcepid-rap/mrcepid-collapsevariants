@@ -69,7 +69,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # implement a fix to ensure we are pulling out chromosomes as integers
             chrom = current_gene.CHROM
             if isinstance(chrom, str):
-                chrom = chrom.replace("chr", "").strip()
+                if "chr" in chrom:
+                    chrom = chrom.replace("chr", "").strip()
                 if chrom not in ['X', 'Y']:
                     chrom = int(chrom)
 
