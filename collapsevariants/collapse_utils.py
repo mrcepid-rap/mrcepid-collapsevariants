@@ -67,14 +67,16 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             LOGGER.info(f'gene number is: {gene_n}')
             print(current_gene)
 
-            # implement a fix to ensure we are pulling out chromosomes as integers
+            # implement a fix to ensure we are pulling out chromosomes
             chrom = current_gene.CHROM
             print(chrom)
             if isinstance(chrom, str) and "chr" in chrom:
                 chrom = chrom.replace("chr", "").strip()
             print(chrom)
-            # get the actual data from the bgen file
+            # Attempt to fetch variants
             variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+            if not variants:
+                variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             print(variants)
 
