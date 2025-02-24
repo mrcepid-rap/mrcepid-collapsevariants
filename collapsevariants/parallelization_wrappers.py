@@ -162,10 +162,15 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     for bgen_prefix, variant_index in genes.items():
         # 'genotype_index[bgen_prefix]' is assumed to be a sparse CSR matrix (or similar)
         current_matrix = genotype_index[bgen_prefix]
+        current_matrix = current_matrix[0]
+        # Restore shape by repeating values across the original number of columns
+        num_variants = current_matrix.shape[1]  # Get original number of columns
+        # Expand summed values back into the original shape
+        restored_matrix = csr_matrix(np.ones((current_matrix.shape[0], num_variants)) * current_matrix.A)
         # Collect the variant index DataFrame
         final_variant_index_list.append(variant_index)
         # Collect the sparse matrix for later concatenation
-        matrix_list.append(current_matrix[0])
+        matrix_list.append(restored_matrix)
 
     # 2. Concatenate all variant indices
     final_variant_index = pd.concat(final_variant_index_list)

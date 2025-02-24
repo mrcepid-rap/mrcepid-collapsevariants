@@ -66,8 +66,11 @@ class BOLTParser(ToolParser):
 
             # Subset to variants in the current ENST
             current_genotypes = genotype_matrix[:, summary_dict[current_enst]['gene_index']]
-            sample_sums = current_genotypes.sum(axis=1).A1
+            current_genotypes = current_genotypes.toarray()
+            sample_sums = current_genotypes.sum(axis=1).ravel()
             sample_booleans = np.where(sample_sums > 0., True, False)
+
+            print(sample_booleans)
 
             gene_arrays[current_enst] = {'genotype_boolean': sample_booleans,
                                          'min_pos': current_pos, 'chrom': current_chrom}

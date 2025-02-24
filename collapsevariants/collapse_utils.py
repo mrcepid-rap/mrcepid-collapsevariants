@@ -111,7 +111,6 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
             # stack the variant information for all variants in the gene
             stacked_variants = np.column_stack(variant_arrays)
-            LOGGER.info('finished appending variants')
 
             # if we are collapsing here (to save on memory), leave as False. If set to True, we won't collapse
             # and instead the uncollapsed stacked variants will be appended
@@ -122,7 +121,6 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
             # append the variant arrays to the genotype array
             genotype_arrays.append(stacked_variants)
-            LOGGER.info('finished stacking variants')
 
             # record the per-gene stats in a dict
             summary_dict[current_gene.Index] = {
@@ -133,11 +131,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
         # stack all genotype arrays into a matrix (samples × variants)
         final_genotypes = np.column_stack(genotype_arrays)
-        LOGGER.info('finished stacking genotypes')
 
         # convert this to a csr matrix
-        LOGGER.info('finished making csr matrix')
-
         final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples), len(search_list)))
 
     return final_genotypes, summary_dict
@@ -172,9 +167,11 @@ def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
     for ENST in ENSTs:
         current_genotypes = genotype_matrix[:, summary_dict[ENST]['gene_index']]
 
+        # print(current_genotypes.sum())
+
         sample_sums = current_genotypes.sum(axis=1).A1  # Get genotype totals per-sample
         gene_sums = np.where(sample_sums > 0., 1., 0.)  # Get total number of individuals with at least 1 allele
-        gene_totals[ENST] = current_genotypes.shape[1]  # Get total number of variants per gene
+        gene_totals[ENST] = summary_dict[ENST]['variants_per_gene']  # Get total number of variants per gene
 
         ac_table = np.add(ac_table, sample_sums)
         gene_ac_table = np.add(gene_ac_table, gene_sums)
