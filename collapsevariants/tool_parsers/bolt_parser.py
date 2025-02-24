@@ -70,8 +70,6 @@ class BOLTParser(ToolParser):
             sample_sums = current_genotypes.sum(axis=1).ravel()
             sample_booleans = np.where(sample_sums > 0., True, False)
 
-            print(sample_booleans)
-
             gene_arrays[current_enst] = {'genotype_boolean': sample_booleans,
                                          'min_pos': current_pos, 'chrom': current_chrom}
 
