@@ -48,7 +48,20 @@ class BOLTParser(ToolParser):
 
     @staticmethod
     def _make_bolt_matrix(genotypes: Dict, variant_list: pd.DataFrame) -> Dict[str, dict]:
+        """
+        Create a dictionary of gene arrays for BOLT association testing.
 
+        This method processes the provided genotype matrix and variant list to generate a dictionary of gene arrays.
+        Each gene array contains a boolean array indicating the presence of variants in each sample, along with the
+        minimum position and chromosome information for each gene.
+
+        :param genotypes: A dictionary containing the genotype matrix and summary dictionary.
+        :param variant_list: A Pandas DataFrame containing the list of variants to be processed.
+        :return: A dictionary where keys are ENST IDs and values are dictionaries containing:
+            - 'genotype_boolean': A boolean array indicating the presence of variants in each sample.
+            - 'min_pos': The minimum position of the variants for the gene.
+            - 'chrom': The chromosome of the gene.
+        """
         # Iterate through the provided .bgen file and collect genotypes for each gene
         gene_arrays = {}
 
@@ -59,17 +72,24 @@ class BOLTParser(ToolParser):
             CHROM=('CHROM', 'first'),
             MIN=('POS', 'min'))
 
+        # Iterate over each gene in the search list
         for current_gene in search_list.itertuples():
+            # Extract the current gene's ENST (Index), position (MIN), and chromosome (CHROM)
             current_enst = current_gene.Index
             current_pos = current_gene.MIN
             current_chrom = current_gene.CHROM
 
-            # Subset to variants in the current ENST
+            # Subset the genotype matrix to include only variants associated with the current ENST
             current_genotypes = genotype_matrix[:, summary_dict[current_enst]['gene_index']]
-            current_genotypes = current_genotypes.toarray()
+            current_genotypes = current_genotypes.toarray()  # Convert sparse matrix to dense array
+
+            # Sum genotypes across samples to determine the presence of variants
             sample_sums = current_genotypes.sum(axis=1).ravel()
+
+            # Create a boolean array indicating whether a variant is present in each sample
             sample_booleans = np.where(sample_sums > 0., True, False)
 
+            # Store the processed information in the dictionary
             gene_arrays[current_enst] = {'genotype_boolean': sample_booleans,
                                          'min_pos': current_pos, 'chrom': current_chrom}
 

@@ -1,5 +1,4 @@
 from pathlib import Path
-from pathlib import Path
 from typing import Tuple, Dict, List
 
 import numpy as np
@@ -31,20 +30,20 @@ def get_sample_ids(sample_path: Path) -> List[str]:
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
                                   uncollapsed_matrix: bool = False) -> tuple:
-    """Convert BGEN genotypes into a sparse matrix format.
+    """
+    Convert BGEN genotypes into a sparse matrix format.
 
     Creates a CSR matrix from BGEN file genotypes for use in STAAR/GLM association testing.
     The matrix represents samples as rows and either genes or variants as columns.
     Non-alternate genotypes are filtered out during conversion.
 
-    Args:
-        variant_list: DataFrame containing variants to extract
-        bgen_path: Path to BGEN file
-        sample_path: Path to sample file
-        uncollapsed_matrix: If True, keep variants separate. If False, sum variants per gene.
-
-    Returns:
-        tuple: (csr_matrix, summary_dict) where csr_matrix has shape (n_samples, n_genes_or_variants)
+    :param variant_list: DataFrame containing variants to extract.
+    :param bgen_path: Path to the BGEN file.
+    :param sample_path: Path to the sample file.
+    :param uncollapsed_matrix: If True, keep variants separate. If False, sum variants per gene.
+    :return: A tuple containing:
+        - csr_matrix: A sparse matrix with shape (n_samples, n_genes_or_variants).
+        - summary_dict: A dictionary with summary information for each gene.
     """
 
     # First aggregate across genes to generate a list of genes and their respective variants
@@ -140,19 +139,22 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
 def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
     np.ndarray, np.ndarray, Dict[str, int]]:
-    """Get information relating to included variants in csr_matrix format.
+    """
+    Get information relating to included variants in csr_matrix format.
 
-    This method calculates per-sample and per-gene totals for this chromosome
+    This method calculates per-sample and per-gene totals for this chromosome.
 
     Remember: We don't need the actual samples here, we just need to ensure sample order when calculations are performed
     and stored is consistent with the order of the samples in the BGEN file.
 
-    :param genotypes: A csr_matrix containing the genotypes for this bgen file. i = samples, j = variants.
-    :param variant_list: A pandas.DataFrame containing the list of variants for the purposes of calculating per-gene
-        totals.
-    :return: A Tuple containing three items: 1) per-sample allele counts, 2) Number of genes affected per-sample,
-        3) A dictionary containing the total number of variants per transcript. The first two are numpy arrays to enable
-        fast additions across multiple bgen files
+    :param genotypes: A tuple containing:
+        - A csr_matrix with genotypes for this BGEN file (samples as rows, variants as columns).
+        - A summary dictionary with information for each gene.
+    :param variant_list: A pandas DataFrame containing the list of variants for calculating per-gene totals.
+    :return: A tuple containing three items:
+        1) A numpy array with per-sample allele counts.
+        2) A numpy array with the number of genes affected per sample.
+        3) A dictionary with the total number of variants per transcript.
     """
     genotype_matrix, summary_dict = genotypes
 
@@ -165,15 +167,25 @@ def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
     # We iterate per-ENST here, as we need to calculate both per-sample and per-gene totals, so no reason to iterate
     # twice.
     for ENST in ENSTs:
+        # Extract genotypes for the current gene
         current_genotypes = genotype_matrix[:, summary_dict[ENST]['gene_index']]
 
-        # print(current_genotypes.sum())
+        # Convert sparse matrix to dense array
+        current_genotypes = current_genotypes.toarray()
 
-        sample_sums = current_genotypes.sum(axis=1).A1  # Get genotype totals per-sample
-        gene_sums = np.where(sample_sums > 0., 1., 0.)  # Get total number of individuals with at least 1 allele
-        gene_totals[ENST] = summary_dict[ENST]['variants_per_gene']  # Get total number of variants per gene
+        # Calculate per-sample genotype totals
+        sample_sums = current_genotypes.sum(axis=1).ravel()
 
+        # Determine the number of samples with at least one allele
+        gene_sums = np.where(sample_sums > 0., 1., 0.)
+
+        # Record the total number of variants for the current gene
+        gene_totals[ENST] = summary_dict[ENST]['variants_per_gene']
+
+        # Update the allele count table with per-sample totals
         ac_table = np.add(ac_table, sample_sums)
+
+        # Update the gene count table with the number of genes affected per sample
         gene_ac_table = np.add(gene_ac_table, gene_sums)
 
     return ac_table, gene_ac_table, gene_totals

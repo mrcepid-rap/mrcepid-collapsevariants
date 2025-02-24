@@ -94,7 +94,7 @@ bgen_dict = {'chr1_chunk1': {'index': test_data_dir / 'chr1_chunk1.bgen.bgi',
         ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None,
          (10000, 13592), (10000, 2), (13592, 5)),
         ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None,
-         (10000, 34), (10000, 2), (34, 5)),
+         (10000, 4), (10000, 2), (34, 5)),
         (None, None, snp_path,
          (10000, 826), (10000, 2), (826, 5))
     ]

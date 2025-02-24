@@ -140,9 +140,10 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
 
 def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],
                                sample_ids: List[str], output_prefix: str, bgen_type: str) -> List[Path]:
-    """Wrapper similar to generate_generic_masks, but for SNP and GENE masks, create output inputs for various tools.
+    """
+    Wrapper similar to generate_generic_masks, but for SNP and GENE masks, creating output inputs for various tools.
 
-    This method takes the output of the collapsing process and 'stacks' the resulting matricies. Since only one matrix
+    This method takes the output of the collapsing process and 'stacks' the resulting matrices. Since only one matrix
     is required for each GENE / SNP mask, we do not need to create multiple outputs for each .bgen as when running
     a filtering expression.
 
@@ -151,6 +152,8 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     :param genotype_index: A dictionary containing values of csr_matrix and keys of each BGEN file prefix.
     :param sample_ids: A list of sample IDs for processing this file.
     :param output_prefix: A string representing the prefix of the output files.
+    :param bgen_type: A string representing the type of BGEN file (e.g., 'SNP' or 'GENE').
+    :return: A list of Path objects representing the output files created by the implementing classes.
     """
     # Need to concatenate all matrices into a single matrix while ensuring concatenation is done in the same order for
     # variant indices AND genotype matrices
@@ -162,15 +165,10 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     for bgen_prefix, variant_index in genes.items():
         # 'genotype_index[bgen_prefix]' is assumed to be a sparse CSR matrix (or similar)
         current_matrix = genotype_index[bgen_prefix]
-        current_matrix = current_matrix[0]
-        # Restore shape by repeating values across the original number of columns
-        num_variants = current_matrix.shape[1]  # Get original number of columns
-        # Expand summed values back into the original shape
-        restored_matrix = csr_matrix(np.ones((current_matrix.shape[0], num_variants)) * current_matrix.A)
         # Collect the variant index DataFrame
         final_variant_index_list.append(variant_index)
         # Collect the sparse matrix for later concatenation
-        matrix_list.append(restored_matrix)
+        matrix_list.append(current_matrix[0])
 
     # 2. Concatenate all variant indices
     final_variant_index = pd.concat(final_variant_index_list)
