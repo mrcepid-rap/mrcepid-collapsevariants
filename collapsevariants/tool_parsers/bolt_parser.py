@@ -81,10 +81,9 @@ class BOLTParser(ToolParser):
 
             # Subset the genotype matrix to include only variants associated with the current ENST
             current_genotypes = genotype_matrix[:, summary_dict[current_enst]['gene_index']]
-            current_genotypes = current_genotypes.toarray()  # Convert sparse matrix to dense array
 
             # Sum genotypes across samples to determine the presence of variants
-            sample_sums = current_genotypes.sum(axis=1).ravel()
+            sample_sums = current_genotypes.sum(axis=1).A1
 
             # Create a boolean array indicating whether a variant is present in each sample
             sample_booleans = np.where(sample_sums > 0., True, False)

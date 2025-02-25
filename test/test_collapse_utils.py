@@ -154,7 +154,7 @@ def test_get_sample_ids(sample_file: Path):
     2. The returned sample IDs are in a list.
     3. Each sample ID is a non-delimited string.
 
-    Parameters:
+    Parameters:r
     sample_file (Path): The path to the sample file to be tested.
 
     Asserts:

@@ -1,4 +1,5 @@
 from pathlib import Path
+from pathlib import Path
 from typing import Tuple, Dict, List
 
 import numpy as np
@@ -170,11 +171,8 @@ def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
         # Extract genotypes for the current gene
         current_genotypes = genotype_matrix[:, summary_dict[ENST]['gene_index']]
 
-        # Convert sparse matrix to dense array
-        current_genotypes = current_genotypes.toarray()
-
         # Calculate per-sample genotype totals
-        sample_sums = current_genotypes.sum(axis=1).ravel()
+        sample_sums = current_genotypes.sum(axis=1).A1
 
         # Determine the number of samples with at least one allele
         gene_sums = np.where(sample_sums > 0., 1., 0.)
