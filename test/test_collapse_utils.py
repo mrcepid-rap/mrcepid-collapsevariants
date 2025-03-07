@@ -137,8 +137,6 @@ def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_l
         # tldr: the test data is wrong, not collapsevariants
         # print(bgen_prefix)
         # print(np.argwhere(np.not_equal(ac_table, expected_counts)))
-        print(ac_table)
-        print(expected_counts)
         assert np.array_equal(ac_table, expected_counts)
 
         # the output is a tuple, but we only want the matrix here to do the test

@@ -6,6 +6,7 @@ import pandas as pd
 from bgen import BgenReader
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
+from statsmodels.stats.descriptivestats import describe
 
 from collapsevariants.collapse_logger import CollapseLOGGER
 
@@ -148,6 +149,8 @@ def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
         2) A numpy array with the number of genes affected per sample.
         3) A dictionary with the total number of variants per transcript.
     """
+    print(genotypes)
+    describe(genotypes)
     genotype_matrix, summary_dict = genotypes
 
     ac_table = np.zeros(genotype_matrix.shape[0])
