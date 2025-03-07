@@ -55,24 +55,24 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
                              variant_list: pd.DataFrame) -> Tuple[str, csr_matrix]:
-    """Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
+    """
+    Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
     This wrapper method is used to parallelize the generation of genotype matrices across all BGEN files with at least one
-    variant. We don't paralellize :func:`generate_csr_matrix_from_bgen` directly to allow for :func:`download_bgen` to
+    variant. We don't parallelize :func:`generate_csr_matrix_from_bgen` directly to allow for :func:`download_bgen` to
     be separated out and allow for unit testing of :func:`generate_csr_matrix_from_bgen` detached from DNANexus.
 
     :param bgen_prefix: A string representing the prefix of the BGEN file to run in this current thread.
     :param chrom_bgen_index: A BGENIndex object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
-    :param variant_list: A Pandas DataFrame containing the variants to collapse on.
+    :param variant_list: A pandas.DataFrame containing the variants to collapse on.
     :return: A tuple containing the BGEN file prefix (for thread tracking) and the csr_matrix generated from the
         BGEN file.
     """
-
     # Note that index is required but is not explicitly taken as input by BgenReader. It MUST have the same
     # name as the bgen file, but with a .bgi suffix.
     bgen_path, index_path, sample_path = download_bgen(chrom_bgen_index)
 
-    genotypes = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
+    genotypes, summary_dict = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
 
     bgen_path.unlink()
     index_path.unlink()
@@ -163,7 +163,6 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     matrix_list = []
 
     for bgen_prefix, variant_index in genes.items():
-        # 'genotype_index[bgen_prefix]' is assumed to be a sparse CSR matrix (or similar)
         current_matrix = genotype_index[bgen_prefix]
         # Collect the variant index DataFrame
         final_variant_index_list.append(variant_index)

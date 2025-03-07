@@ -79,7 +79,8 @@ class BOLTParser(ToolParser):
             current_pos = current_gene.MIN
             current_chrom = current_gene.CHROM
 
-            # Subset the genotype matrix to include only variants associated with the current ENST
+            # Subset the genotype matrix to get the current_gene as defined by the gene index (defined in
+            # the generate_csr_matrix_from_bgen function
             current_genotypes = genotype_matrix[:, summary_dict[current_enst]['gene_index']]
 
             # Sum genotypes across samples to determine the presence of variants

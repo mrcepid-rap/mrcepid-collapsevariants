@@ -1,6 +1,5 @@
 from pathlib import Path
-from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Any
 
 import numpy as np
 import pandas as pd
@@ -30,7 +29,7 @@ def get_sample_ids(sample_path: Path) -> List[str]:
 
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
-                                  uncollapsed_matrix: bool = False) -> tuple:
+                                  should_collapse_matrix: bool = True) -> Tuple[csr_matrix, Dict[str, Any]]:
     """
     Convert BGEN genotypes into a sparse matrix format.
 
@@ -38,10 +37,18 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     The matrix represents samples as rows and either genes or variants as columns.
     Non-alternate genotypes are filtered out during conversion.
 
+    Note that in order to optimise this process we are collapsing the variants here (stored in the CSR matrix part
+    of our output tuple). We are also saving gene and sample level variant information in a dictionary,
+    so that this information can be used downstream (for example, when generating the log file).
+    There is also a functionality where if should_collapse_matrix is set to False, then we append the entire variant
+    matrix in a CSR format. This is used in the associationtesting modules downstream. The rationale for doing it this
+    way is that we can save memory when collapsing, but still be able to call the un-collapsed matrices when needed.
+
     :param variant_list: DataFrame containing variants to extract.
     :param bgen_path: Path to the BGEN file.
     :param sample_path: Path to the sample file.
-    :param uncollapsed_matrix: If True, keep variants separate. If False, sum variants per gene.
+    :param should_collapse_matrix: If True (default) collapse variants - sum variants per gene.
+    If False, don't sum variants per gene and return the matrix instead.
     :return: A tuple containing:
         - csr_matrix: A sparse matrix with shape (n_samples, n_genes_or_variants).
         - summary_dict: A dictionary with summary information for each gene.
@@ -61,50 +68,29 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         # create a list to store genotype arrays
         genotype_arrays = []
         summary_dict = {}
+        variant_n = 0
 
         # iterate through each gene in our search list
         for gene_n, current_gene in enumerate(search_list.itertuples()):
 
-            # Extract chromosome information from current_gene
-            chrom = current_gene.CHROM
-
-            # Implement a fix to ensure we are pulling out chromosomes as integers
-            # Get an example variant
-            var_example = bgen_reader.rsids()[0]
-
-            # Split the string by ":"
-            parts = var_example.split(":")
-
-            # Check if the variant starts with "chr"
-            if parts[0].startswith("chr"):
-                # Fetch actual data from the BGEN file using the chromosome as-is
-                variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
-            else:
-                # Ensure chrom is an integer if it's a string and not a sex chromosome
-                if isinstance(chrom, str):
-                    chrom = chrom.replace("chr", "").strip()
-                    if chrom not in {"X", "Y"}:
-                        try:
-                            chrom = int(chrom)
-                        except ValueError:
-                            raise ValueError(f"Invalid chromosome format: {chrom}")
-
-                # Fetch actual data from the BGEN file
-                variants = bgen_reader.fetch(chrom, current_gene.MIN, current_gene.MAX)
+            # Fetch actual data from the BGEN file
+            variants = bgen_reader.fetch(current_gene.CHROM, current_gene.MIN, current_gene.MAX)
 
             # create a store for the variant level information
             variant_arrays = []
 
+            gene_variant_start = variant_n
             # collect genotype arrays for each variant
             for current_variant in variants:
 
                 if current_variant.rsid in current_gene.VARS:
+                    variant_n += 1
                     # pull out the actual genotypes
                     current_probabilities = current_variant.probabilities
 
                     # store variant codings
                     variant_array = np.where(current_probabilities[:, 1] == 1, 1.,
-                                             np.where(current_probabilities[:, 2] == 1, 2., 0.))
+                                             np.where(current_probabilities[:, 2] == 1, 2, 0))
 
                     # store variant level information in the array we created
                     variant_arrays.append(variant_array)
@@ -116,8 +102,13 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             # and instead the uncollapsed stacked variants will be appended
             # note the vector naming convention in this small section is a bit hacky but we want the vectors naming
             # to be consistent so it works for the rest of the function
-            if uncollapsed_matrix is not True:
+            if should_collapse_matrix is True:
                 stacked_variants = stacked_variants.sum(axis=1)
+                search_list = gene_n + 1
+                gene_n = [gene_n]
+            else:
+                gene_n = [var for var in range (gene_variant_start, variant_n)]
+                search_list = variant_n
 
             # append the variant arrays to the genotype array
             genotype_arrays.append(stacked_variants)
@@ -133,7 +124,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
         final_genotypes = np.column_stack(genotype_arrays)
 
         # convert this to a csr matrix
-        final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples), len(search_list)))
+        final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples), search_list))
 
     return final_genotypes, summary_dict
 
