@@ -106,7 +106,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
             if should_collapse_matrix is True:
                 stacked_variants = stacked_variants.sum(axis=1)
                 search_list = gene_n + 1
-                #gene_n = [gene_n]
+                gene_n = [gene_n]
             else:
                 gene_n = [var for var in range (gene_variant_start, variant_n)]
                 search_list = variant_n
@@ -149,7 +149,6 @@ def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
         2) A numpy array with the number of genes affected per sample.
         3) A dictionary with the total number of variants per transcript.
     """
-    print(genotypes)
     genotype_matrix, summary_dict = genotypes
 
     ac_table = np.zeros(genotype_matrix.shape[0])
