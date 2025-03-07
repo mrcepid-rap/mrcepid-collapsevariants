@@ -93,9 +93,10 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     # to enable easy output. The only output of this applet is thus a single .tar.gz file per VCF file
     LOGGER.info('Generating final tarball...')
     output_tarball = Path(f'{output_prefix}.tar.gz')
-    with tarfile.open(output_tarball, 'w:gz') as tar:
-        for file in output_files:
-            tar.add(file)
+    tar = tarfile.open(output_tarball, 'w:gz')
+    for file in output_files:
+        tar.add(file)
+    tar.close()
 
     LOGGER.info("Tarball created at: %s", output_tarball)
 
