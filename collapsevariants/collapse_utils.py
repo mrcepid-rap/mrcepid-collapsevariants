@@ -150,8 +150,6 @@ def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
         3) A dictionary with the total number of variants per transcript.
     """
     genotype_matrix, summary_dict = genotypes
-    print(genotype_matrix)
-    print(summary_dict)
 
     ac_table = np.zeros(genotype_matrix.shape[0])
     gene_ac_table = np.zeros(genotype_matrix.shape[0])
