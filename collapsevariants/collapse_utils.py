@@ -126,6 +126,8 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
 
         # convert this to a csr matrix
         final_genotypes = csr_matrix(final_genotypes, shape=(len(current_samples), search_list))
+    print(final_genotypes)
+    print(summary_dict)
 
     return final_genotypes, summary_dict
 
