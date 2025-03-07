@@ -8,7 +8,7 @@
 ########################################################################################################################
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 import numpy as np
 import pandas as pd
@@ -48,15 +48,13 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
                                   bgen_prefix=bgen_prefix,
                                   chrom_bgen_index=bgen_index[bgen_prefix],
                                   variant_list=genes[bgen_prefix])
-    genotype_index, summary_dict = {bgen_prefix: geno_matrix for bgen_prefix, geno_matrix in thread_utility}
-    print(genotype_index)
-    print(summary_dict)
+    genotype_index = {bgen_prefix: geno_matrix for bgen_prefix, geno_matrix in thread_utility}
 
     return genotype_index
 
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
-                             variant_list: pd.DataFrame) -> Tuple[str, csr_matrix]:
+                             variant_list: pd.DataFrame) -> Tuple[str, Tuple[csr_matrix, Dict[str, Any]]]:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
@@ -74,7 +72,7 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
     # name as the bgen file, but with a .bgi suffix.
     bgen_path, index_path, sample_path = download_bgen(chrom_bgen_index)
 
-    genotypes, summary_dict = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
+    genotypes = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
 
     bgen_path.unlink()
     index_path.unlink()
