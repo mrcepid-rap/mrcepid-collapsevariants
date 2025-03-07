@@ -48,15 +48,18 @@ class SAIGEParser(ToolParser):
         """
         reformatted_ids = []
         for varID in var_id_list:
-            try:
+            if ':' in varID:
                 split_id = varID.split(":")
-                if len(split_id) != 4:
-                    raise ValueError(f"Invalid variant ID format: {varID} - Expected 4 parts, got {len(split_id)}")
+            elif '_' in varID:
+                split_id = varID.split("_")
+            else:
+                raise ValueError(f"Invalid variant ID format: {varID}")
+
+            if len(split_id) == 4:
                 reformatted_id = "{0}:{1}:{2}:{3}".format(*split_id)
                 reformatted_ids.append(reformatted_id)
-            except Exception as e:
-                ValueError(f"Error processing variant ID {varID}: {e}")
-                raise
+            else:
+                raise ValueError(f"Invalid variant ID format: {varID} - Expected 4 parts, got {len(split_id)}")
 
         joined_reformatted_ids = "\t".join(reformatted_ids)
         return joined_reformatted_ids
