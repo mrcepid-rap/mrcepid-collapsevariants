@@ -12,7 +12,7 @@ from collapsevariants.parallelization_wrappers import generate_snp_or_gene_masks
 from collapsevariants.snp_list_generator import SNPListGenerator
 
 # Set this flag to True if you want to keep (copy) the temporary output files
-KEEP_TEMP = True
+KEEP_TEMP = False
 
 
 @pytest.fixture(scope="module")
