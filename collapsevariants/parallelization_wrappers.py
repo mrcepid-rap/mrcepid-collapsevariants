@@ -48,7 +48,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
                                   bgen_prefix=bgen_prefix,
                                   chrom_bgen_index=bgen_index[bgen_prefix],
                                   variant_list=genes[bgen_prefix])
-    genotype_index = {bgen_prefix: geno_matrix for bgen_prefix, geno_matrix, summary_dict in thread_utility}
+    genotype_index = {bgen_prefix: geno_matrix for bgen_prefix, geno_matrix in thread_utility}
     return genotype_index
 
 
