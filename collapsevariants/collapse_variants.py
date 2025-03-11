@@ -62,9 +62,17 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     snp_list_generator = SNPListGenerator(ingested_data.vep_dict, ingested_data.filtering_expression,
                                           ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
 
+    ########### DELETE ME LATER - DEBUGGING
+    ingested_data.vep_dict.to_csv('vep_dict.csv')
+    ########### DELETE ME LATER - DEBUGGING
+
     # 3. Generate genotype matrices for each bgen file:
     LOGGER.info('Generating genotype matrices for each bgen file...')
     genotype_index = generate_genotype_matrices(snp_list_generator.genes, ingested_data.bgen_index)
+
+    ########### DELETE ME LATER - DEBUGGING
+    snp_list_generator.genes.to_csv('genes.csv')
+    ########### DELETE ME LATER - DEBUGGING
 
     # 4. Write information about collapsing to the log file
     LOGGER.info('Updating log file with per-sample and per-ENST totals...')

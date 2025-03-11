@@ -428,6 +428,10 @@ class SNPListGenerator:
 
         variant_index = variant_index[variant_index[query_mode].isin(self._gene_list)]
 
+        ########### DELETE ME LATER - DEBUGGING
+        variant_index.to_csv(f'/home/dnanexus/{query_mode}_filtered_{prefix}.tsv', sep='\t')
+        ########### DELETE ME LATER - DEBUGGING
+
         # Catalogue genes (and counts) that we did find:
         symbol_counts = variant_index[query_mode].value_counts().to_dict()
         for symbol, count in symbol_counts.items():
@@ -438,6 +442,10 @@ class SNPListGenerator:
 
         # Now further filter down to the filtering_expression we are interested in
         variant_index = variant_index.query(self._filtering_expression)
+
+        ########### DELETE ME LATER - DEBUGGING
+        variant_index.to_csv(f'/home/dnanexus/{query_mode}_filtered_{prefix}_filtered.tsv', sep='\t')
+        ########### DELETE ME LATER - DEBUGGING
 
         return variant_index
 
@@ -453,6 +461,9 @@ class SNPListGenerator:
         """
 
         variant_index = variant_index.query(self._filtering_expression)
+        ########### DELETE ME LATER - DEBUGGING
+        variant_index.to_csv(f'/home/dnanexus/filtered_{prefix}.tsv', sep='\t')
+        ########### DELETE ME LATER - DEBUGGING
         return variant_index
 
     def _query_snp_list(self, variant_index: pd.DataFrame) -> pd.DataFrame:
@@ -485,5 +496,9 @@ class SNPListGenerator:
         variant_index = variant_index[['CHROM', 'POS', 'ENST']]
         variant_index = variant_index.sort_values(by='POS')  # Make sure sorted by position
         variant_index = variant_index.reset_index()  # Make sure we have a numerical index in POS order
+
+        ########### DELETE ME LATER - DEBUGGING
+        variant_index.to_csv(f'/home/dnanexus/filtered_{prefix}.tsv', sep='\t')
+        ########### DELETE ME LATER - DEBUGGING
 
         return variant_index
