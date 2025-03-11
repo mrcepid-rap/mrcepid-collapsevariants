@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, Union
 
 import numpy as np
 import pandas as pd
@@ -47,7 +47,8 @@ class BOLTParser(ToolParser):
         return [bolt_bgen, bolt_index, bolt_sample]
 
     @staticmethod
-    def _make_bolt_matrix(genotypes: Dict, variant_list: pd.DataFrame) -> Dict[str, dict]:
+    def _make_bolt_matrix(genotypes: Tuple[csr_matrix, Dict[str, Dict[str, int]]], variant_list: pd.DataFrame) -> Dict[
+        str, Dict[str, Union[np.ndarray, int, str]]]:
         """
         Create a dictionary of gene arrays for BOLT association testing.
 
