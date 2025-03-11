@@ -53,7 +53,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
-                             variant_list: pd.DataFrame) -> Tuple[str, csr_matrix, Dict[str, Any]]:
+                             variant_list: pd.DataFrame) -> Tuple[str, csr_matrix]:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
@@ -77,7 +77,7 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
     index_path.unlink()
     sample_path.unlink()
 
-    return bgen_prefix, genotypes, summary_dict
+    return bgen_prefix, genotypes
 
 
 def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], n_samples: int,
