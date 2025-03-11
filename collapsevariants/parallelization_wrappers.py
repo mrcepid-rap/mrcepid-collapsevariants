@@ -30,7 +30,7 @@ LOGGER = MRCLogger(__name__).get_logger()
 
 
 def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENIndex]) -> Dict[
-    str, csr_matrix]:
+    Any, Tuple[Any, Any]]:
     """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
 
     This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
@@ -48,7 +48,8 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
                                   bgen_prefix=bgen_prefix,
                                   chrom_bgen_index=bgen_index[bgen_prefix],
                                   variant_list=genes[bgen_prefix])
-    genotype_index = {bgen_prefix: geno_matrix for bgen_prefix, geno_matrix, summary_dict in thread_utility}
+    genotype_index = {bgen_prefix: (geno_matrix, summary_dict) for bgen_prefix, geno_matrix, summary_dict in
+                      thread_utility}
     return genotype_index
 
 
