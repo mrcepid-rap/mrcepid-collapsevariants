@@ -249,6 +249,10 @@ def test_stat_writer(tmp_path: Path, bgen_prefix, bgen_info, name: str, filterin
 
             ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
 
+            assert len(ac_table) == 10000
+            assert len(gene_ac_table) == 10000
+            assert len(gene_totals) == len(variant_list['ENST'].unique())
+
             # Call the function
             stat_writer(ac_table, gene_ac_table, gene_totals, snp_list_generator.total_sites, test_log)
 
