@@ -429,7 +429,7 @@ class SNPListGenerator:
         variant_index = variant_index[variant_index[query_mode].isin(self._gene_list)]
 
         ########### DELETE ME LATER - DEBUGGING
-        variant_index.to_csv(f'/home/dnanexus/{query_mode}_filtered_{prefix}.tsv', sep='\t')
+        variant_index.to_csv(f'/home/dnanexus/query_gene_list.tsv', sep='\t')
         ########### DELETE ME LATER - DEBUGGING
 
         # Catalogue genes (and counts) that we did find:
@@ -444,7 +444,7 @@ class SNPListGenerator:
         variant_index = variant_index.query(self._filtering_expression)
 
         ########### DELETE ME LATER - DEBUGGING
-        variant_index.to_csv(f'/home/dnanexus/{query_mode}_filtered_{prefix}_filtered.tsv', sep='\t')
+        variant_index.to_csv(f'/home/dnanexus/query_gene_list_filtered.tsv', sep='\t')
         ########### DELETE ME LATER - DEBUGGING
 
         return variant_index
@@ -462,7 +462,7 @@ class SNPListGenerator:
 
         variant_index = variant_index.query(self._filtering_expression)
         ########### DELETE ME LATER - DEBUGGING
-        variant_index.to_csv(f'/home/dnanexus/filtered_{prefix}.tsv', sep='\t')
+        variant_index.to_csv(f'/home/dnanexus/query_filtering_expression.tsv', sep='\t')
         ########### DELETE ME LATER - DEBUGGING
         return variant_index
 
@@ -498,7 +498,7 @@ class SNPListGenerator:
         variant_index = variant_index.reset_index()  # Make sure we have a numerical index in POS order
 
         ########### DELETE ME LATER - DEBUGGING
-        variant_index.to_csv(f'/home/dnanexus/filtered_{prefix}.tsv', sep='\t')
+        variant_index.to_csv(f'/home/dnanexus/make_gene_dict.tsv', sep='\t')
         ########### DELETE ME LATER - DEBUGGING
 
         return variant_index
