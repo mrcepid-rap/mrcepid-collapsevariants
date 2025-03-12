@@ -108,6 +108,9 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
 
     LOGGER.info("Tarball created at: %s", output_tarball)
 
+    # Force a crash for debugging purposes
+    raise Exception("Intentional crash for debugging purposes")
+
     # Set output
     output = {'output_tarball': dxpy.dxlink(generate_linked_dx_file(output_tarball)),
               'log_file': dxpy.dxlink(linked_log_file)}
