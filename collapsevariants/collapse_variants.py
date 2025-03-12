@@ -62,12 +62,8 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     snp_list_generator = SNPListGenerator(ingested_data.vep_dict, ingested_data.filtering_expression,
                                           ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
 
-    ########### DELETE ME LATER - DEBUGGING
-    # export dict for debugging
-    import json
-    with open('example_dict.json', 'w') as json_file:
-        json.dump(ingested_data.vep_dict, json_file, indent=4)
-    ########### DELETE ME LATER - DEBUGGING
+    print(snp_list_generator.genes)
+    print(snp_list_generator)
 
     # 3. Generate genotype matrices for each bgen file:
     LOGGER.info('Generating genotype matrices for each bgen file...')
@@ -75,6 +71,7 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
 
     ########### DELETE ME LATER - DEBUGGING
     # export genes dict for debugging
+    print(genotype_index)
     with open('genes.json', 'w') as json_file:
         json.dump(snp_list_generator.genes, json_file, indent=4)
     ########### DELETE ME LATER - DEBUGGING
