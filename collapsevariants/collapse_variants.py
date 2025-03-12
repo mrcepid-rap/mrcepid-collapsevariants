@@ -63,7 +63,10 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
                                           ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
 
     ########### DELETE ME LATER - DEBUGGING
-    ingested_data.vep_dict.to_csv('vep_dict.csv')
+    # export dict for debugging
+    import json
+    with open('example_dict.json', 'w') as json_file:
+        json.dump(ingested_data.vep_dict, json_file, indent=4)
     ########### DELETE ME LATER - DEBUGGING
 
     # 3. Generate genotype matrices for each bgen file:
@@ -71,7 +74,9 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     genotype_index = generate_genotype_matrices(snp_list_generator.genes, ingested_data.bgen_index)
 
     ########### DELETE ME LATER - DEBUGGING
-    snp_list_generator.genes.to_csv('genes.csv')
+    # export genes dict for debugging
+    with open('genes.json', 'w') as json_file:
+        json.dump(snp_list_generator.genes, json_file, indent=4)
     ########### DELETE ME LATER - DEBUGGING
 
     # 4. Write information about collapsing to the log file
