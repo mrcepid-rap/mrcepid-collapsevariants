@@ -8,7 +8,7 @@
 ########################################################################################################################
 
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 import numpy as np
 import pandas as pd
@@ -30,7 +30,7 @@ LOGGER = MRCLogger(__name__).get_logger()
 
 
 def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENIndex]) -> Dict[
-    str, csr_matrix]:
+    Any, Tuple[Any, Any]]:
     """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
 
     This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
@@ -48,37 +48,37 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
                                   bgen_prefix=bgen_prefix,
                                   chrom_bgen_index=bgen_index[bgen_prefix],
                                   variant_list=genes[bgen_prefix])
-    genotype_index = {bgen_prefix: geno_matrix for bgen_prefix, geno_matrix in thread_utility}
-
+    genotype_index = {bgen_prefix: (geno_matrix, summary_dict) for bgen_prefix, geno_matrix, summary_dict in
+                      thread_utility}
     return genotype_index
 
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
-                             variant_list: pd.DataFrame) -> Tuple[str, csr_matrix]:
-    """Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
+                             variant_list: pd.DataFrame) -> Tuple[str, csr_matrix, Dict[str, Any]]:
+    """
+    Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
     This wrapper method is used to parallelize the generation of genotype matrices across all BGEN files with at least one
-    variant. We don't paralellize :func:`generate_csr_matrix_from_bgen` directly to allow for :func:`download_bgen` to
+    variant. We don't parallelize :func:`generate_csr_matrix_from_bgen` directly to allow for :func:`download_bgen` to
     be separated out and allow for unit testing of :func:`generate_csr_matrix_from_bgen` detached from DNANexus.
 
     :param bgen_prefix: A string representing the prefix of the BGEN file to run in this current thread.
     :param chrom_bgen_index: A BGENIndex object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
-    :param variant_list: A Pandas DataFrame containing the variants to collapse on.
+    :param variant_list: A pandas.DataFrame containing the variants to collapse on.
     :return: A tuple containing the BGEN file prefix (for thread tracking) and the csr_matrix generated from the
         BGEN file.
     """
-
     # Note that index is required but is not explicitly taken as input by BgenReader. It MUST have the same
     # name as the bgen file, but with a .bgi suffix.
     bgen_path, index_path, sample_path = download_bgen(chrom_bgen_index)
 
-    genotypes = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
+    genotypes, summary_dict = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
 
     bgen_path.unlink()
     index_path.unlink()
     sample_path.unlink()
 
-    return bgen_prefix, genotypes
+    return bgen_prefix, genotypes, summary_dict
 
 
 def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], n_samples: int,
@@ -140,9 +140,10 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
 
 def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],
                                sample_ids: List[str], output_prefix: str, bgen_type: str) -> List[Path]:
-    """Wrapper similar to generate_generic_masks, but for SNP and GENE masks, create output inputs for various tools.
+    """
+    Wrapper similar to generate_generic_masks, but for SNP and GENE masks, creating output inputs for various tools.
 
-    This method takes the output of the collapsing process and 'stacks' the resulting matricies. Since only one matrix
+    This method takes the output of the collapsing process and 'stacks' the resulting matrices. Since only one matrix
     is required for each GENE / SNP mask, we do not need to create multiple outputs for each .bgen as when running
     a filtering expression.
 
@@ -151,23 +152,35 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     :param genotype_index: A dictionary containing values of csr_matrix and keys of each BGEN file prefix.
     :param sample_ids: A list of sample IDs for processing this file.
     :param output_prefix: A string representing the prefix of the output files.
+    :param bgen_type: A string representing the type of BGEN file (e.g., 'SNP' or 'GENE').
+    :return: A list of Path objects representing the output files created by the implementing classes.
     """
     # Need to concatenate all matrices into a single matrix while ensuring concatenation is done in the same order for
     # variant indices AND genotype matrices
-    final_variant_index = []
-    final_genotype_matrix = None
+
+    # 1. Collect submatrices and variant indices
+    final_variant_index_list = []
+    matrix_list = []
+
     for bgen_prefix, variant_index in genes.items():
         current_matrix = genotype_index[bgen_prefix]
-        final_variant_index.append(variant_index)
-        if final_genotype_matrix is not None:
-            final_genotype_matrix = hstack([final_genotype_matrix, current_matrix])
-        else:
-            final_genotype_matrix = current_matrix
-    final_variant_index = pd.concat(final_variant_index)
+        # Collect the variant index DataFrame
+        final_variant_index_list.append(variant_index)
+        # Collect the sparse matrix for later concatenation
+        matrix_list.append(current_matrix[0])
 
-    # Write the final data_files to disk
+    # 2. Concatenate all variant indices
+    final_variant_index = pd.concat(final_variant_index_list)
+
+    # 3. Perform one hstack on the list of sparse matrices
+    final_genotype_matrix = hstack(matrix_list)
+
+    # 4. Write the final data to disk (Matrix Market format)
     matrix_output_path = Path(f'{output_prefix}.{bgen_type}.STAAR.mtx')
+
+    ## make sure the output is in the correct format
     mmwrite(matrix_output_path, final_genotype_matrix)
+
     sample_output_path = STAARParser.make_samples_dict(output_prefix, bgen_type, sample_ids)
     variant_output_path = STAARParser.make_variants_dict(output_prefix, bgen_type, final_variant_index)
 

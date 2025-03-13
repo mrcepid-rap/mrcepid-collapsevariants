@@ -44,7 +44,7 @@ def generate_expected_counts(test_data: Path, gene_list: Path = None, snp_list: 
     This function reads genotype data from a file, optionally filters it by gene list and SNP list,
     and calculates the sum of genotypes for each sample. The resulting counts are returned as a numpy array.
 
-    :param test_data: Path to the file containing genotype data.
+    :param test_data: Path to the file containi`ng genotype data.
     :param gene_list: Optional path to a file containing a list of genes to filter by.
     :param snp_list: Optional path to a file containing a list of SNPs to filter by.
     :return: A numpy array containing the sum of genotypes for each sample.
@@ -81,17 +81,23 @@ def generate_expected_counts(test_data: Path, gene_list: Path = None, snp_list: 
     return gt_totals['GT_sum'].to_numpy()
 
 
-@pytest.mark.parametrize("filtering_expression, gene_list_path, snp_list_path, expected_num_sites",
-                         [('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 13592),
-                          ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 34),
-                          (None, None, snp_path, 826)])
+@pytest.mark.parametrize("filtering_expression, gene_list_path, snp_list_path, expected_num_sites, collapse_func",
+                         [
+                             ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 13592, True),
+                             ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 128, True),
+                             (None, None, snp_path, 2299, True),
+                             ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 13592, False),
+                             ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 128, False),
+                             (None, None, snp_path, 2299, False),
+                         ]
+                         )
 def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_list_path: Path,
-                               snp_list_path: Path, expected_num_sites: int):
+                               snp_list_path: Path, expected_num_sites: int, collapse_func: bool):
     """This tests both :func:`generate_csr_matrix_from_bgen` and :func:`check_matrix_stats` functions.
 
     :param tmp_path: temporary pytest path for the logs
     :param filtering_expression: the filtering expression that is used as a mask
-    :param gene_list_path: filepath to a text file containing a gene list to be used in the mask
+    :param gene_list_path: filepath to   a text file containing a gene list to be used in the mask
     :param snp_list_path: filepath to a text file containing a variant list to be used as a mask
     :param expected_num_sites: expected number of sites post-masking
     """
@@ -110,7 +116,8 @@ def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_l
     for bgen_prefix, variant_list in snp_list_generator.genes.items():
         genotypes = generate_csr_matrix_from_bgen(variant_list,
                                                   bgen_dict[bgen_prefix]['bgen'],
-                                                  bgen_dict[bgen_prefix]['sample'])
+                                                  bgen_dict[bgen_prefix]['sample'],
+                                                  collapse_func)
 
         ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
         assert len(ac_table) == 10000
@@ -128,13 +135,15 @@ def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_l
         # I have left in this numpy bit so that you can see where the error is. It prints out the offending
         # sample where compiled gt != expected gt;
         # tldr: the test data is wrong, not collapsevariants
-        print(bgen_prefix)
-        print(np.argwhere(np.not_equal(ac_table, expected_counts)))
+        # print(bgen_prefix)
+        # print(np.argwhere(np.not_equal(ac_table, expected_counts)))
         assert np.array_equal(ac_table, expected_counts)
 
-        total_variants += genotypes.shape[1]
+        # the output is a tuple, but we only want the matrix here to do the test
+        genotype_matrix, genotype_totals = genotypes
 
-        assert type(genotypes) is csr_matrix
+        total_variants += np.sum(genotype_matrix)
+        assert type(genotype_matrix) is csr_matrix
 
     assert total_variants == expected_num_sites
 
@@ -165,15 +174,16 @@ def test_get_sample_ids(sample_file: Path):
     assert len(sample_ids[0].split()) == 1  # Make sure the sample IDs are non-delimited strings
 
 
+@pytest.mark.parametrize("bgen_prefix, bgen_info", bgen_dict.items())
 @pytest.mark.parametrize(
-    "filtering_expression, gene_list_path, snp_list_path",
+    "name, filtering_expression, gene_list_path, snp_list_path",
     [
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None),
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None),
-        (None, None, snp_path)
+        ('expression', 'PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None),
+        ('gene_list', 'PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None),
+        ('snp_list', None, None, snp_path)
     ]
 )
-def test_stat_writer(tmp_path: Path, filtering_expression: str, gene_list_path: Path,
+def test_stat_writer(tmp_path: Path, bgen_prefix, bgen_info, name: str, filtering_expression: str, gene_list_path: Path,
                      snp_list_path: Path):
     """
     Test the `stat_writer` function to ensure it correctly writes statistics about the collapsing operations.
@@ -193,20 +203,21 @@ def test_stat_writer(tmp_path: Path, filtering_expression: str, gene_list_path: 
     - The log file is created.
     - The contents of the log file match the expected log contents.
     """
+
     log_path = tmp_path / 'HC_PTV-MAF_01.log'
     test_log = CollapseLOGGER(log_path)
 
     # Has to be inside the test function since I have to re-open every time the test is run
     # Also make sure this is rb, as we wrap gzip around this in the function.
-    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb') for bgen_prefix, bgen_info in bgen_dict.items()}
+    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb')}
 
     snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
                                           gene_list_path=gene_list_path, snp_list_path=snp_list_path, log_file=test_log)
 
     for bgen_prefix, variant_list in snp_list_generator.genes.items():
         genotypes = generate_csr_matrix_from_bgen(variant_list,
-                                                  bgen_dict[bgen_prefix]['bgen'],
-                                                  bgen_dict[bgen_prefix]['sample'])
+                                                  bgen_info['bgen'],
+                                                  bgen_info['sample'])
 
         ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
 
@@ -220,7 +231,37 @@ def test_stat_writer(tmp_path: Path, filtering_expression: str, gene_list_path: 
         with open(log_path, 'r') as log_file:
             new_log = log_file.read()
 
-        # also read in the correct log file & make sure they match
-        with open(os.path.join(test_data_dir, "../expected_outputs", f"{bgen_prefix}_log.txt"), 'r') as log_file:
-            log_contents = log_file.read()
-            assert set(log_contents) == set(new_log)
+        log_path = tmp_path / 'HC_PTV-MAF_01.log'
+        test_log = CollapseLOGGER(log_path)
+
+        # Has to be inside the test function since I have to re-open every time the test is run
+        # Also make sure this is rb, as we wrap gzip around this in the function.
+        vep_dict = {bgen_prefix: bgen_info['vep'].open('rb')}
+
+        snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
+                                              gene_list_path=gene_list_path, snp_list_path=snp_list_path,
+                                              log_file=test_log)
+
+        for bgen_prefix, variant_list in snp_list_generator.genes.items():
+            genotypes = generate_csr_matrix_from_bgen(variant_list,
+                                                      bgen_info['bgen'],
+                                                      bgen_info['sample'])
+
+            ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
+
+            assert len(ac_table) == 10000
+            assert len(gene_ac_table) == 10000
+            assert len(gene_totals) == len(variant_list['ENST'].unique())
+
+            # Call the function
+            stat_writer(ac_table, gene_ac_table, gene_totals, snp_list_generator.total_sites, test_log)
+
+            # make sure the file exists
+            assert os.path.exists(log_path)
+
+            # Read and compare the files as sets
+            with open(log_path, 'r') as log_file, open(
+                    os.path.join(test_data_dir, "../expected_outputs", f"{bgen_prefix}_{name}_log.txt"),
+                    'r') as expected_file:
+                assert set(log_file.read()) == set(
+                    expected_file.read()), "Log file contents do not match expected output"

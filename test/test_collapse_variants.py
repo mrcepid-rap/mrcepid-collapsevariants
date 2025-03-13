@@ -55,7 +55,6 @@ def temporary_path(tmp_path, monkeypatch):
         persistent_dir = Path(__file__).parent / "temp_test_outputs" / tmp_path.name
         persistent_dir.parent.mkdir(exist_ok=True)
         shutil.copytree(tmp_path, persistent_dir, dirs_exist_ok=True)
-        print(f"Temporary output files have been copied to: {persistent_dir}")
 
 
 # Validated test data:
@@ -90,19 +89,21 @@ bgen_dict = {'chr1_chunk1': {'index': test_data_dir / 'chr1_chunk1.bgen.bgi',
 # First test: generate the masks and store file names in pipeline_data
 # ======================================================================
 @pytest.mark.parametrize(
-    "filtering_expression, gene_list_path, snp_list_path, expected_matrix, expected_samples, expected_variants",
+    "filtering_expression, gene_list_path, snp_list_path, expected_matrix, expected_samples, expected_variants,"
+    "output_prefix",
     [
         ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None,
-         (10000, 13592), (10000, 2), (13592, 5)),
+         (10000, 13592), (10000, 2), (13592, 5), 'HC_PTV-MAF_001'),
         ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None,
-         (10000, 34), (10000, 2), (34, 5)),
+         (10000, 4), (10000, 2), (34, 5), 'HC_PTV-MAF_001'),
         (None, None, snp_path,
-         (10000, 826), (10000, 2), (826, 5))
+         (10000, 826), (10000, 2), (826, 5), "HC_PTV-MAF_001")
     ]
 )
 def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression: str,
                             gene_list_path: Path, snp_list_path: Path,
-                            expected_matrix, expected_samples, expected_variants):
+                            expected_matrix, expected_samples, expected_variants,
+                            output_prefix):
     """
     Test the generation of SNP and gene masks by checking that the output files
     exist and have the correct shape.
@@ -144,7 +145,7 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
             genes=snp_list_generator.genes,
             genotype_index=genotype_index,
             sample_ids=sample_ids,
-            output_prefix='testing_output',
+            output_prefix=output_prefix,
             bgen_type='SNP'
         )
         # Check existence of the 3 expected output files.
@@ -164,7 +165,7 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
     elif gene_list_path:
         output_files = generate_snp_or_gene_masks(
             snp_list_generator.genes, genotype_index,
-            sample_ids, 'testing_output', 'GENE'
+            sample_ids, output_prefix, 'GENE'
         )
         for i in range(3):
             assert output_files[i].exists(), f"File {output_files[i]} does not exist."
@@ -180,7 +181,7 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
 
     else:
         output_files = generate_generic_masks(
-            snp_list_generator.genes, genotype_index, sample_ids, 'testing_output'
+            snp_list_generator.genes, genotype_index, sample_ids, output_prefix
         )
         file_types = [
             ('.bgen', 3),
@@ -206,9 +207,6 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
     pipeline_data['output_snp_and_gene_masks'].extend(
         [temporary_path / output_file.name for output_file in output_files])
 
-    # Debugging print
-    print("Updated stored files in pipeline_data:", pipeline_data['output_snp_and_gene_masks'])
-
     for file in pipeline_data['output_snp_and_gene_masks']:
         assert file.exists(), f"File not found when storing: {file}"
 
@@ -217,14 +215,15 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
 # Second test: verify file consistency using the stored pipeline_data.
 # ======================================================================
 @pytest.mark.parametrize(
-    "filtering_expression, gene_list_path, snp_list_path",
+    "filtering_expression, gene_list_path, snp_list_path, output_prefix",
     [
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None),
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None),
-        (None, None, snp_path)
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 'HC_PTV-MAF_001'),
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 'HC_PTV-MAF_001'),
+        (None, None, snp_path, 'HC_PTV-MAF_001')
     ]
 )
-def test_check_file_consistency(temporary_path, pipeline_data, filtering_expression, gene_list_path, snp_list_path):
+def test_check_file_consistency(temporary_path, pipeline_data, filtering_expression, gene_list_path, snp_list_path,
+                                output_prefix):
     """
     Check that the files outputted by the previous test are consistent.
     This test rebases the file names stored in pipeline_data to the current temporary_path,
@@ -242,37 +241,36 @@ def test_check_file_consistency(temporary_path, pipeline_data, filtering_express
         target = current_dir / file.name
         if not target.exists():
             shutil.copy(file, target)
-            print(f"Copied {file} to {target}")
 
     # -----------------------------
     # Sanity check on sample tables:
     # -----------------------------
-    snp_samples = pd.read_csv('testing_output.SNP.STAAR.samples_table.tsv', sep='\t')
-    gene_samples = pd.read_csv('testing_output.GENE.STAAR.samples_table.tsv', sep='\t')
+    snp_samples = pd.read_csv(f'{output_prefix}.SNP.STAAR.samples_table.tsv', sep='\t')
+    gene_samples = pd.read_csv(f'{output_prefix}.GENE.STAAR.samples_table.tsv', sep='\t')
     # Using equals() to compare the entire column (instead of any())
     assert snp_samples['sampID'].equals(gene_samples['sampID']), "SNP and GENE sample IDs do not match."
 
-    bolt_sample = pd.read_csv('testing_output.chr1_chunk1.BOLT.sample', sep=' ')
+    bolt_sample = pd.read_csv(f'{output_prefix}.chr1_chunk1.BOLT.sample', sep=' ')
     # bolt has an extra row at the top, so let's delete it to make sure the dataframes are matching
     bolt_sample = bolt_sample.iloc[1:].reset_index(drop=True)
-    staar_sample = pd.read_csv('testing_output.chr1_chunk1.STAAR.samples_table.tsv', sep='\t')
+    staar_sample = pd.read_csv(f'{output_prefix}.chr1_chunk1.STAAR.samples_table.tsv', sep='\t')
     assert bolt_sample['ID_1'].equals(staar_sample['sampID']), "BOLT and STAAR sample IDs do not match."
 
-    staar_sample_1 = pd.read_csv('testing_output.chr1_chunk1.STAAR.samples_table.tsv', sep='\t')
-    staar_sample_2 = pd.read_csv('testing_output.chr1_chunk2.STAAR.samples_table.tsv', sep='\t')
+    staar_sample_1 = pd.read_csv(f'{output_prefix}.chr1_chunk1.STAAR.samples_table.tsv', sep='\t')
+    staar_sample_2 = pd.read_csv(f'{output_prefix}.chr1_chunk2.STAAR.samples_table.tsv', sep='\t')
     assert staar_sample_1['sampID'].equals(staar_sample_2['sampID']), "Chunk1 and Chunk2 sample IDs differ."
 
     # -----------------------------
     # Sanity check on variant tables:
     # -----------------------------
-    snp_variants = pd.read_csv('testing_output.SNP.STAAR.variants_table.tsv', sep='\t')
+    snp_variants = pd.read_csv(f'{output_prefix}.SNP.STAAR.variants_table.tsv', sep='\t')
     assert (snp_variants['POS'] < 90000000).all(), "Some SNP variant positions are >= 90000000."
 
-    staar_variants_1 = pd.read_csv('testing_output.chr1_chunk1.STAAR.variants_table.tsv', sep='\t')
+    staar_variants_1 = pd.read_csv(f'{output_prefix}.chr1_chunk1.STAAR.variants_table.tsv', sep='\t')
     assert ((staar_variants_1['POS'] > 0) & (staar_variants_1['POS'] < 30000000)).all(), \
         "Chunk1 variant positions are out of expected range (0, 30000000)."
 
-    staar_variants_2 = pd.read_csv('testing_output.chr1_chunk2.STAAR.variants_table.tsv', sep='\t')
+    staar_variants_2 = pd.read_csv(f'{output_prefix}.chr1_chunk2.STAAR.variants_table.tsv', sep='\t')
     assert ((staar_variants_2['POS'] > 30000000) & (staar_variants_2['POS'] < 60000000)).all(), \
         "Chunk2 variant positions are out of expected range (30000000, 60000000)."
 
@@ -288,7 +286,7 @@ def test_check_file_consistency(temporary_path, pipeline_data, filtering_express
                               (vep['LOFTEE'] == 'HC') &
                               (vep['MAF'] < 0.001)]
             # Read the output file from the pipeline.
-            annot = pd.read_csv(f'testing_output.{bgen}.REGENIE.setListFile.txt',
+            annot = pd.read_csv(f'{output_prefix}.{bgen}.REGENIE.setListFile.txt',
                                 sep='\t', header=None)
             # Compare the number of unique genes.
             assert len(filtered_df['ENST'].unique()) == len(annot.iloc[:, 0].unique()), \
@@ -310,6 +308,6 @@ def test_check_file_consistency(temporary_path, pipeline_data, filtering_express
                 on=['CHROM', 'POS', 'REF', 'ALT'],
                 how='inner'
             )
-            annot = pd.read_csv(f'testing_output.{bgen}.STAAR.variants_table.tsv', sep='\t')
+            annot = pd.read_csv(f'{output_prefix}.{bgen}.STAAR.variants_table.tsv', sep='\t')
             assert len(filtered_df2) == len(annot['ENST'].unique()), \
                 f"Filtered SNP counts differ for BGEN prefix {bgen}."

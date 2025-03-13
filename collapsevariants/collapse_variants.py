@@ -5,20 +5,19 @@
 # DNAnexus Python Bindings (dxpy) documentation:
 #   http://autodoc.dnanexus.com/bindings/python/current/
 
-import dxpy
 import tarfile
-
 from pathlib import Path
 from typing import Dict
 
-from collapsevariants.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
-    generate_genotype_matrices, update_log_file
+import dxpy
 from general_utilities.association_resources import generate_linked_dx_file
 from general_utilities.mrc_logger import MRCLogger
 
-from collapsevariants.ingest_data import IngestData
-from collapsevariants.snp_list_generator import SNPListGenerator
 from collapsevariants.collapse_logger import CollapseLOGGER
+from collapsevariants.ingest_data import IngestData
+from collapsevariants.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
+    generate_genotype_matrices, update_log_file
+from collapsevariants.snp_list_generator import SNPListGenerator
 
 # Set up the system logger – this is NOT the same as LOG_FILE below that records info about the filtering itself
 LOGGER = MRCLogger().get_logger()
@@ -97,10 +96,13 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
         tar.add(file)
     tar.close()
 
+    LOGGER.info("Tarball created at: %s", output_tarball)
+
     # Set output
     output = {'output_tarball': dxpy.dxlink(generate_linked_dx_file(output_tarball)),
               'log_file': dxpy.dxlink(linked_log_file)}
 
     return output
+
 
 dxpy.run()

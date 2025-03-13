@@ -1,0 +1,41 @@
+------Overall Statistics------
+Total number of variants                          : 7
+Maximum missingness                               : 12.300
+Maximum Allele Frequency                          : 9.500e-04
+Total number of PASS variants                     : 7
+Total number of non-PASS variants                 : 0
+Number of LOFTEE HC                               : 7
+
+----Consequence statistics----
+Number of Parsed Consequence – PTV                : 7
+Number of VEP Consequence - PTV&testcsq1&testcsq2                                                                                 : 4
+Number of VEP Consequence - PTV&testcsq1                                                                                          : 3
+
+--------Per-gene stats--------
+ENST00000370944                                   : 17
+
+Variants not Found:
+ENST00000691006
+ENST00000361696
+ENST00000373016
+------Genome-wide totals------
+Total sites expected from filtering expression    : 7
+Total sites extracted from all chromosomes        : 7
+Total expected and total extracted match          : True
+
+----Per-individual totals-----
+Median number of alleles per indv                 : 0.0
+Median number of genes affected per indv          : 0.0
+Mean number of alleles per indv                   : 0.004
+Mean number of genes affected per indv            : 0.004
+Max number of alleles                             : 1.0
+Number of individuals with at least 1 allele      : 38
+
+---------AC Histogram---------
+AC_bin	count
+0.0	9962
+1.0	38
+
+-------per-ENST Totals--------
+ENST	Total_variants
+ENST00000370944	7

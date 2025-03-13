@@ -284,6 +284,16 @@ class SNPListGenerator:
         self.genes = dict()
         for result_dict in thread_utility:
             if result_dict['vars_found']:
+
+                # # WES bug fix: remove string 'chr' from CHROM column
+                # if not pd.api.types.is_integer_dtype(result_dict['variant_index']['CHROM']):
+                #     # Convert everything to string first
+                #     result_dict['variant_index']['CHROM'] = result_dict['variant_index']['CHROM'].astype(str)
+                #     # Extract only the numeric part at the end of each value
+                #     result_dict['variant_index']['CHROM'] = result_dict['variant_index']['CHROM'].str.extract(r'(\d+)$')
+                #     # Convert to integer where possible
+                #     result_dict['variant_index']['CHROM'] = pd.to_numeric(result_dict['variant_index']['CHROM'], errors='coerce')
+
                 self.genes[result_dict['prefix']] = self._make_gene_dict(result_dict['variant_index'])
 
         # Check the stats of the bgen files
@@ -443,6 +453,7 @@ class SNPListGenerator:
         """
 
         variant_index = variant_index.query(self._filtering_expression)
+
         return variant_index
 
     def _query_snp_list(self, variant_index: pd.DataFrame) -> pd.DataFrame:
