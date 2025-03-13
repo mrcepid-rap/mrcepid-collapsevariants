@@ -60,9 +60,6 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     snp_list_generator = SNPListGenerator(ingested_data.vep_dict, ingested_data.filtering_expression,
                                           ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
 
-    print(snp_list_generator.genes)
-    print(snp_list_generator)
-
     # 3. Generate genotype matrices for each bgen file:
     LOGGER.info('Generating genotype matrices for each bgen file...')
     genotype_index = generate_genotype_matrices(snp_list_generator.genes, ingested_data.bgen_index)
