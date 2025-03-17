@@ -1,14 +1,15 @@
 # Logs
-dx_run.log
+**/dx_run.log
 
 # Coverage reports
 .coverage
 
 # macOS system files
-.DS_Store
+**/.DS_Store
 
-# Poetry lockfile
-poetry.lock
+# UV files
+uv.lock
+.python-version
 
 # Pytest cache
 /test/.pytest_cache/
