@@ -10,13 +10,11 @@ https://documentation.dnanexus.com/.
   * [Changelog](#changelog)
   * [Background](#background)
   * [Dependencies](#dependencies)
-    + [Docker](#docker)
-    + [Resource Files](#resource-files)
 - [Methodology](#methodology)
   * [1. Filtering Variants](#1-filtering-variants)
-    + [i. Filtering With Pandas Query Expressions](#filtering-with-pandas-query-expressions)
-    + [ii. Filtering with Variant IDs](#filtering-with-variant-ids)
-    + [iii. Filtering with HGNC gene symbols + query expression](#filtering-with-hgnc-gene-symbols--query-expression)
+    + [Filtering With Pandas Query Expressions](#filtering-with-pandas-query-expressions)
+    + [Filtering with Variant IDs](#filtering-with-variant-ids)
+    + [Filtering with HGNC gene symbols and query expression](#filtering-with-hgnc-gene-symbols-and-query-expression)
   * [2. Generating Outputs](#2-generating-outputs)
 - [Running on DNANexus](#running-on-dnanexus)
   * [Inputs](#inputs)
@@ -64,6 +62,7 @@ dx describe file-1234567890ABCDEFGHIJKLMN
     * Refactor of most of the codebase to be more functional
     * Several output file formats from v1.* are no longer present. Please refer to the documentation for changes.
     * Removal of all external system calls to 3rd party software. All file manipulation is now done in native python with additional library support.
+  * Updated package manager to uv
 
 * v1.2.2
     * Bugfix release to solve issues with new version of plink2
@@ -121,15 +120,7 @@ files, please see the [outputs](#outputs) section of this README.
 
 Due to how the DNANexus platform works, this applet is dependent on itself. In short, this means that at launch,
 the applet will automatically download the latest version of itself from GitHub and install itself, and other required 
-python dependencies, via poetry. This allows the module subpackages (in `collapsevariants`) to be imported by the main class.
-
-#### Docker
-
-This applet does not use [Docker](https://www.docker.com/). All dependencies are for native python and installed via poetry.
-
-#### Resource Files
-
-This applet does not have any external dependencies.
+python dependencies, via uv. This allows the module subpackages (in `collapsevariants`) to be imported by the main class.
 
 ## Methodology
 
@@ -224,7 +215,7 @@ recognise that we are running collapsed SNPs rather than per-GENE tests.
 **Big Note** – Masks generated with a SNP-list are currently only compatible with the phewas and extract modes of
 [mrcepid-runassociationtesting](https://github.com/mrcepid-rap/mrcepid-runassociationtesting).
 
-#### Filtering with HGNC gene symbols + query expression
+#### Filtering with HGNC gene symbols and query expression
 
 Another option is to provide a list HGNC gene symbols **combined** with a pandas query expression to create a custom
 mask. The relevant parameter to specify the gene list is `genelist`. As with the SNP list input we create a single 'GENE'
@@ -476,13 +467,13 @@ Where columns are sample ID and row number [j] of the matrix, respectively.
 **Note:** Only for SNP & GENE masks!
 
 ```text
-%%MatrixMarket matrix coordinate real general
+%%MatrixMarket matrix coordinate integer general
 %
 10000 34 128
-211 26 1.000000000000000e+00
-243 16 1.000000000000000e+00
+211 26 1
+243 16 1
 ...
-956 31 1.000000000000000e+00
+956 31 1
 ```
 
 ### Command line example

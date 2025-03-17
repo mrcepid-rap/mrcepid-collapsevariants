@@ -8,17 +8,17 @@ Eugene Gardner for any further information.
 
 ### System Requirements
 
-In order to run the unit tests, you simply need to install Poetry:
+In order to run the unit tests, you simply need to install uv:
 
-`pip install poetry`
+`pip install uv`
 
-Then run a poetry install: 
+Then run a uv install: 
 
-`poetry install`
+`uv sync`
 
 Double check that pytest is installed: 
 
-`pip install pytest`
+`pytest --version`
 
 And run the tests in the `/test/` directory:
 
