@@ -90,7 +90,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
                     current_probabilities = current_variant.probabilities
 
                     # store variant codings
-                    variant_array = np.where(current_probabilities[:, 1] == 1, 1.,
+                    variant_array = np.where(current_probabilities[:, 1] == 1, 1,
                                              np.where(current_probabilities[:, 2] == 1, 2, 0))
 
                     # store variant level information in the array we created
