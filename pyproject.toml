@@ -18,6 +18,9 @@ dependencies = [
     "scipy==1.10.1",
 ]
 
+[tool.uv]
+package = true
+
 [tool.uv.sources]
 general-utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", tag = "v1.5.2" }
 
