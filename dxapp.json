@@ -92,7 +92,7 @@
     "execDepends": [
       {
         "name": "uv",
-        "build_commands": "pip install uv"
+        "build_commands": "pip3 install uv"
       },
       {
         "name": "mrcepid-collapsevariants",
