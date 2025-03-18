@@ -91,11 +91,15 @@
     "version": "0",
     "execDepends": [
       {
+        "name": "uv",
+        "package_manager": "pip"
+      },
+      {
         "name": "mrcepid-collapsevariants",
         "package_manager": "git",
-        "url":  "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
-        "tag": "v2.0.0",
-        "build_commands": "pip3 install ."
+        "url": "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
+        "tag": "fix-uv-build",
+        "build_commands": "uv pip install --system ."
       }
     ]
   },
