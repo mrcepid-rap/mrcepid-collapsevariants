@@ -22,7 +22,11 @@ dependencies = [
 package = true
 
 [tool.uv.sources]
-general-utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", tag = "v1.5.2" }
+general-utilities = { git = "ssh://git@github.com:mrcepid-rap/mrcepid-collapsevariants.git", tag = "v1.5.2" }
+
+[tool.hatch.build.targets.wheel]
+packages = ["general_utilities"]
+include = ["general_utilities/**"]
 
 [tool.coverage.run]
 omit = [
