@@ -10,7 +10,6 @@ requires-python = "~=3.8.10"
 dependencies = [
     "bgen==1.7.2",
     "dxpy==0.346.0",
-    "general-utilities",
     "numpy==1.23.2",
     "pandas==1.5.2",
     "pytest==7.4.4",
