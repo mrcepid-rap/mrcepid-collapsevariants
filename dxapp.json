@@ -92,7 +92,7 @@
     "execDepends": [
       {
         "name": "uv",
-        "package_manager": "apt"
+        "package_manager": "pip"
       },
       {
         "name": "mrcepid-collapsevariants",
