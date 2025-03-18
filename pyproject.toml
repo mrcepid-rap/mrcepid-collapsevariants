@@ -1,19 +1,28 @@
-[build-system]
-requires = [ "poetry-core",]
-build-backend = "poetry.core.masonry.api"
-
-[tool.poetry]
-name = "collapsevariants"
-version = "1.2.2"
-description = ""
-authors = [ "Eugene Gardner <eugene.gardner@mrc-epid.cam.ac.uk>",]
+[project]
+name = "mrcepid-collapsevariants"
+version = "2.0.0"
+description = "Generates dummy input files for various association testing software"
 readme = "Readme.md"
-repository = "https://github.com/mrcepid-rap/mrcepid-collapsevariants"
-licence = "MIT"
+authors = [
+    {name = "Eugene Gardner"},
+    {name = "Alish Palmos"}]
+requires-python = "~=3.8.10"
+dependencies = [
+    "bgen==1.7.2",
+    "dxpy==0.346.0",
+    "general_utilities",
+    "numpy==1.23.2",
+    "pandas==1.5.2",
+    "pytest==7.4.4",
+    "pytest-cov~=5.0",
+    "scipy==1.10.1",
+]
 
-[tool.poetry.dependencies]
-python = "~3.8"
-dxpy = "0.346.0"
-pandas = "1.5.2"
-importlib-resources = "5.12.0"
-setuptools = "60.2.0"
+[tool.uv.sources]
+general_utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", tag = "v1.5.2" }
+
+[tool.coverage.run]
+omit = [
+    "test/*", # Exclude all test files
+    "tests/*", # If your tests folder is named "tests"
+]

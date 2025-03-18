@@ -1,165 +1,161 @@
-import csv
-import sys
-
-import pandas as pd
-import numpy as np
-
 from pathlib import Path
-from typing import Tuple, List, Dict
+from typing import Tuple, Dict, List, Union
 
-from collapsevariants.tool_parsers.saige_parser import GeneDict
-from general_utilities.import_utils.import_lib import sample_v2_to_v1
-from general_utilities.job_management.command_executor import CommandExecutor
+import numpy as np
+import pandas as pd
+from bgen import BgenWriter
 from general_utilities.mrc_logger import MRCLogger
+from scipy.sparse import csr_matrix
+
+from collapsevariants.tool_parsers.tool_parser import ToolParser
 
 LOGGER = MRCLogger(__name__).get_logger()
 
 
-def parse_filters_BOLT(file_prefix: str, chromosome: str, genes: Dict[str, GeneDict],
-                       snp_gene_map: dict, cmd_exec: CommandExecutor) -> Tuple[List[str], Dict[str, Dict[str, int]]]:
-    """Generate input format files that can be provided to BOLT
+class BOLTParser(ToolParser):
+    """Generate files used by BOLT for association testing. Implements the abstract class ToolParser.
 
-    BOLT only runs on individual variants and has no built-in functionality to perform burden testing. Thus, to run BOLT
-    in an approximation of 'burden' mode we have to trick it by first collapsing all variants found within a gene across
-    a set of individuals into a single 'variant' that contains information for all individuals for that gene. Thus, we
-    create what amounts to a binary yes/no found a variant in the listed gene for a given individual.
+    This class is used to generate files that can be used by BOLT-LMM to perform association testing. BOLT-LMM
+    requires 3 files to run: a .bgen file, a .bgen.bgi file, and a .sample file. This class generates these files
+    sequentially.
 
-    Gene-Variants are encoded as heterozygous, with all genes having a REF allele of A and alternate allele of C. All
-    variant IDs are ENST IDs for MANE transcripts (where possible). The actual output of this code is not returned,
-    but is spilled to disk as a v1.2, ref-last, 8-bit .bgen format file with a partnered .sample file.
-
-    :param file_prefix: A name to append to beginning of output files.
-    :param chromosome: The chromosome currently being processed. This must be the short form of the chromosome name
-        (e.g., '1' not 'chr1').
-    :param genes: A Dictionary of genes identified by saige_parser.parse_filters_SAIGE of ENSTs mapped to variant IDs
-    :param snp_gene_map: A Dictionary of variants identified by saige_parser.parse_filters_SAGE of variantIDs
-        mapped to ENSTs
-    :param cmd_exec: An instance of CommandExecutor to run commands on a docker container
-    :return: A Tuple containing a List of samples that were found and a Dictionary with keys of sample IDs and values of
-        a dictionary of ENST / Genotype pairs for that given individual
+    :param genes: A dictionary containing a list of genes and their respective variants.
+    :param genotype_index: A dictionary containing a list of genotype matrices for each bgen file.
+    :param sample_ids: A list of sample IDs to write to the sample file.
+    :param output_prefix: A string representing the prefix to use for the output files.
     """
 
-    # Get out BCF file into a tab-delimited format that we can parse for BOLT.
-    # We ONLY want alternate alleles here (-i 'GT="alt") and then for each row print:
-    # 1. Sample ID: UKBB eid format
-    # 2. The actual genotype (0/1 or 1/1 in this case)
-    # 3. The ENST ID so we know what gene this value is derived for
-    cmd = f'bcftools query -i \'GT="alt"\' -f \'[%SAMPLE\\t%ID\\t%GT\\n]\' ' \
-          f'-o /test/{file_prefix}.{chromosome}.parsed.txt ' \
-          f'/test/{file_prefix}.{chromosome}.SAIGE.bcf'
-    cmd_exec.run_cmd_on_docker(cmd)
-    # This is just a list-format of the above file's header so we can read it in below with index-able columns
-    header = ['sample', 'varID', 'genotype']
+    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
+                 output_prefix: str):
+        super().__init__(genes=genes, genotype_index=genotype_index, output_prefix=output_prefix, sample_ids=sample_ids,
+                         tool_name='BOLT')
 
-    samples: Dict[str, Dict[str, int]] = dict()
-    # Now we are going to read this file in and parse the genotype information into the dictionary
-    # we created above (samples). This dictionary has a structure like:
-    # {'sample1': {'gene1': 1}, 'sample3': {'gene2': 1}}
-    # Note that only samples with a qualifying variant are listed
-    with Path(f'{file_prefix}.{chromosome}.parsed.txt').open('r') as filtered_reader:
-        filtered_variants = csv.DictReader(filtered_reader,
-                                           fieldnames=header,
-                                           delimiter='\t',
-                                           quoting=csv.QUOTE_NONE)
-        for var in filtered_variants:
-            # IF the gene is already present for this individual, increment based on genotype
-            # ELSE the gene is NOT already present for this individual, instantiate a new
-            # level in the samples dict and set according to current genotype
-            ENST = snp_gene_map[var['varID']]
-            if var['sample'] in samples:
-                if ENST in samples[var['sample']]:
-                    samples[var['sample']][ENST] += 1 if (var['genotype'] == '0/1') else 2
-                else:
-                    samples[var['sample']][ENST] = 1 if (var['genotype'] == '0/1') else 2
-            else:
-                samples[var['sample']] = {ENST: 1 if (var['genotype'] == '0/1') else 2}
+    def _make_output_files(self, bgen_prefix: str) -> List[Path]:
+        """Wrapper method to parallelize the conversion of individual BGEN files into BOLT format genotypes
 
-    # We have to write this first into .vcf format and then convert to .bgen for input into BOLT
-    # We are tricking BOLT here by setting the individual "variants" within bolt to genes. So our .vcf file
-    # will be a set of genes, and if an individual has a qualifying variant within that gene, setting genotype
-    # to 0/1
-    #
-    # Bit of history here for those who don't want to dive into change-log:
-    # This used to be done w/plink2, but they introduced a change that results in issues with the X chromosome. This
-    # then resulted in some unknown issue with plink hanging and leaving the DNANexus instance broken. So I switched
-    # to using qctool to convert a .vcf to .bgen. This is a bit slower, but it works and is more stable.
-    vcf_path = Path(f'{file_prefix}.{chromosome}.BOLT.vcf')
+        :param bgen_prefix: A string representing the prefix of a BGEN file to convert
+        :return: A list containing the paths to the BOLT-formatted BGEN file, index file, and sample file
+        """
 
-    with vcf_path.open('w') as output_vcf, \
-            Path(f'{file_prefix}.{chromosome}.sample').open('r') as sample_reader:
+        variant_list = self._genes[bgen_prefix]
+        genotypes = self._genotype_index[bgen_prefix]
 
-        # First extract samples from the sample file
-        sample_file = csv.DictReader(sample_reader, delimiter=' ', quoting=csv.QUOTE_NONE)
-        poss_indv = []  # This is just to help us make sure we have the right numbers later
-        for sample in sample_file:
-            if sample['ID'] != "0":  # This gets rid of the weird header row in bgen sample files...
-                sample = sample['ID']
-                poss_indv.append(sample)
+        bolt_matrix = self._make_bolt_matrix(genotypes, variant_list)
+        bolt_bgen, bolt_index = self._write_bolt_bgen(bgen_prefix, bolt_matrix)
+        bolt_sample = self._write_bolt_sample(bgen_prefix)
 
-        # Write the vcf header
-        output_vcf.write('##fileformat=VCFv4.2\n')
-        output_vcf.write(f'##contig=<ID={chromosome},length=999999999>\n') # fake len as it doesn't matter to .bgen
-        output_vcf.write('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">\n')
-        sample_string = '\t'.join(poss_indv)
-        output_vcf.write(f'#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample_string}\n')
+        return [bolt_bgen, bolt_index, bolt_sample]
 
-        # Write the vcf body – remember, we historically wrote ref-last, so we have to do that here by encoding the REF
-        # allele as the alternate allele and the alternate allele as the reference allele and encode genotypes
-        # #accordingly
-        for gene in genes:
-            gt_array = []
-            for sample in poss_indv:
-                if sample in samples:
-                    if gene in samples[sample]:
-                        gt_array.append('0/1')
-                    else:
-                        gt_array.append('1/1')
-                else:
-                    gt_array.append('1/1')
-            gt_string = '\t'.join(gt_array)
-            output_vcf.write(f'{genes[gene]["CHROM"]}\t{genes[gene]["min_poss"]}\t{gene}\tC\tA\t.\tPASS\t.\tGT\t{gt_string}\n')
+    @staticmethod
+    def _make_bolt_matrix(genotypes: Tuple[csr_matrix, Dict[str, Dict[str, int]]], variant_list: pd.DataFrame) -> Dict[
+        str, Dict[str, Union[np.ndarray, int, str]]]:
+        """
+        Create a dictionary of gene arrays for BOLT association testing.
 
-    # And convert to .bgen
-    cmd = f'qctool -filetype "vcf" -ofiletype "bgen_v1.2" -sort ' \
-          f'-g /test/{vcf_path} ' \
-          f'-og /test/{file_prefix}.{chromosome}.BOLT.bgen ' \
-          f'-os /test/{file_prefix}.{chromosome}.BOLT.sample'
-    cmd_exec.run_cmd_on_docker(cmd)
+        This method processes the provided genotype matrix and variant list to generate a dictionary of gene arrays.
+        Each gene array contains a boolean array indicating the presence of variants in each sample, along with the
+        minimum position and chromosome information for each gene.
 
-    # And fix the sample file to have the right number of columns:
-    sample_v2_to_v1(Path(f'{file_prefix}.{chromosome}.BOLT.sample'))
+        :param genotypes: A dictionary containing the genotype matrix and summary dictionary.
+        :param variant_list: A Pandas DataFrame containing the list of variants to be processed.
+        :return: A dictionary where keys are ENST IDs and values are dictionaries containing:
+            - 'genotype_boolean': A boolean array indicating the presence of variants in each sample.
+            - 'min_pos': The minimum position of the variants for the gene.
+            - 'chrom': The chromosome of the gene.
+        """
+        # Iterate through the provided .bgen file and collect genotypes for each gene
+        gene_arrays = {}
 
-    vcf_path.unlink()
+        # unpack the tuple
+        genotype_matrix, summary_dict = genotypes
 
-    return poss_indv, samples
+        search_list = variant_list.groupby('ENST').aggregate(
+            CHROM=('CHROM', 'first'),
+            MIN=('POS', 'min'))
 
+        # Iterate over each gene in the search list
+        for current_gene in search_list.itertuples():
+            # Extract the current gene's ENST (Index), position (MIN), and chromosome (CHROM)
+            current_enst = current_gene.Index
+            current_pos = current_gene.MIN
+            current_chrom = current_gene.CHROM
 
-def check_vcf_stats(poss_indv: List[str], genotypes: Dict[str, Dict[str, int]]) -> pd.DataFrame:
-    """Get information relating to included variants in bcf format files (per-variant)
+            # Subset the genotype matrix to get the current_gene as defined by the gene index (defined in
+            # the generate_csr_matrix_from_bgen function
+            current_genotypes = genotype_matrix[:, summary_dict[current_enst]['gene_index']]
 
-    This method calculates per-sample and per-gene totals for this chromosome
+            # Sum genotypes across samples to determine the presence of variants
+            sample_sums = current_genotypes.sum(axis=1).A1
 
-    :param poss_indv: Identical to return 1 from parse_filters_BOLT – a List of samples that were found
-    :param genotypes: Identical to return 2 from parse_filters_BOLT – a Dictionary with keys of sample IDs and values of
-        a dictionary of ENST / Genotype pairs for that given individual
-    :return: A pandas.DataFrame containing per-sample and per-gene totals for this chromosome
-    """
+            # Create a boolean array indicating whether a variant is present in each sample
+            sample_booleans = np.where(sample_sums > 0., True, False)
 
-    sample_table = pd.DataFrame(data={'sample_id': poss_indv})
-    geno_dict = {'sample_id': [], 'ac': [], 'ac_gene': []}
-    for sample in genotypes:
-        samp_total = 0
-        gene_total = 0
-        for gene in genotypes[sample]:
-            samp_total += genotypes[sample][gene]
-            gene_total += 1
-        geno_dict['sample_id'].append(sample)
-        geno_dict['ac'].append(samp_total)
-        geno_dict['ac_gene'].append(gene_total)
+            # Store the processed information in the dictionary
+            gene_arrays[current_enst] = {'genotype_boolean': sample_booleans,
+                                         'min_pos': current_pos, 'chrom': current_chrom}
 
-    found_genotypes = pd.DataFrame.from_dict(geno_dict)
-    sample_table = pd.merge(sample_table, found_genotypes, on='sample_id', how="left")
-    sample_table['ac'] = np.where(sample_table['ac'] >= 1, sample_table['ac'], 0)
-    sample_table['ac_gene'] = np.where(sample_table['ac_gene'] >= 1, sample_table['ac_gene'], 0)
+        return gene_arrays
 
-    return sample_table
+    def _write_bolt_bgen(self, bgen_prefix: str, gene_arrays: Dict[str, dict]) -> Tuple[Path, Path]:
+        """Generate input format files that can be provided to BOLT.
+
+        BOLT only runs on individual variants and has no built-in functionality to perform burden testing. To run
+        BOLT in an approximation of 'burden' mode, we have to trick it by first collapsing all variants found within
+        a gene across a set of individuals into a single 'variant' that contains information for all individuals for
+        that gene. Thus, we create what amounts to a binary yes/no found a variant in the listed gene for a given
+        individual.
+
+        Gene-Variants are encoded as heterozygous, with all genes having a REF allele of A and alternate allele of C.
+        All variant IDs are ENST IDs for MANE transcripts (where possible). The actual output of this code is not
+        returned, but is spilled to disk as a v1.2, ref-last, 8-bit .bgen format file with a partnered .sample file.
+
+        :param bgen_prefix: A string representing the prefix of a BGEN file to convert
+        :param gene_arrays: A dictionary containing a list of genes and their respective genotypes from
+            :func:`_make_bolt_matrix`
+        :return: A Tuple containing the paths to the BOLT-formatted BGEN file and it's accompanying index file
+        """
+
+        bolt_bgen = Path(f'{self._output_prefix}.{bgen_prefix}.BOLT.bgen')
+
+        with BgenWriter(bolt_bgen, n_samples=len(self._sample_ids), samples=self._sample_ids, compression='zstd',
+                        layout=2) as bgen_writer:
+
+            prev_pos = 0
+
+            # Should already be sorted by min_pos, but just in case sort when iterating:
+            for ENST, gene_info in sorted(gene_arrays.items(), key=lambda value: value[1]['min_pos']):
+
+                if prev_pos > gene_info['min_pos']:
+                    raise ValueError('Genes are not sorted by position!')
+
+                prev_pos = gene_info['min_pos']
+
+                genotypes = np.array(
+                    [[0., 1., 0.] if genotype == True else [1., 0., 0.] for genotype in gene_info['genotype_boolean']])
+
+                bgen_writer.add_variant(varid=ENST, rsid=ENST, chrom=str(gene_info['chrom']), pos=gene_info['min_pos'],
+                                        alleles=['A', 'C'], genotypes=genotypes, ploidy=2, phased=False, bit_depth=8)
+
+        bolt_index = bolt_bgen.with_suffix('.bgen.bgi')
+        return bolt_bgen, bolt_index
+
+    def _write_bolt_sample(self, bgen_prefix: str) -> Path:
+        """Generate a sample file that can be provided to BOLT.
+
+        This method was created to ensure that this method can be tested independently of DNANexus. This ensures that
+        the sample file is created directly from a list of sample IDs, rather than from the (downloaded) sample file
+        itself.
+
+        :param bgen_prefix: A string representing the prefix of a BGEN file to convert.
+        :return: A Path to the BOLT-formatted sample file
+        """
+
+        bolt_sample = Path(f'{self._output_prefix}.{bgen_prefix}.BOLT.sample')
+
+        with bolt_sample.open('w') as bolt_sample_writer:
+            bolt_sample_writer.write('ID_1 ID_2 missing sex\n')
+            bolt_sample_writer.write('0 0 0 D\n')
+            for sample in self._sample_ids:
+                bolt_sample_writer.write(f'{sample} {sample} 0 NA\n')
+
+        return bolt_sample

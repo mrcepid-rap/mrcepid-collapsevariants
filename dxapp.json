@@ -3,7 +3,7 @@
   "title": "CollapseVariants",
   "summary": "Generates dummy input files for various association testing software",
   "dxapi": "1.0.0",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "inputSpec": [
     {
       "name": "filtering_expression",
@@ -48,22 +48,6 @@
       "class": "file",
       "optional": false,
       "help": "list of bgen files and associated index/annotation"
-    },
-    {
-      "name": "testing_script",
-      "label": "Invoke the collapsevariants test suite by providing a script compatible with the 'pytest' module.",
-      "class": "file",
-      "optional": true,
-      "default": null,
-      "help": "Invoke the collapsevariants test suite by providing a script compatible with the 'pytest' module. DO NOT use this flag unless you know what you are doing!"
-    },
-    {
-      "name": "testing_directory",
-      "label": "Directory name containing test files.",
-      "class": "string",
-      "optional": true,
-      "default": null,
-      "help": "Directory name containing test files. DO NOT use this flag unless you know what you are doing!"
     }
   ],
   "outputSpec": [
@@ -101,24 +85,21 @@
       }
     },
     "interpreter": "python3",
-    "file": "src/mrcepid-collapsevariants.py",
+    "file": "collapsevariants/collapse_variants.py",
     "distribution": "Ubuntu",
     "release": "20.04",
     "version": "0",
     "execDepends": [
       {
-        "name": "general_utilities",
-        "package_manager": "git",
-        "url":  "https://github.com/mrcepid-rap/general_utilities.git",
-        "tag": "v1.5.0",
-        "build_commands": "pip3 install ."
+        "name": "uv",
+        "package_manager": "pip"
       },
       {
         "name": "mrcepid-collapsevariants",
         "package_manager": "git",
-        "url":  "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
-        "tag": "v1.2.2",
-        "build_commands": "pip3 install ."
+        "url": "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
+        "tag": "v2.0.0",
+        "build_commands": "uv pip install --system ."
       }
     ]
   },

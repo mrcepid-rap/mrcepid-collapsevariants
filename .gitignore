@@ -1,4 +1,29 @@
-/.talismanrc
-/test/sim_data/*
-/test/test_data_old/
+# Logs
+**/dx_run.log
+
+# Coverage reports
+.coverage
+
+# macOS system files
+**/.DS_Store
+
+# UV files
+uv.lock
+.python-version
+
+# Pytest cache
 /test/.pytest_cache/
+/test/__pycache__/
+.pytest_cache/
+
+# Python bytecode
+collapsevariants/tool_parsers/__pycache__/
+collapsevariants/__pycache__/
+
+# IDE files
+.idea/
+
+# Test data
+!/test/test_data/expected_outputs
+/test/test_data/
+

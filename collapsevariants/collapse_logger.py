@@ -1,6 +1,7 @@
-from typing import IO
-from dxpy import DXFile
 from pathlib import Path
+from typing import IO
+
+from dxpy import DXFile
 from general_utilities.association_resources import generate_linked_dx_file
 
 
@@ -15,13 +16,11 @@ class CollapseLOGGER:
     3. A colon ':'
     4. Some piece of information (int, str, etc.)
 
-    :param file_prefix: A name to append to beginning of the output.
+    :param log_path: A name to append to beginning of the output.
     """
 
-    def __init__(self, file_prefix: str):
-
-        self._file_prefix = file_prefix
-        self._log_path = Path(f'{self._file_prefix}.log')
+    def __init__(self, log_path: Path):
+        self._log_path = log_path
         self._LOG_FILE = self._open_writer()
         self._header_width = 30
         self._spacer = '-'
@@ -34,10 +33,14 @@ class CollapseLOGGER:
         log_file = self._log_path.open('w')
         return log_file
 
-    def close_writer(self) -> DXFile:
-        """Assert that the logfile has been closed and upload it to the DNANexus platform"""
-
+    def close(self):
+        """Close the logfile filehandle"""
         self._LOG_FILE.close()
+
+    def close_and_upload(self) -> DXFile:
+        """Assert that the logfile has been closed AND upload it to the DNANexus platform"""
+
+        self.close()
         linked_log_file = generate_linked_dx_file(self._log_path)
         return linked_log_file
 
@@ -83,7 +86,7 @@ class CollapseLOGGER:
         write_string = f'{text:{self._line_width}.{self._line_width}}: {number:0.3e}\n'
         self._write(write_string)
 
-    def write_histogram(self, bin: int, count: int) -> None:
+    def write_histogram(self, bin: str, count: int) -> None:
         """Write a histogram bin
 
         :param bin: The bin label (x)

@@ -1,15 +1,12 @@
 import csv
-import dxpy
-
 from pathlib import Path
-from typing import TypedDict, Dict
+from typing import TypedDict, Dict, Optional, IO, Tuple
 
+import dxpy
 from general_utilities.association_resources import download_dxfile_by_name
-from general_utilities.job_management.command_executor import build_default_command_executor
 from general_utilities.mrc_logger import MRCLogger
 
-
-CMD_EXEC = build_default_command_executor()
+from collapsevariants.collapse_utils import get_sample_ids
 
 
 class BGENIndex(TypedDict):
@@ -33,29 +30,28 @@ class IngestData:
     This class will download and (in some cases) perform pre-processing of the downloaded files to conform to the
     requirements of downstream processing.
 
-    :param filtering_expression: A string filtering expression to filter variants (must be compatible with
-    pandas.query())
+    Note that this class is untested as it requires a DNANexus connection to test.
+
+    :param filtering_expression: A string filtering expression to filter variants (must be compatible with pandas.query())
     :param bgen_index: A file containing information of bgen files to collapse on
-    :param snplist: A DXFile containing a list of varIDs to use as a custom mask
-    :param genelist: A DXFile containing a list of gene symbols to collapse into a custom mask
+    :param snp_list: A DXFile containing a list of varIDs to use as a custom mask
+    :param gene_list: A DXFile containing a list of gene symbols to collapse into a custom mask
     """
 
-    def __init__(self, bgen_index: dict, filtering_expression: str, snplist: dict, genelist: dict):
+    def __init__(self, bgen_index: dict, filtering_expression: str, snp_list: Optional[dict],
+                 gene_list: Optional[dict]):
 
         # Instantiate the MRC logger
         self._logger = MRCLogger(__name__).get_logger()
 
         self.filtering_expression = filtering_expression
 
-        self.cmd_exec = build_default_command_executor()
+        self.sample_ids = []
         self.bgen_index = self._ingest_bgen_index(bgen_index)
-        self.found_snps = self._define_snplist(snplist)
-        self.found_genes = self._define_genelist(genelist)
+        self.vep_dict = self._open_vep_filepaths()
+        self.snp_list_path = self._define_filter_list(snp_list)
+        self.gene_list_path = self._define_filter_list(gene_list)
 
-        # And do final checks to ensure compatibility of inputs with downstream processing
-        self._check_filtering_expression()
-
-    # Ingest the INDEX of bgen files and download VEP indices
     def _ingest_bgen_index(self, bgen_index: dict) -> Dict[str, BGENIndex]:
         """Index filtered bgen files from the mrc filtering & annotation workflow
 
@@ -63,79 +59,84 @@ class IngestData:
         later in this workflow so that it can be parallelized. This information is stored in a TypedDict (BGENIndex)
         for easier key access.
 
+        This method also collects sample IDs from the first bgen file encountered. This is done as a convenience so extra
+        sample files do not need to be downloaded.
+
         :param bgen_index: A file containing information of bgen files to collapse on
         :return: A dictionary with keys equal to chromosome (with 'chr' prefix) and keys of BGENIndex
         """
 
         bgen_dict = {}
         bgen_index = download_dxfile_by_name(bgen_index)
+        samples_collected = False
 
         # and load it into a dict:
-        Path('filtered_bgen/').mkdir(exist_ok=True)  # For downloading later...
         with bgen_index.open('r') as bgen_reader:
             bgen_index_csv = csv.DictReader(bgen_reader, delimiter='\t')
 
-            for chrom in bgen_index_csv:
-                bgen_dict[chrom['chrom']] = {'index': chrom['bgen_index_dxid'], 'sample': chrom['sample_dxid'],
-                                             'bgen': chrom['bgen_dxid'], 'vep': chrom['vep_dxid']}
+            for batch in bgen_index_csv:
 
-                # but download the vep index because of how we generate the SNP list:
-                vep = dxpy.DXFile(chrom['vep_dxid'])
-                dxpy.download_dxfile(vep.get_id(), f'filtered_bgen/chr{chrom["chrom"]}.filtered.vep.tsv.gz')
+                bgen_dict[batch['prefix']] = {'index': batch['bgen_index_dxid'], 'sample': batch['sample_dxid'],
+                                              'bgen': batch['bgen_dxid'], 'vep': batch['vep_dxid']}
+
+                # Collect sample IDs from the 1st bgen encountered. This is done on the premise that all bgen files
+                # have the same sample IDs...
+                if samples_collected is False:
+                    sample_file = download_dxfile_by_name(batch['sample_dxid'], print_status=False)
+                    self.sample_ids = get_sample_ids(sample_file)
+                    samples_collected = True
+                    sample_file.unlink()  # Make sure to delete to avoid conflict with later download
+
+        if len(self.sample_ids) == 0:
+            raise ValueError('No sample IDs found in the bgen files. Please check the sample files and try again.')
 
         return bgen_dict
 
+    def _open_vep_filepaths(self) -> Dict[str, IO]:
+        """A convenience method to open an IO stream all VEP files for the bgen files in the bgen_index.
+
+        This method was created to allow for easier testing of downstream methods that require the VEP files to be open
+        rather than opened as part of the downstream method. This is because these files are directly streamed from the
+        DNANexus platform and are not stored locally. This means that they are not available for testing on a local
+        machine.
+
+        :return: A dictionary with keys of bgen_prefix and values of the VEP file IO stream.
+        """
+
+        vep_dict = {}
+        for bgen_prefix, bgen_info in self.bgen_index.items():
+            vep_dict[bgen_prefix] = dxpy.open_dxfile(bgen_info['vep'], mode='rb')
+
+        return vep_dict
+
     @staticmethod
-    def _define_snplist(snplist: dict) -> bool:
-        """Download the SNPList file (if provided)
+    def _define_filter_list(filtering_list: dict) -> Optional[Path]:
+        """Download a filtering list file (if provided)
 
-        :param snplist: A DXFile ID pointing to the SNPList file on the RAP
-        :return: A boolean defining if a SNPList file was found
+        :param filtering_list: A DXFile ID pointing to some filtering file (likely Gene / SNP-based) on the RAP
+        :return: A Path object pointing to the downloaded file, if found, otherwise None
         """
 
-        found_snps = False
-        if snplist is not None:
-            snplist = dxpy.DXFile(snplist)
-            dxpy.download_dxfile(snplist, 'snp_list.snps')
-            found_snps = True
-
-        return found_snps
-
-    @staticmethod
-    def _define_genelist(genelist: dict) -> bool:
-        """Download the SNPList file (if provided)
-
-        :param genelist: A DXFile ID pointing to the GeneList file on the RAP
-        :return: A boolean defining if a GeneList file was found
-        """
-
-        found_genes = False
-        if genelist is not None:
-            genelist = dxpy.DXFile(genelist)
-            dxpy.download_dxfile(genelist, 'gene_list.genes')
-            found_genes = True
-
-        return found_genes
-
-    def _check_filtering_expression(self) -> None:
-        """Check to make sure the filtering expression, SNPFile, and GeneFile is provided in the correct combination
-
-        We check to make sure that we fit one of three filtering styles:
-
-        1. Filtering expression alone
-        2. Filtering expression with a Gene List (for making a gene collapsing mask)
-        3. A SNP List alone (for making a SNP collapsed mask)
-        """
-        if self.filtering_expression is not None and self.found_snps is False and self.found_genes is False:
-            # For logging purposes output the filtering expression provided by the user
-            self._logger.info('Current Filtering Expression:')
-            self._logger.info(self.filtering_expression)
-        elif self.filtering_expression is not None and self.found_snps is False and self.found_genes:
-            self._logger.info('Gene list provided together with filtering expression - will filter for variant '
-                              'classes of interest in gene set')
-            self._logger.info('Current Filtering Expression:')
-            self._logger.info(self.filtering_expression)
-        elif self.filtering_expression is None and self.found_snps and self.found_genes is False:
-            self._logger.info('Using provided SNPlist to generate a mask...')
+        if filtering_list:
+            return download_dxfile_by_name(filtering_list)
         else:
-            raise ValueError('Incorrect input for snp/gene/filtering expression provided... exiting!')
+            return None
+
+
+def download_bgen(chrom_bgen_index: BGENIndex) -> Tuple[Path, Path, Path]:
+    """Download the BGEN file from DNANexus
+
+    This method downloads the BGEN file from DNANexus using the bgen_index dictionary and the bgen_prefix. It then
+    returns the path to the downloaded BGEN file, index, and sample.
+
+    Note that this method is the only method untested in this package as it requires a DNANexus connection to test.
+
+    :return: A Tuple containing the paths to the BGEN file, index file, and sample file
+    """
+
+    # Download the requisite files for this chromosome according to the index dict:
+    bgen_path = download_dxfile_by_name(chrom_bgen_index['bgen'], print_status=False)
+    index_path = download_dxfile_by_name(chrom_bgen_index['index'], print_status=False)
+    sample_path = download_dxfile_by_name(chrom_bgen_index['sample'], print_status=False)
+
+    return bgen_path, index_path, sample_path
