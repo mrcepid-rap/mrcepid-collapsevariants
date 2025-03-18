@@ -10,7 +10,7 @@ requires-python = "~=3.8.10"
 dependencies = [
     "bgen==1.7.2",
     "dxpy==0.346.0",
-    "general_utilities @ git+https://github.com/mrcepid-rap/general_utilities.git@v1.5.2",
+    "general_utilities==1.5.2",
     "numpy==1.23.2",
     "pandas==1.5.2",
     "pytest==7.4.4",
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-general-utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", tag = "v1.5.2" }
+general_utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", tag = "v1.5.2" }
 
 [tool.coverage.run]
 omit = [
