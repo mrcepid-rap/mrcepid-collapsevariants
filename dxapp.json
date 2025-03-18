@@ -99,7 +99,7 @@
         "package_manager": "git",
         "url": "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
         "tag": "fix-uv-build",
-        "build_commands": "uv pip install ."
+        "build_commands": "uv pip install --system ."
       }
     ]
   },
