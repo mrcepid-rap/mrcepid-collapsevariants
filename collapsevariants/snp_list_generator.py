@@ -363,21 +363,6 @@ class SNPListGenerator:
         """
 
         current_vep = pd.read_csv(gzip.open(vep_io, mode='rt'), sep="\t",
-                                  index_col='varID')
-
-        # Print all column indices, names, and data types
-        print("\n=== Column Index, Name, and Dtype ===")
-        for i, col in enumerate(current_vep.columns):
-            dtype = current_vep[col].dtype
-            print(f"{i}: {col} (dtype: {dtype})")
-
-        # Print first 2 values for each column
-        print("\n=== First Two Values Per Column ===")
-        for col in current_vep.columns:
-            print(f"\nColumn: {col}")
-            print(current_vep[col].head(2).to_string(index=False))
-
-        current_vep = pd.read_csv(gzip.open(vep_io, mode='rt'), sep="\t",
                                   index_col='varID',
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
                                          'AA': str, 'AApos': str})
@@ -394,50 +379,49 @@ class SNPListGenerator:
             print(f"\nColumn: {col}")
             print(current_vep[col].head(2).to_string(index=False))
 
-        # Special: Show individual value types in column 27
-        column_27_name = current_vep.columns[27]
-        print(f"\n=== Data Types of Each Value in Column 27 ({column_27_name}) ===")
-        print(current_vep[column_27_name].apply(type).value_counts())
+        # === Diagnostics on Column 27 ===
+        if len(current_vep.columns) > 27:
+            column_27_name = current_vep.columns[27]
+            print(f"\n=== Data Types of Each Value in Column 27 ({column_27_name}) ===")
+            print(current_vep[column_27_name].apply(type).value_counts())
 
-        # Get column 27 name
-        col27_name = current_vep.columns[27]
+            print(f"\n=== Example values of type str in column '{column_27_name}' ===")
+            str_values = current_vep[current_vep[column_27_name].apply(lambda x: isinstance(x, str))][
+                column_27_name].dropna().unique()
+            print(str_values[:10])
 
-        # Show a few string-type examples
-        print(f"\n=== Example values of type str in column '{col27_name}' ===")
-        str_values = current_vep[current_vep[col27_name].apply(lambda x: isinstance(x, str))][
-            col27_name].dropna().unique()
-        print(str_values[:10])  # print first 10 unique string values
+            print(f"\n=== Example values of type float in column '{column_27_name}' ===")
+            float_values = current_vep[current_vep[column_27_name].apply(lambda x: isinstance(x, float))][
+                column_27_name].dropna().unique()
+            print(float_values[:10])
+        else:
+            print("\n[INFO] Column 27 does not exist in this file.")
 
-        # Show a few float-type examples
-        print(f"\n=== Example values of type float in column '{col27_name}' ===")
-        float_values = current_vep[current_vep[col27_name].apply(lambda x: isinstance(x, float))][
-            col27_name].dropna().unique()
-        print(float_values[:10])  # print first 10 unique float values
+        # === Diagnostics on Column 26 (you meant REVEL?) ===
+        if len(current_vep.columns) > 26:
+            col26_name = current_vep.columns[26]
+            print(f"\n=== Example values of type str in column '{col26_name}' ===")
+            str_values = current_vep[current_vep[col26_name].apply(lambda x: isinstance(x, str))][
+                col26_name].dropna().unique()
+            print(str_values[:10])
 
-        # Get column 27 name
-        col27_name = current_vep.columns[26]
+            print(f"\n=== Example values of type float in column '{col26_name}' ===")
+            float_values = current_vep[current_vep[col26_name].apply(lambda x: isinstance(x, float))][
+                col26_name].dropna().unique()
+            print(float_values[:10])
+        else:
+            print("\n[INFO] Column 26 does not exist in this file.")
 
-        # Show a few string-type examples
-        print(f"\n=== Example values of type str in column '{col27_name}' ===")
-        str_values = current_vep[current_vep[col27_name].apply(lambda x: isinstance(x, str))][
-            col27_name].dropna().unique()
-        print(str_values[:10])  # print first 10 unique string values
-
-        # Show a few float-type examples
-        print(f"\n=== Example values of type float in column '{col27_name}' ===")
-        float_values = current_vep[current_vep[col27_name].apply(lambda x: isinstance(x, float))][
-            col27_name].dropna().unique()
-        print(float_values[:10])  # pr
-
-        # Columns you want to inspect
+        # Inspect unique values in selected columns
         columns_to_check = ['LOFTEE', 'AA', 'POLYPHEN', 'REVEL']
-
-
         for col in columns_to_check:
-            print(f"\n=== Unique non-null values in column '{col}' ===")
-            unique_vals = current_vep[col].dropna().unique()
-            print(unique_vals[:20])  # print first 20 unique values, adjust if needed
-            print(f"Total unique values: {len(unique_vals)}")
+            if col in current_vep.columns:
+                print(f"\n=== Unique non-null values in column '{col}' ===")
+                unique_vals = current_vep[col].dropna().unique()
+                print(unique_vals[:20])  # first 20 values
+                print(f"Total unique values: {len(unique_vals)}")
+            else:
+                print(f"\n[WARNING] Column '{col}' not found in DataFrame.")
 
         return current_vep
 
