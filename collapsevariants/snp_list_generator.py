@@ -365,7 +365,14 @@ class SNPListGenerator:
         current_vep = pd.read_csv(gzip.open(vep_io, mode='rt'), sep="\t",
                                   index_col='varID',
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
-                                         'AA': str, 'AApos': str, 'REVEL': float},)
+                                         'AA': str, 'AApos': str, 'REVEL': str})
+
+        # Step 2: Count how many rows in REVEL column contain multiple values
+        revel_multi_value_count = current_vep['REVEL'].dropna().apply(lambda x: ',' in x).sum()
+        print(f"\n[INFO] Number of rows with comma-separated values in REVEL: {revel_multi_value_count}")
+
+        print("\nExample REVEL values with commas:")
+        print(current_vep[current_vep['REVEL'].str.contains(",", na=False)]['REVEL'].head(10).to_list())
 
         return current_vep
 
