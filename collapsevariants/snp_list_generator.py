@@ -384,6 +384,21 @@ class SNPListGenerator:
         print(f"\n=== Data Types of Each Value in Column 27 ({column_27_name}) ===")
         print(current_vep[column_27_name].apply(type).value_counts())
 
+        # Get column 27 name
+        col27_name = current_vep.columns[27]
+
+        # Show a few string-type examples
+        print(f"\n=== Example values of type str in column '{col27_name}' ===")
+        str_values = current_vep[current_vep[col27_name].apply(lambda x: isinstance(x, str))][
+            col27_name].dropna().unique()
+        print(str_values[:10])  # print first 10 unique string values
+
+        # Show a few float-type examples
+        print(f"\n=== Example values of type float in column '{col27_name}' ===")
+        float_values = current_vep[current_vep[col27_name].apply(lambda x: isinstance(x, float))][
+            col27_name].dropna().unique()
+        print(float_values[:10])  # print first 10 unique float values
+
         return current_vep
 
     # Actually run the query and modify the variant_index loaded above based on this/these queries
