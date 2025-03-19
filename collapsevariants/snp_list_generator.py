@@ -367,12 +367,21 @@ class SNPListGenerator:
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
                                          'AA': str, 'AApos': str, 'REVEL': str})
 
-        # Step 2: Count how many rows in REVEL column contain multiple values
-        revel_multi_value_count = current_vep['REVEL'].dropna().apply(lambda x: ',' in x).sum()
-        print(f"\n[INFO] Number of rows with comma-separated values in REVEL: {revel_multi_value_count}")
+        # Step 2: Total number of rows
+        total_rows = len(current_vep)
 
-        print("\nExample REVEL values with commas:")
-        print(current_vep[current_vep['REVEL'].str.contains(",", na=False)]['REVEL'].head(10).to_list())
+        # Step 3: Number of rows with multiple values in REVEL (i.e., contains a comma)
+        multi_revel_rows = current_vep['REVEL'].dropna().apply(lambda x: ',' in x).sum()
+
+        # Step 4: Number of rows with single/clean REVEL values
+        clean_revel_rows = current_vep['REVEL'].notna().sum() - multi_revel_rows
+
+        # Print summary
+        print("\n=== REVEL Value Summary ===")
+        print(f"Total rows in DataFrame: {total_rows}")
+        print(f"Rows with multiple comma-separated REVEL values: {multi_revel_rows}")
+        print(f"Rows with single REVEL values: {clean_revel_rows}")
+        print(f"Rows with missing REVEL values: {current_vep['REVEL'].isna().sum()}")
 
         return current_vep
 
