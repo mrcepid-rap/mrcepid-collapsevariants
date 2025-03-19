@@ -399,6 +399,15 @@ class SNPListGenerator:
             col27_name].dropna().unique()
         print(float_values[:10])  # print first 10 unique float values
 
+        # Columns you want to inspect
+        columns_to_check = ['LOFTEE', 'AA', 'POLYPHEN']
+
+        for col in columns_to_check:
+            print(f"\n=== Unique non-null values in column '{col}' ===")
+            unique_vals = current_vep[col].dropna().unique()
+            print(unique_vals[:20])  # print first 20 unique values, adjust if needed
+            print(f"Total unique values: {len(unique_vals)}")
+
         return current_vep
 
     # Actually run the query and modify the variant_index loaded above based on this/these queries
