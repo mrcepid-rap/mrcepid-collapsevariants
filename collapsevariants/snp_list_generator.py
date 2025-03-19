@@ -382,6 +382,10 @@ class SNPListGenerator:
         print(f"Rows with multiple comma-separated REVEL values: {multi_revel_rows}")
         print(f"Rows with single REVEL values: {clean_revel_rows}")
         print(f"Rows with missing REVEL values: {current_vep['REVEL'].isna().sum()}")
+        # Step 5: Print the actual rows with multiple REVEL values
+        print("\n=== Data rows with multiple comma-separated REVEL values ===")
+        print(current_vep[current_vep['REVEL'].str.contains(",", na=False)].head(10))  # print first 10 for review
+
 
         return current_vep
 
