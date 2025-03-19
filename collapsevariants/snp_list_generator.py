@@ -367,6 +367,17 @@ class SNPListGenerator:
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
                                          'AA': str, 'AApos': str})
 
+        # Print all column indices and names
+        print("\n=== Column Index and Names ===")
+        for i, col in enumerate(current_vep.columns):
+            print(f"{i}: {col}")
+
+        # Print the first 2 values of each column
+        print("\n=== First Two Values Per Column ===")
+        for col in current_vep.columns:
+            print(f"\nColumn: {col}")
+            print(current_vep[col].head(2).to_string(index=False))
+
         return current_vep
 
     # Actually run the query and modify the variant_index loaded above based on this/these queries
