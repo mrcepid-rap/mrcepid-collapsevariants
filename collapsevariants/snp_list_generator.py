@@ -365,18 +365,24 @@ class SNPListGenerator:
         current_vep = pd.read_csv(gzip.open(vep_io, mode='rt'), sep="\t",
                                   index_col='varID',
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
-                                         'AA': str, 'AApos': str})
+                                         'AA': str, 'AApos': str, 'ALPHA_MISS': str})
 
-        # Print all column indices and names
-        print("\n=== Column Index and Names ===")
+        # Print all column indices, names, and data types
+        print("\n=== Column Index, Name, and Dtype ===")
         for i, col in enumerate(current_vep.columns):
-            print(f"{i}: {col}")
+            dtype = current_vep[col].dtype
+            print(f"{i}: {col} (dtype: {dtype})")
 
-        # Print the first 2 values of each column
+        # Print first 2 values for each column
         print("\n=== First Two Values Per Column ===")
         for col in current_vep.columns:
             print(f"\nColumn: {col}")
             print(current_vep[col].head(2).to_string(index=False))
+
+        # Special: Show individual value types in column 27
+        column_27_name = current_vep.columns[27]
+        print(f"\n=== Data Types of Each Value in Column 27 ({column_27_name}) ===")
+        print(current_vep[column_27_name].apply(type).value_counts())
 
         return current_vep
 
