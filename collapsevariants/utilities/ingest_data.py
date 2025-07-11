@@ -47,8 +47,8 @@ class IngestData:
 
         self.sample_ids = []
         self.bgen_dict = self._ingest_bgen_index(bgen_index)
-        self.snp_list_path = self._define_filter_list(snp_list)
-        self.gene_list_path = self._define_filter_list(gene_list)
+        self.snp_list_handler = self._define_filter_list(snp_list)
+        self.gene_list_handler = self._define_filter_list(gene_list)
 
     def _ingest_bgen_index(self, bgen_index: dict) -> Dict[str, BGENIndex]:
         """Index filtered bgen files from the mrc filtering & annotation workflow
@@ -85,9 +85,9 @@ class IngestData:
 
                     sample_file = bgen_dict[batch['prefix']]['sample']
                     sample_path = sample_file.get_file_handle()
+                    print(sample_path)
                     self.sample_ids = get_sample_ids(sample_path)
                     samples_collected = True
-                    sample_file.get_file_handle().unlink()  # Make sure to delete to avoid conflict with later download
 
         if len(self.sample_ids) == 0:
             raise ValueError('No sample IDs found in the bgen files. Please check the sample files and try again.')

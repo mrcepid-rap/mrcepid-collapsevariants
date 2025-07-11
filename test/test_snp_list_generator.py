@@ -3,8 +3,11 @@ import pytest
 import filecmp
 from pathlib import Path
 import pandas as pd
+from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
+
 from utilities.collapse_logger import CollapseLOGGER
-from collapsevariants.snp_list_generator import StatDictionary, SNPListGenerator
+from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
+from collapsevariants.snp_list_generator.stat_dictionary import StatDictionary
 
 # Test data set-up
 test_dir = Path(__file__).parent
@@ -12,27 +15,27 @@ test_data_dir = test_dir / 'test_data/'
 correct_log = test_data_dir / 'correct_log.txt'
 
 # Filtering lists
-snp_path = test_data_dir / 'snp_list.v2.txt'
-gene_enst_path = test_data_dir / 'gene_list.ENST.txt'
-gene_symbol_path = test_data_dir / 'gene_list.SYMBOL.txt'
+snp_path = InputFileHandler(test_data_dir / 'snp_list.v2.txt')
+gene_enst_path = InputFileHandler(test_data_dir / 'gene_list.ENST.txt')
+gene_symbol_path = InputFileHandler(test_data_dir / 'gene_list.SYMBOL.txt')
 
 
 # Variant information
-bgen_dict = {'chr1_chunk1': {'index': test_data_dir / 'chr1_chunk1.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk1.bgen',
-                             'sample': test_data_dir / 'chr1_chunk1.sample',
-                             'vep': test_data_dir / 'chr1_chunk1.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk1.gts'},
-             'chr1_chunk2': {'index': test_data_dir / 'chr1_chunk2.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk2.bgen',
-                             'sample': test_data_dir / 'chr1_chunk2.sample',
-                             'vep': test_data_dir / 'chr1_chunk2.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk2.gts'},
-             'chr1_chunk3': {'index': test_data_dir / 'chr1_chunk3.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk3.bgen',
-                             'sample': test_data_dir / 'chr1_chunk3.sample',
-                             'vep': test_data_dir / 'chr1_chunk3.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk3.gts'}}
+bgen_dict = {'chr1_chunk1': {'index': InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk1.gts')},
+             'chr1_chunk2': {'index': InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk2.gts')},
+             'chr1_chunk3': {'index': InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk3.gts')}}
 
 
 def test_logger(tmp_path):
@@ -205,7 +208,7 @@ def test_stat_dictionary(tmp_path,
                                                  'PTV&testcsq1': 5912, 'MISS&testcsq1&testcsq2': 5974}
 
 
-@pytest.mark.parametrize("filtering_expression, gene_list_path, snp_list_path, expected_num_sites, check_error", [
+@pytest.mark.parametrize("filtering_expression, gene_list_handler, snp_list_handler, expected_num_sites, check_error", [
     ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 13592, False),
     ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 34, False),
     ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_symbol_path, None, 34, False),
@@ -214,24 +217,21 @@ def test_stat_dictionary(tmp_path,
     (None, gene_enst_path, None, 0, True),
     ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, snp_path, 0, True),
     ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, snp_path, 0, True)])
-def test_snp_list_generator(tmp_path: Path, filtering_expression: str, gene_list_path: Path, snp_list_path: Path,
+def test_snp_list_generator(tmp_path: Path, filtering_expression: str,
+                            gene_list_handler: InputFileHandler, snp_list_handler,
                             expected_num_sites: int, check_error: bool):
     log_path = tmp_path / 'HC_PTV-MAF_01.log'
     test_log = CollapseLOGGER(log_path)
 
-    # Has to be inside the test function since I have to re-open every time the test is run
-    # Also make sure this is rb, as we wrap gzip around this in the function.
-    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb') for bgen_prefix, bgen_info in bgen_dict.items()}
-
     # Testing to make sure filtering mode parsing works correctly
     if check_error:
         with pytest.raises(ValueError):
-            SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
-                             gene_list_path=gene_list_path, snp_list_path=snp_list_path, log_file=test_log)
+            SNPListGenerator(bgen_dict=bgen_dict, filtering_expression=filtering_expression,
+                             gene_list_handler=gene_list_handler, snp_list_handler=snp_list_handler, log_file=test_log)
 
     else:
-        snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
-                                              gene_list_path=gene_list_path, snp_list_path=snp_list_path,
+        snp_list_generator = SNPListGenerator(bgen_dict=bgen_dict, filtering_expression=filtering_expression,
+                                              gene_list_handler=gene_list_handler, snp_list_handler=snp_list_handler,
                                               log_file=test_log)
 
         assert snp_list_generator.total_sites == expected_num_sites
@@ -244,18 +244,17 @@ def test_snp_list_generator(tmp_path: Path, filtering_expression: str, gene_list
             table_vars.update(variant_index['varID'].tolist())
             table_genes.update(variant_index['ENST'].tolist())
 
-            assert bgen_prefix in vep_dict.keys()
             assert variant_index.columns.tolist() == ['varID', 'CHROM', 'POS', 'ENST']
 
         # Make sure we find the correct number of snps / genes if using that mode
-        if snp_list_path:
-            with snp_list_path.open('r') as snp_file:
+        if snp_list_handler:
+            with snp_list_handler.get_file_handle().open('r') as snp_file:
                 expected_vars = set([var.rstrip() for var in snp_file.readlines()])
 
             assert len(expected_vars.union(table_vars)) == expected_num_sites
 
-        elif gene_list_path:
-            with gene_list_path.open('r') as gene_file:
+        elif gene_list_handler:
+            with gene_list_handler.get_file_handle().open('r') as gene_file:
                 expected_genes = set([gene.rstrip() for gene in gene_file.readlines()])
 
             assert len(table_genes) == len(expected_genes)

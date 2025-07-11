@@ -26,4 +26,6 @@ collapsevariants/__pycache__/
 # Test data
 !/test/test_data/expected_outputs
 /test/test_data/
-
+/test/bgen_index.tsv
+/test/chr1_chunk?.*
+/test/*_list.*

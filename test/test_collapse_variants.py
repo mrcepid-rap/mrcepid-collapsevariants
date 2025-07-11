@@ -4,13 +4,14 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
+from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from scipy.io import mmread
 
 from utilities.collapse_logger import CollapseLOGGER
 from utilities.collapse_utils import get_sample_ids
 from genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
-from utilities.parallelization_wrappers import generate_snp_or_gene_masks, generate_generic_masks
-from collapsevariants.snp_list_generator import SNPListGenerator
+from tool_parsers.mask_generators import generate_generic_masks, generate_snp_or_gene_masks
+from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
 
 # Set this flag to True if you want to keep (copy) the temporary output files
 KEEP_TEMP = False
@@ -64,47 +65,47 @@ test_data_dir = test_dir / 'test_data/'
 correct_log = test_data_dir / 'correct_log.txt'
 
 # Filtering lists
-snp_path = test_data_dir / 'snp_list.v2.txt'
-gene_enst_path = test_data_dir / 'gene_list.ENST.txt'
-gene_symbol_path = test_data_dir / 'gene_list.SYMBOL.txt'
+snp_handler = InputFileHandler(test_data_dir / 'snp_list.v2.txt')
+gene_enst_handler = InputFileHandler(test_data_dir / 'gene_list.ENST.txt')
+gene_symbol_handler = InputFileHandler(test_data_dir / 'gene_list.SYMBOL.txt')
 
 # Variant information
-bgen_dict = {'chr1_chunk1': {'index': test_data_dir / 'chr1_chunk1.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk1.bgen',
-                             'sample': test_data_dir / 'chr1_chunk1.sample',
-                             'vep': test_data_dir / 'chr1_chunk1.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk1.gts'},
-             'chr1_chunk2': {'index': test_data_dir / 'chr1_chunk2.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk2.bgen',
-                             'sample': test_data_dir / 'chr1_chunk2.sample',
-                             'vep': test_data_dir / 'chr1_chunk2.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk2.gts'},
-             'chr1_chunk3': {'index': test_data_dir / 'chr1_chunk3.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk3.bgen',
-                             'sample': test_data_dir / 'chr1_chunk3.sample',
-                             'vep': test_data_dir / 'chr1_chunk3.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk3.gts'}}
+bgen_dict = {'chr1_chunk1': {'index': InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk1.gts')},
+             'chr1_chunk2': {'index': InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk2.gts')},
+             'chr1_chunk3': {'index': InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk3.gts')}}
 
 
 # ======================================================================
 # First test: generate the masks and store file names in pipeline_data
 # ======================================================================
 @pytest.mark.parametrize(
-    "filtering_expression, gene_list_path, snp_list_path, expected_matrix, expected_samples, expected_variants,"
+    "filtering_expression, gene_list_handler, snp_list_handler, expected_matrix, expected_samples, expected_variants,"
     "output_prefix",
     [
         ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None,
          (10000, 13592), (10000, 2), (13592, 5), 'HC_PTV-MAF_001'),
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None,
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_handler, None,
          (10000, 4), (10000, 2), (34, 5), 'HC_PTV-MAF_001'),
-        (None, None, snp_path,
+        (None, None, snp_handler,
          (10000, 826), (10000, 2), (826, 5), "HC_PTV-MAF_001")
     ]
 )
-def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression: str,
-                            gene_list_path: Path, snp_list_path: Path,
+def test_snp_and_gene_masks(temporary_path: Path, pipeline_data: pytest.fixture, filtering_expression: str,
+                            gene_list_handler: InputFileHandler, snp_list_handler: InputFileHandler,
                             expected_matrix, expected_samples, expected_variants,
-                            output_prefix):
+                            output_prefix: str):
     """
     Test the generation of SNP and gene masks by checking that the output files
     exist and have the correct shape.
@@ -113,35 +114,32 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
     log_path = temporary_path / 'HC_PTV-MAF_01.log'
     test_log = CollapseLOGGER(log_path)
 
-    # Open the VEP files from bgen_dict; we assume that bgen_dict is a dict of info per BGEN file.
-    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb')
-                for bgen_prefix, bgen_info in bgen_dict.items()}
-
     snp_list_generator = SNPListGenerator(
-        vep_dict=vep_dict,
+        bgen_dict=bgen_dict,
         filtering_expression=filtering_expression,
-        gene_list_path=gene_list_path,
-        snp_list_path=snp_list_path,
+        gene_list_handler=gene_list_handler,
+        snp_list_handler=snp_list_handler,
         log_file=test_log
     )
 
     # Generate a sparse matrix for each BGEN file and store the results.
     genotype_index = {}
     for bgen_prefix, variant_list in snp_list_generator.genes.items():
+        bgen_dict[bgen_prefix]['index'].get_file_handle()
         geno_matrix = generate_csr_matrix_from_bgen(
             variant_list,
-            bgen_dict[bgen_prefix]['bgen'],
-            bgen_dict[bgen_prefix]['sample']
+            bgen_dict[bgen_prefix]['bgen'].get_file_handle(),
+            bgen_dict[bgen_prefix]['sample'].get_file_handle()
         )
         genotype_index[bgen_prefix] = geno_matrix
 
     # Get sample IDs (assume they are identical across BGEN files).
-    sample_ids = get_sample_ids(list(bgen_dict.values())[0]['sample'])
+    sample_ids = get_sample_ids(list(bgen_dict.values())[0]['sample'].get_file_handle())
     n_samples = len(sample_ids)
     assert n_samples == 10000
 
     # Generate output files based on which filtering list is provided.
-    if snp_list_path:
+    if snp_list_handler:
         output_files = generate_snp_or_gene_masks(
             genes=snp_list_generator.genes,
             genotype_index=genotype_index,
@@ -163,7 +161,7 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
         variant_outfile = pd.read_csv(output_files[2], sep='\t')
         assert variant_outfile.shape == expected_variants, f"Expected {expected_variants} got {variant_outfile.shape}"
 
-    elif gene_list_path:
+    elif gene_list_handler:
         output_files = generate_snp_or_gene_masks(
             snp_list_generator.genes, genotype_index,
             sample_ids, output_prefix, 'GENE'
@@ -216,19 +214,23 @@ def test_snp_and_gene_masks(temporary_path, pipeline_data, filtering_expression:
 # Second test: verify file consistency using the stored pipeline_data.
 # ======================================================================
 @pytest.mark.parametrize(
-    "filtering_expression, gene_list_path, snp_list_path, output_prefix",
+    "filtering_expression, gene_list_handler, snp_list_handler, output_prefix",
     [
         ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 'HC_PTV-MAF_001'),
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 'HC_PTV-MAF_001'),
-        (None, None, snp_path, 'HC_PTV-MAF_001')
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_handler, None, 'HC_PTV-MAF_001'),
+        (None, None, snp_handler, 'HC_PTV-MAF_001')
     ]
 )
-def test_check_file_consistency(temporary_path, pipeline_data, filtering_expression, gene_list_path, snp_list_path,
-                                output_prefix):
+def test_check_file_consistency(temporary_path, pipeline_data, filtering_expression,
+                                gene_list_handler: InputFileHandler, snp_list_handler: InputFileHandler,
+                                output_prefix: str):
     """
     Check that the files outputted by the previous test are consistent.
     This test rebases the file names stored in pipeline_data to the current temporary_path,
     then performs several sanity checks on sample and variant files.
+
+    Note: If you don't run the tests from test_snp_and_gene_masks, this test will fail because the data does not exist.
+    This includes if the previous tests passed, and only this method was run!
     """
     stored_files = pipeline_data.get('output_snp_and_gene_masks')
     # Verify that files exist before storing them
@@ -236,10 +238,9 @@ def test_check_file_consistency(temporary_path, pipeline_data, filtering_express
         assert file.exists(), f"File does not exist: {file}"
     assert stored_files is not None, "Missing output files in pipeline_data"
 
-    # let's copy these into the current directory, otherwise the function won't work
-    current_dir = Path(os.getcwd())
+    # let's copy these into the temporary directory, otherwise the function won't work
     for file in stored_files:
-        target = current_dir / file.name
+        target = temporary_path / file.name
         if not target.exists():
             shutil.copy(file, target)
 
@@ -281,7 +282,7 @@ def test_check_file_consistency(temporary_path, pipeline_data, filtering_express
     for bgen, file in bgen_dict.items():
         if filtering_expression is not None:
             # For a mask filter, read in the original VEP file.
-            vep = pd.read_csv(file['vep'], sep='\t')
+            vep = pd.read_csv(file['vep'].get_file_handle(), sep='\t')
             # Apply the filter manually.
             filtered_df = vep[(vep['PARSED_CSQ'] == "PTV") &
                               (vep['LOFTEE'] == 'HC') &
@@ -294,8 +295,8 @@ def test_check_file_consistency(temporary_path, pipeline_data, filtering_express
                 f"Filtered gene counts differ for BGEN prefix {bgen}."
         else:
             # If using a SNP list, merge the original VEP file with the SNP list.
-            vep = pd.read_csv(file['vep'], sep='\t')
-            snps_to_filter = pd.read_csv(snp_path, header=None)
+            vep = pd.read_csv(file['vep'].get_file_handle(), sep='\t')
+            snps_to_filter = pd.read_csv(snp_handler.get_file_handle(), header=None)
             snps_to_filter[['CHROM', 'POS', 'REF', 'ALT']] = snps_to_filter.iloc[:, 0].str.split(':', expand=True)
             # Ensure proper dtypes for merging.
             for col in ['CHROM', 'POS']:

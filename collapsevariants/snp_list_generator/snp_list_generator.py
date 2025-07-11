@@ -44,11 +44,11 @@ class SNPListGenerator:
         self._bgen_dict = bgen_dict
         self._filtering_expression = filtering_expression
 
-        self._gene_list_path = gene_list_handler.get_file_handle()  # This is a Path to a found Gene list
+        self._gene_list_path = None if gene_list_handler is None else gene_list_handler.get_file_handle()  # This is a Path to a found Gene list
         self._gene_list = set()  # Placeholder for a numpy array of gene symbols
         self._found_gene_dict = dict()
 
-        self._snp_list_path = snp_list_handler.get_file_handle()  # This is a Path to a found SNP list
+        self._snp_list_path = None if snp_list_handler is None else snp_list_handler.get_file_handle()  # This is a Path to a found SNP list
         self._snp_list = set()  # Placeholder for a numpy array of SNP IDs
         self._found_snp_set = set()  # Placeholder for a numpy array of SNP IDs
 

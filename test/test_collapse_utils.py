@@ -4,41 +4,42 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
+from scipy.sparse import csr_matrix
 
 from utilities.collapse_logger import CollapseLOGGER
-from utilities.collapse_utils import get_sample_ids, check_matrix_stats, \
-    csr_matrix
+from utilities.collapse_utils import get_sample_ids, check_matrix_stats
 from genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
 from utilities.parallelization_wrappers import stat_writer
-from collapsevariants.snp_list_generator import SNPListGenerator
+from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
 
 # Validated test data:
 test_dir = Path(__file__).parent
 test_data_dir = test_dir / 'test_data/'
 
 # Filtering lists
-snp_path = test_data_dir / 'snp_list.v2.txt'
-gene_enst_path = test_data_dir / 'gene_list.ENST.txt'
+snp_path = InputFileHandler(test_data_dir / 'snp_list.v2.txt')
+gene_enst_path = InputFileHandler(test_data_dir / 'gene_list.ENST.txt')
 
 # Variant information
-bgen_dict = {'chr1_chunk1': {'index': test_data_dir / 'chr1_chunk1.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk1.bgen',
-                             'sample': test_data_dir / 'chr1_chunk1.sample',
-                             'vep': test_data_dir / 'chr1_chunk1.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk1.gts'},
-             'chr1_chunk2': {'index': test_data_dir / 'chr1_chunk2.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk2.bgen',
-                             'sample': test_data_dir / 'chr1_chunk2.sample',
-                             'vep': test_data_dir / 'chr1_chunk2.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk2.gts'},
-             'chr1_chunk3': {'index': test_data_dir / 'chr1_chunk3.bgen.bgi',
-                             'bgen': test_data_dir / 'chr1_chunk3.bgen',
-                             'sample': test_data_dir / 'chr1_chunk3.sample',
-                             'vep': test_data_dir / 'chr1_chunk3.vep.tsv.gz',
-                             'gts': test_data_dir / 'chr1_chunk3.gts'}}
+bgen_dict = {'chr1_chunk1': {'index': InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk1.gts')},
+             'chr1_chunk2': {'index': InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk2.gts')},
+             'chr1_chunk3': {'index': InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
+                             'bgen': InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
+                             'sample': InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
+                             'vep': InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
+                             'gts': InputFileHandler(test_data_dir / 'chr1_chunk3.gts')}}
 
 
-def generate_expected_counts(test_data: Path, gene_list: Path = None, snp_list: Path = None) -> np.ndarray:
+def generate_expected_counts(test_data: Path, gene_list: InputFileHandler = None, snp_list: InputFileHandler = None) -> np.ndarray:
     """
     Generate expected genotype counts from test data.
 
@@ -58,14 +59,14 @@ def generate_expected_counts(test_data: Path, gene_list: Path = None, snp_list: 
 
     # Filter by ENST if required
     if gene_list:
-        with gene_list.open('r') as gene_file:
+        with gene_list.get_file_handle().open('r') as gene_file:
             gene_list = [gene.rstrip() for gene in gene_file.readlines()]
 
         gts = gts[gts['ENST'].isin(gene_list)]
 
     # Filter by SNP if required
     if snp_list:
-        with snp_list.open('r') as snp_file:
+        with snp_list.get_file_handle().open('r') as snp_file:
             snp_list = [snp.rstrip() for snp in snp_file.readlines()]
 
         gts = gts[gts['ID'].isin(snp_list)]
@@ -82,7 +83,7 @@ def generate_expected_counts(test_data: Path, gene_list: Path = None, snp_list: 
     return gt_totals['GT_sum'].to_numpy()
 
 
-@pytest.mark.parametrize("filtering_expression, gene_list_path, snp_list_path, expected_num_sites, collapse_func",
+@pytest.mark.parametrize("filtering_expression, gene_list_handler, snp_list_handler, expected_num_sites, collapse_func",
                          [
                              ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, 13592, True),
                              ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None, 128, True),
@@ -92,32 +93,29 @@ def generate_expected_counts(test_data: Path, gene_list: Path = None, snp_list: 
                              (None, None, snp_path, 2299, False),
                          ]
                          )
-def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_list_path: Path,
-                               snp_list_path: Path, expected_num_sites: int, collapse_func: bool):
+def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_list_handler: InputFileHandler,
+                               snp_list_handler: InputFileHandler, expected_num_sites: int, collapse_func: bool):
     """This tests both :func:`generate_csr_matrix_from_bgen` and :func:`check_matrix_stats` functions.
 
     :param tmp_path: temporary pytest path for the logs
     :param filtering_expression: the filtering expression that is used as a mask
-    :param gene_list_path: filepath to   a text file containing a gene list to be used in the mask
-    :param snp_list_path: filepath to a text file containing a variant list to be used as a mask
+    :param gene_list_handler: filepath to   a text file containing a gene list to be used in the mask
+    :param snp_list_handler: filepath to a text file containing a variant list to be used as a mask
     :param expected_num_sites: expected number of sites post-masking
     """
 
     log_path = tmp_path / 'HC_PTV-MAF_01.log'
     test_log = CollapseLOGGER(log_path)
 
-    # Has to be inside the test function since I have to re-open every time the test is run
-    # Also make sure this is rb, as we wrap gzip around this in the function.
-    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb') for bgen_prefix, bgen_info in bgen_dict.items()}
-
-    snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
-                                          gene_list_path=gene_list_path, snp_list_path=snp_list_path, log_file=test_log)
+    snp_list_generator = SNPListGenerator(bgen_dict=bgen_dict, filtering_expression=filtering_expression,
+                                          gene_list_handler=gene_list_handler, snp_list_handler=snp_list_handler, log_file=test_log)
 
     total_variants = 0
     for bgen_prefix, variant_list in snp_list_generator.genes.items():
+        bgen_dict[bgen_prefix]['index'].get_file_handle()
         genotypes = generate_csr_matrix_from_bgen(variant_list,
-                                                  bgen_dict[bgen_prefix]['bgen'],
-                                                  bgen_dict[bgen_prefix]['sample'],
+                                                  bgen_dict[bgen_prefix]['bgen'].get_file_handle(),
+                                                  bgen_dict[bgen_prefix]['sample'].get_file_handle(),
                                                   collapse_func)
 
         ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
@@ -125,9 +123,9 @@ def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_l
         assert len(gene_ac_table) == 10000
         assert len(gene_totals) == len(variant_list['ENST'].unique())
 
-        expected_sites_path = bgen_dict[bgen_prefix]['gts']
+        expected_sites_path = bgen_dict[bgen_prefix]['gts'].get_file_handle()
         expected_counts = generate_expected_counts(expected_sites_path,
-                                                   gene_list=gene_list_path, snp_list=snp_list_path)
+                                                   gene_list=gene_list_handler, snp_list=snp_list_handler)
 
         # EUGENE – Remember that this fails due to an annotation issue in Duat
         # The problem is:
@@ -149,7 +147,7 @@ def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_l
     assert total_variants == expected_num_sites
 
 
-@pytest.mark.parametrize("sample_file", [bgen_info['sample'] for bgen_info in bgen_dict.values()])
+@pytest.mark.parametrize("sample_file", [bgen_info['sample'].get_file_handle() for bgen_info in bgen_dict.values()])
 def test_get_sample_ids(sample_file: Path):
     """
     Test the `get_sample_ids` function to ensure it correctly reads sample IDs from a given sample file.
@@ -177,15 +175,15 @@ def test_get_sample_ids(sample_file: Path):
 
 @pytest.mark.parametrize("bgen_prefix, bgen_info", bgen_dict.items())
 @pytest.mark.parametrize(
-    "name, filtering_expression, gene_list_path, snp_list_path",
+    "name, filtering_expression, gene_list_handler, snp_list_handler",
     [
         ('expression', 'PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None),
         ('gene_list', 'PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_path, None),
         ('snp_list', None, None, snp_path)
     ]
 )
-def test_stat_writer(tmp_path: Path, bgen_prefix, bgen_info, name: str, filtering_expression: str, gene_list_path: Path,
-                     snp_list_path: Path):
+def test_stat_writer(tmp_path: Path, bgen_prefix, bgen_info, name: str, filtering_expression: str,
+                     gene_list_handler: InputFileHandler, snp_list_handler: InputFileHandler):
     """
     Test the `stat_writer` function to ensure it correctly writes statistics about the collapsing operations.
 
@@ -207,62 +205,31 @@ def test_stat_writer(tmp_path: Path, bgen_prefix, bgen_info, name: str, filterin
 
     log_path = tmp_path / 'HC_PTV-MAF_01.log'
     test_log = CollapseLOGGER(log_path)
+    print(tmp_path)
 
-    # Has to be inside the test function since I have to re-open every time the test is run
-    # Also make sure this is rb, as we wrap gzip around this in the function.
-    vep_dict = {bgen_prefix: bgen_info['vep'].open('rb')}
-
-    snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
-                                          gene_list_path=gene_list_path, snp_list_path=snp_list_path, log_file=test_log)
+    snp_list_generator = SNPListGenerator(bgen_dict={bgen_prefix: bgen_info}, filtering_expression=filtering_expression,
+                                          gene_list_handler=gene_list_handler, snp_list_handler=snp_list_handler,
+                                          log_file=test_log)
 
     for bgen_prefix, variant_list in snp_list_generator.genes.items():
         genotypes = generate_csr_matrix_from_bgen(variant_list,
-                                                  bgen_info['bgen'],
-                                                  bgen_info['sample'])
+                                                  bgen_info['bgen'].get_file_handle(),
+                                                  bgen_info['sample'].get_file_handle())
 
         ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
+
+        assert len(ac_table) == 10000
+        assert len(gene_ac_table) == 10000
+        assert len(gene_totals) == len(variant_list['ENST'].unique())
 
         # Call the function
         stat_writer(ac_table, gene_ac_table, gene_totals, snp_list_generator.total_sites, test_log)
 
         # make sure the file exists
-        assert os.path.exists(log_path)
+        assert log_path.exists()
 
-        # read in the log file
-        with open(log_path, 'r') as log_file:
-            new_log = log_file.read()
+        # Read and compare the files as sets
+        with open(log_path, 'r') as log_file,\
+              open(os.path.join(test_data_dir, "../expected_outputs", f"{bgen_prefix}_{name}_log.txt"), 'r') as expected_file:
 
-        log_path = tmp_path / 'HC_PTV-MAF_01.log'
-        test_log = CollapseLOGGER(log_path)
-
-        # Has to be inside the test function since I have to re-open every time the test is run
-        # Also make sure this is rb, as we wrap gzip around this in the function.
-        vep_dict = {bgen_prefix: bgen_info['vep'].open('rb')}
-
-        snp_list_generator = SNPListGenerator(vep_dict=vep_dict, filtering_expression=filtering_expression,
-                                              gene_list_path=gene_list_path, snp_list_path=snp_list_path,
-                                              log_file=test_log)
-
-        for bgen_prefix, variant_list in snp_list_generator.genes.items():
-            genotypes = generate_csr_matrix_from_bgen(variant_list,
-                                                      bgen_info['bgen'],
-                                                      bgen_info['sample'])
-
-            ac_table, gene_ac_table, gene_totals = check_matrix_stats(genotypes, variant_list)
-
-            assert len(ac_table) == 10000
-            assert len(gene_ac_table) == 10000
-            assert len(gene_totals) == len(variant_list['ENST'].unique())
-
-            # Call the function
-            stat_writer(ac_table, gene_ac_table, gene_totals, snp_list_generator.total_sites, test_log)
-
-            # make sure the file exists
-            assert os.path.exists(log_path)
-
-            # Read and compare the files as sets
-            with open(log_path, 'r') as log_file, open(
-                    os.path.join(test_data_dir, "../expected_outputs", f"{bgen_prefix}_{name}_log.txt"),
-                    'r') as expected_file:
-                assert set(log_file.read()) == set(
-                    expected_file.read()), "Log file contents do not match expected output"
+            assert set(log_file.read()) == set(expected_file.read()), "Log file contents do not match expected output"

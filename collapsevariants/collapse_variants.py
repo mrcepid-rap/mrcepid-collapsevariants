@@ -58,7 +58,7 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
     # 2. Generate a list of ALL variants genome-wide that we want to retain:
     LOGGER.info('Filtering variants according to provided inputs...')
     snp_list_generator = SNPListGenerator(ingested_data.bgen_dict, ingested_data.filtering_expression,
-                                          ingested_data.gene_list_path, ingested_data.snp_list_path, log_file)
+                                          ingested_data.gene_list_handler, ingested_data.snp_list_handler, log_file)
 
     # 3. Generate genotype matrices for each bgen file:
     LOGGER.info('Generating genotype matrices for each bgen file...')
@@ -71,11 +71,11 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
 
     # 5. Filter the bgen files to only include the variants we want to keep
     LOGGER.info('Generating final output files for RunAssociationTesting...')
-    if ingested_data.snp_list_path:
+    if ingested_data.snp_list_handler:
         LOGGER.info('Making SNP files for burden testing...')
         output_files = generate_snp_or_gene_masks(snp_list_generator.genes, genotype_index,
                                                   ingested_data.sample_ids, output_prefix, 'SNP')
-    elif ingested_data.gene_list_path:
+    elif ingested_data.gene_list_handler:
         LOGGER.info('Making GENE files for burden testing...')
         output_files = generate_snp_or_gene_masks(snp_list_generator.genes, genotype_index,
                                                   ingested_data.sample_ids, output_prefix, 'GENE')
