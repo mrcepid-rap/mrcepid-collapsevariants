@@ -1,65 +1,10 @@
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Tuple, Dict, Any
 
 import numpy as np
 import pandas as pd
 from bgen import BgenReader
-from general_utilities.job_management.thread_utility import ThreadUtility
 from scipy.sparse import csr_matrix
-
-from utilities.ingest_data import BGENIndex, download_bgen
-
-
-def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENIndex]) -> Dict[
-    Any, Tuple[Any, Any]]:
-    """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
-
-    This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
-    :func:`generate_genotype_matrix` method in a ThreadUtility object to parallelize the process.
-
-    Note that this method is un-tested as it wraps a method that requires DNA Nexus to run.
-
-    :return: A pandas.DataFrame containing per-sample and per-ENST totals for log reporting purposes.
-    """
-
-    # Generate genotype matrices for each BGEN file
-    thread_utility = ThreadUtility(error_message='Error in generation genotype arrays', incrementor=10)
-    for bgen_prefix in genes.keys():
-        thread_utility.launch_job(generate_genotype_matrix,
-                                  bgen_prefix=bgen_prefix,
-                                  chrom_bgen_index=bgen_index[bgen_prefix],
-                                  variant_list=genes[bgen_prefix])
-    genotype_index = {bgen_prefix: (geno_matrix, summary_dict) for bgen_prefix, geno_matrix, summary_dict in
-                      thread_utility}
-    return genotype_index
-
-
-def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
-                             variant_list: pd.DataFrame) -> Tuple[str, csr_matrix, Dict[str, Any]]:
-    """
-    Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
-
-    This wrapper method is used to parallelize the generation of genotype matrices across all BGEN files with at least one
-    variant. We don't parallelize :func:`generate_csr_matrix_from_bgen` directly to allow for :func:`download_bgen` to
-    be separated out and allow for unit testing of :func:`generate_csr_matrix_from_bgen` detached from DNANexus.
-
-    :param bgen_prefix: A string representing the prefix of the BGEN file to run in this current thread.
-    :param chrom_bgen_index: A BGENIndex object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
-    :param variant_list: A pandas.DataFrame containing the variants to collapse on.
-    :return: A tuple containing the BGEN file prefix (for thread tracking) and the csr_matrix generated from the
-        BGEN file.
-    """
-    # Note that index is required but is not explicitly taken as input by BgenReader. It MUST have the same
-    # name as the bgen file, but with a .bgi suffix.
-    bgen_path, index_path, sample_path = download_bgen(chrom_bgen_index)
-
-    genotypes, summary_dict = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
-
-    bgen_path.unlink()
-    index_path.unlink()
-    sample_path.unlink()
-
-    return bgen_prefix, genotypes, summary_dict
 
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,
@@ -82,7 +27,7 @@ def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, s
     :param bgen_path: Path to the BGEN file.
     :param sample_path: Path to the sample file.
     :param should_collapse_matrix: If True (default) collapse variants - sum variants per gene.
-    If False, don't sum variants per gene and return the matrix instead.
+        If False, don't sum variants per gene and return the matrix instead.
     :return: A tuple containing:
         - csr_matrix: A sparse matrix with shape (n_samples, n_genes_or_variants).
         - summary_dict: A dictionary with summary information for each gene.

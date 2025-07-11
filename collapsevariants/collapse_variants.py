@@ -16,8 +16,7 @@ from general_utilities.mrc_logger import MRCLogger
 from utilities.collapse_logger import CollapseLOGGER
 from utilities.ingest_data import IngestData
 from utilities.parallelization_wrappers import generate_generic_masks, generate_snp_or_gene_masks, \
-    update_log_file
-from genotype_matrix.genotype_matrix import generate_genotype_matrices
+    generate_genotype_matrices, update_log_file
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
 
 # Set up the system logger – this is NOT the same as LOG_FILE below that records info about the filtering itself
