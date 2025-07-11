@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import IO
+from typing import IO, Union
 
 
 class CollapseLOGGER:
@@ -83,8 +83,11 @@ class CollapseLOGGER:
         write_string = f'{text:{self._line_width}.{self._line_width}}: {number:0.3e}\n'
         self._write(write_string)
 
-    def write_histogram(self, bin: str, count: int) -> None:
+    def write_histogram(self, bin: Union[str, int], count: int) -> None:
         """Write a histogram bin
+
+        Note that :param bin: can be anything cast-able to text, but currently the only Types explicitly named are
+        `str` and `int`.
 
         :param bin: The bin label (x)
         :param count: The bin count (y)
