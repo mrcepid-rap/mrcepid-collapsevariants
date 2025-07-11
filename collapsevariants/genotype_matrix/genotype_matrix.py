@@ -4,7 +4,11 @@ from typing import Tuple, Dict, Any
 import numpy as np
 import pandas as pd
 from bgen import BgenReader
+from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
+
+
+LOGGER = MRCLogger(__name__).get_logger()
 
 
 def generate_csr_matrix_from_bgen(variant_list: pd.DataFrame, bgen_path: Path, sample_path: Path,

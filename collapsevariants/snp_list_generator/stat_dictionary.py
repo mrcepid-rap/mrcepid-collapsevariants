@@ -2,7 +2,7 @@ from typing import Set, Dict
 
 import pandas as pd
 
-from snp_list_generator.snp_list_generator import FilteringMode
+from snp_list_generator.filtering_mode import FilteringMode
 from utilities.collapse_logger import CollapseLOGGER
 
 

@@ -1,23 +1,15 @@
 import gzip
-from enum import Enum, auto
-from pathlib import Path
-from typing import Dict, Set, Optional
+from typing import Dict, Optional
 
 import pandas as pd
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 
+from snp_list_generator.filtering_mode import FilteringMode
 from snp_list_generator.stat_dictionary import StatDictionary
 from utilities.collapse_logger import CollapseLOGGER
 from utilities.ingest_data import BGENIndex
-
-
-class FilteringMode(Enum):
-    """Enum to represent the mode of filtering used in this run of the applet."""
-    GENE_LIST = auto()
-    FILTERING_EXPRESSION = auto()
-    SNP_LIST = auto()
 
 
 class SNPListGenerator:
@@ -37,13 +29,14 @@ class SNPListGenerator:
     :param bgen_dict: A dict that contains the bgen file prefixes as keys and a BGENIndex describing the bgen file
         as values. BGENIndex includes all information about the bgen file, including the vep file to use for annotation.
     :param filtering_expression: A pandas.query() compatible expression to filter variants on, 'None' if not provided.
-    :param gene_list_path: A path to a list of genes to filter against.
-    :param snp_list_path: A path to a list of SNPs to filter against.
+    :param gene_list_handler: A InputFileHandler to a list of genes to filter against.
+    :param snp_list_handler: A InputFileHandler to a list of SNPs to filter against.
     :param log_file: A class of CollapseLOGGER to store information on variant filtering
     """
 
     def __init__(self, bgen_dict: Dict[str, BGENIndex], filtering_expression: str,
-                 gene_list_path: Optional[Path], snp_list_path: Optional[Path], log_file: CollapseLOGGER):
+                 gene_list_handler: Optional[InputFileHandler], snp_list_handler: Optional[InputFileHandler],
+                 log_file: CollapseLOGGER):
 
         self._logger = MRCLogger(__name__).get_logger()
 
@@ -51,11 +44,11 @@ class SNPListGenerator:
         self._bgen_dict = bgen_dict
         self._filtering_expression = filtering_expression
 
-        self._gene_list_path = gene_list_path  # This is a Path to a found Gene list
+        self._gene_list_path = gene_list_handler.get_file_handle()  # This is a Path to a found Gene list
         self._gene_list = set()  # Placeholder for a numpy array of gene symbols
         self._found_gene_dict = dict()
 
-        self._snp_list_path = snp_list_path  # This is a Path to a found SNP list
+        self._snp_list_path = snp_list_handler.get_file_handle()  # This is a Path to a found SNP list
         self._snp_list = set()  # Placeholder for a numpy array of SNP IDs
         self._found_snp_set = set()  # Placeholder for a numpy array of SNP IDs
 
@@ -69,7 +62,7 @@ class SNPListGenerator:
         thread_utility = ThreadUtility()
         for prefix, bgen_info in self._bgen_dict.items():
             thread_utility.launch_job(self._query_variant_index,
-                                      vep_id=bgen_info['vep'],
+                                      vep_handle=bgen_info['vep'],
                                       prefix=prefix)
 
         # Next we want to take the filtered result and process into a dictionary with keys of chromosomes and values of
