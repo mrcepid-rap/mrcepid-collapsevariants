@@ -6,9 +6,10 @@ import pandas as pd
 import pytest
 from scipy.io import mmread
 
-from collapsevariants.collapse_logger import CollapseLOGGER
-from collapsevariants.collapse_utils import generate_csr_matrix_from_bgen, get_sample_ids
-from collapsevariants.parallelization_wrappers import generate_snp_or_gene_masks, generate_generic_masks
+from utilities.collapse_logger import CollapseLOGGER
+from utilities.collapse_utils import get_sample_ids
+from genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
+from utilities.parallelization_wrappers import generate_snp_or_gene_masks, generate_generic_masks
 from collapsevariants.snp_list_generator import SNPListGenerator
 
 # Set this flag to True if you want to keep (copy) the temporary output files

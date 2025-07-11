@@ -5,10 +5,11 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from collapsevariants.collapse_logger import CollapseLOGGER
-from collapsevariants.collapse_utils import generate_csr_matrix_from_bgen, get_sample_ids, check_matrix_stats, \
+from utilities.collapse_logger import CollapseLOGGER
+from utilities.collapse_utils import get_sample_ids, check_matrix_stats, \
     csr_matrix
-from collapsevariants.parallelization_wrappers import stat_writer
+from genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
+from utilities.parallelization_wrappers import stat_writer
 from collapsevariants.snp_list_generator import SNPListGenerator
 
 # Validated test data:

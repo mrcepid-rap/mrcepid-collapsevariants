@@ -1,9 +1,6 @@
 from pathlib import Path
 from typing import IO
 
-from dxpy import DXFile
-from general_utilities.association_resources import generate_linked_dx_file
-
 
 class CollapseLOGGER:
     """A class to log information about filtering that was performed as part of this applet.
@@ -33,16 +30,16 @@ class CollapseLOGGER:
         log_file = self._log_path.open('w')
         return log_file
 
-    def close(self):
+    def close(self) -> None:
         """Close the logfile filehandle"""
         self._LOG_FILE.close()
 
-    def close_and_upload(self) -> DXFile:
-        """Assert that the logfile has been closed AND upload it to the DNANexus platform"""
+    def get_path(self) -> Path:
+        """Get the path to the logfile
 
-        self.close()
-        linked_log_file = generate_linked_dx_file(self._log_path)
-        return linked_log_file
+        :return: The path to the logfile
+        """
+        return self._log_path
 
     def write_header(self, text: str) -> None:
         """Write a header line with a title surrounded by a '-' spacer.

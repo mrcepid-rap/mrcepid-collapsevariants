@@ -3,7 +3,7 @@ import pytest
 import filecmp
 from pathlib import Path
 import pandas as pd
-from collapsevariants.collapse_logger import CollapseLOGGER
+from utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.snp_list_generator import StatDictionary, SNPListGenerator
 
 # Test data set-up
