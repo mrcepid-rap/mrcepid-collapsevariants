@@ -13,10 +13,10 @@ import dxpy
 from general_utilities.import_utils.file_handlers.dnanexus_utilities import generate_linked_dx_file
 from general_utilities.mrc_logger import MRCLogger
 
-from utilities.collapse_logger import CollapseLOGGER
-from utilities.ingest_data import IngestData
-from utilities.parallelization_wrappers import generate_genotype_matrices, update_log_file
-from tool_parsers.mask_generators import generate_generic_masks, generate_snp_or_gene_masks
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.ingest_data import IngestData
+from collapsevariants.utilities.parallelization_wrappers import generate_genotype_matrices, update_log_file
+from collapsevariants.tool_parsers.mask_generators import generate_generic_masks, generate_snp_or_gene_masks
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
 
 # Set up the system logger – this is NOT the same as LOG_FILE below that records info about the filtering itself
