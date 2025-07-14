@@ -85,7 +85,6 @@ class IngestData:
 
                     sample_file = bgen_dict[batch['prefix']]['sample']
                     sample_path = sample_file.get_file_handle()
-                    print(sample_path)
                     self.sample_ids = get_sample_ids(sample_path)
                     samples_collected = True
 
