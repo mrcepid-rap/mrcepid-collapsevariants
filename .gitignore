@@ -30,3 +30,6 @@ collapsevariants/__pycache__/
 /build/
 /mrcepid_collapsevariants.egg-info/
 /test/develop.ipynb
+/test/bgen_index.tsv
+/test/chr1_chunk?.*
+/test/*_list.*

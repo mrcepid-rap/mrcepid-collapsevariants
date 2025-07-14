@@ -1,7 +1,7 @@
 import filecmp
 from pathlib import Path
 
-from collapsevariants.collapse_logger import CollapseLOGGER
+from utilities.collapse_logger import CollapseLOGGER
 
 # Validated test data:
 test_dir = Path(__file__).parent
