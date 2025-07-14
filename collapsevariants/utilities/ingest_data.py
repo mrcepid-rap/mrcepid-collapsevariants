@@ -5,7 +5,7 @@ from typing import TypedDict, Dict, Optional, Tuple
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from general_utilities.mrc_logger import MRCLogger
 
-from utilities.collapse_utils import get_sample_ids
+from collapsevariants.utilities.collapse_utils import get_sample_ids
 
 
 class BGENIndex(TypedDict):

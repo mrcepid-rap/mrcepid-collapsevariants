@@ -14,11 +14,11 @@ from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
 
-from utilities.collapse_logger import CollapseLOGGER
-from utilities.collapse_utils import check_matrix_stats, \
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.collapse_utils import check_matrix_stats, \
     stat_writer
-from genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
-from utilities.ingest_data import BGENIndex, download_bgen
+from collapsevariants.genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
+from collapsevariants.utilities.ingest_data import BGENIndex, download_bgen
 
 LOGGER = MRCLogger(__name__).get_logger()
 

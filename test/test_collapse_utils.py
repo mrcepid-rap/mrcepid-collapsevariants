@@ -7,10 +7,10 @@ import pytest
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from scipy.sparse import csr_matrix
 
-from utilities.collapse_logger import CollapseLOGGER
-from utilities.collapse_utils import get_sample_ids, check_matrix_stats
-from genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
-from utilities.parallelization_wrappers import stat_writer
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.collapse_utils import get_sample_ids, check_matrix_stats
+from collapsevariants.genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
+from collapsevariants.utilities.parallelization_wrappers import stat_writer
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
 
 # Validated test data:

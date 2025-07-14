@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 
-from utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
 from collapsevariants.snp_list_generator.stat_dictionary import StatDictionary
 

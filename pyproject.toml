@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-general_utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", tag = "v1.5.3" }
+general_utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", tag = "v1.5.4" }
 
 [tool.coverage.run]
 omit = [

@@ -7,10 +7,10 @@ import pytest
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from scipy.io import mmread
 
-from utilities.collapse_logger import CollapseLOGGER
-from utilities.collapse_utils import get_sample_ids
-from genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
-from tool_parsers.mask_generators import generate_generic_masks, generate_snp_or_gene_masks
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.collapse_utils import get_sample_ids
+from collapsevariants.genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
+from collapsevariants.tool_parsers.mask_generators import generate_generic_masks, generate_snp_or_gene_masks
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
 
 # Set this flag to True if you want to keep (copy) the temporary output files

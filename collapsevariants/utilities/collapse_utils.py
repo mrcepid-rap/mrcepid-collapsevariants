@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from general_utilities.mrc_logger import MRCLogger
 
-from utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 
 LOGGER = MRCLogger().get_logger()
 
