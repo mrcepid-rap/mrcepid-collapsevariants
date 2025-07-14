@@ -27,3 +27,6 @@ collapsevariants/__pycache__/
 !/test/test_data/expected_outputs
 /test/test_data/
 
+/build/
+/mrcepid_collapsevariants.egg-info/
+/test/develop.ipynb
