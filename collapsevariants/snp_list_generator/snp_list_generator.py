@@ -6,10 +6,10 @@ from general_utilities.import_utils.file_handlers.input_file_handler import Inpu
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 
-from snp_list_generator.filtering_mode import FilteringMode
-from snp_list_generator.stat_dictionary import StatDictionary
-from utilities.collapse_logger import CollapseLOGGER
-from utilities.ingest_data import BGENIndex
+from collapsevariants.snp_list_generator.filtering_mode import FilteringMode
+from collapsevariants.snp_list_generator.stat_dictionary import StatDictionary
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.ingest_data import BGENIndex
 
 
 class SNPListGenerator:

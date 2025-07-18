@@ -5,10 +5,10 @@ import pandas as pd
 from scipy.io import mmwrite
 from scipy.sparse import csr_matrix, hstack
 
-from tool_parsers.bolt_parser import BOLTParser
-from tool_parsers.regenie_parser import REGENIEParser
-from tool_parsers.saige_parser import SAIGEParser
-from tool_parsers.staar_parser import STAARParser
+from collapsevariants.tool_parsers.bolt_parser import BOLTParser
+from collapsevariants.tool_parsers.regenie_parser import REGENIEParser
+from collapsevariants.tool_parsers.saige_parser import SAIGEParser
+from collapsevariants.tool_parsers.staar_parser import STAARParser
 
 
 def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],

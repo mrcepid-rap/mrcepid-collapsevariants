@@ -2,8 +2,8 @@ from typing import Set, Dict
 
 import pandas as pd
 
-from snp_list_generator.filtering_mode import FilteringMode
-from utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.snp_list_generator.filtering_mode import FilteringMode
+from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 
 
 class StatDictionary:
