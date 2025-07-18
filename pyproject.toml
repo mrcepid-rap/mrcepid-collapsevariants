@@ -1,6 +1,6 @@
 [project]
 name = "mrcepid-collapsevariants"
-version = "2.0.0"
+version = "2.1.0"
 description = "Generates dummy input files for various association testing software"
 readme = "Readme.md"
 authors = [
