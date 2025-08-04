@@ -12,12 +12,12 @@ import numpy as np
 import pandas as pd
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, hstack
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.utilities.collapse_utils import check_matrix_stats, \
     stat_writer
-from collapsevariants.genotype_matrix.genotype_matrix import generate_csr_matrix_from_bgen
+from general_utilities.bgen_utilities.genotype_matrix import generate_csr_matrix_from_bgen, make_variant_list
 from collapsevariants.utilities.ingest_data import BGENIndex, download_bgen
 
 LOGGER = MRCLogger(__name__).get_logger()
@@ -48,7 +48,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
-                             variant_list: pd.DataFrame) -> Tuple[str, csr_matrix, Dict[str, Any]]:
+                             variant_list: pd.DataFrame, delete_on_complete: bool = True) -> Tuple[str, csr_matrix, Dict[str, Dict[str, Any]]]:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
@@ -59,6 +59,8 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
     :param bgen_prefix: A string representing the prefix of the BGEN file to run in this current thread.
     :param chrom_bgen_index: A BGENIndex object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
     :param variant_list: A pandas.DataFrame containing the variants to collapse on.
+    :param delete_on_complete: If True, delete the BGEN, index, and sample files after processing. Required for testing purposes.
+        Default is True.
     :return: A tuple containing the BGEN file prefix (for thread tracking) and the csr_matrix generated from the
         BGEN file.
     """
@@ -66,11 +68,41 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
     # name as the bgen file, but with a .bgi suffix.
     bgen_path, index_path, sample_path = download_bgen(chrom_bgen_index)
 
-    genotypes, summary_dict = generate_csr_matrix_from_bgen(variant_list, bgen_path, sample_path)
+    variant_list = make_variant_list(variant_list)
 
-    bgen_path.unlink()
-    index_path.unlink()
-    sample_path.unlink()
+    # Generate the CSR matrix from the BGEN file
+    summary_dict = {}
+    genotypes = []
+    current_start = 0
+
+    for gene, gene_information in variant_list.items():
+        gene_genotypes, gene_summary_dict = generate_csr_matrix_from_bgen(bgen_path, sample_path,
+                                                                          variant_filter_list=gene_information['vars'],
+                                                                          chromosome=gene_information['chrom'],
+                                                                          start=gene_information['min'],
+                                                                          end=gene_information['max'],
+                                                                          should_collapse_matrix=True)
+
+        # Build the genotype matrix
+        genotypes.append(gene_genotypes)
+
+        # Build the summary dict
+        current_end = current_start + gene_summary_dict['variants_in_matrix']
+        summary_dict[gene] = {
+            'sum': gene_summary_dict['sum'],
+            'variants_in_matrix': gene_summary_dict['variants_in_matrix'],
+            'gene_index': [var_n for var_n in range(current_start, current_end)]
+        }
+        current_start = current_end + 1
+
+    if delete_on_complete:
+
+        bgen_path.unlink()
+        index_path.unlink()
+        sample_path.unlink()
+
+    # Finalise matrix creation
+    genotypes = hstack(genotypes)
 
     return bgen_prefix, genotypes, summary_dict
 
