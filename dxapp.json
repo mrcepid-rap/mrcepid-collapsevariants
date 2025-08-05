@@ -98,7 +98,7 @@
         "name": "mrcepid-collapsevariants",
         "package_manager": "git",
         "url": "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
-        "tag": "feature/add_genotype_matrix",
+        "tag": "feature/refactor_genotype_matrix",
         "build_commands": "uv pip install --system ."
       }
     ]
