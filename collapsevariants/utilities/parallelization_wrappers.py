@@ -19,7 +19,7 @@ from collapsevariants.utilities.collapse_utils import check_matrix_stats, \
     stat_writer
 from general_utilities.bgen_utilities.genotype_matrix import generate_csr_matrix_from_bgen, make_variant_list
 from collapsevariants.utilities.ingest_data import BGENIndex, download_bgen
-from utilities.collapse_utils import GenotypeInfo
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 LOGGER = MRCLogger(__name__).get_logger()
 

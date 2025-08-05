@@ -8,7 +8,7 @@ from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
-from utilities.collapse_utils import GenotypeInfo
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 LOGGER = MRCLogger(__name__).get_logger()
 

@@ -9,7 +9,7 @@ from collapsevariants.tool_parsers.bolt_parser import BOLTParser
 from collapsevariants.tool_parsers.regenie_parser import REGENIEParser
 from collapsevariants.tool_parsers.saige_parser import SAIGEParser
 from collapsevariants.tool_parsers.staar_parser import STAARParser
-from utilities.collapse_utils import GenotypeInfo
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 
 def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],

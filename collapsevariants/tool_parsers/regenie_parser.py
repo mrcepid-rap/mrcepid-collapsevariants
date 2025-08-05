@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
-from utilities.collapse_utils import GenotypeInfo
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 
 class REGENIEParser(ToolParser):

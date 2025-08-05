@@ -7,7 +7,7 @@ from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
 
-from utilities.collapse_utils import GenotypeInfo
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 
 class ToolParser(ABC):
