@@ -1,11 +1,13 @@
 from abc import abstractmethod, ABC
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
+
+from utilities.collapse_utils import GenotypeInfo
 
 
 class ToolParser(ABC):
@@ -34,8 +36,8 @@ class ToolParser(ABC):
     :param tool_name: A string representing the name of the tool of the implementing class.
     """
 
-    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
-                 output_prefix: str, tool_name: str):
+    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+                 sample_ids: List[str], output_prefix: str, tool_name: str):
 
         # Initialize the logger
         self._logger = MRCLogger(__name__).get_logger()

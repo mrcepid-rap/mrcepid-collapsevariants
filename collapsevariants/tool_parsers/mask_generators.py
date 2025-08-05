@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 from scipy.io import mmwrite
@@ -9,9 +9,10 @@ from collapsevariants.tool_parsers.bolt_parser import BOLTParser
 from collapsevariants.tool_parsers.regenie_parser import REGENIEParser
 from collapsevariants.tool_parsers.saige_parser import SAIGEParser
 from collapsevariants.tool_parsers.staar_parser import STAARParser
+from utilities.collapse_utils import GenotypeInfo
 
 
-def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],
+def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
                            sample_ids: List[str], output_prefix: str) -> List[Path]:
     """Wrapper to help generate output files for each tool.
 
@@ -33,7 +34,7 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
     return output_files
 
 
-def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix],
+def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
                                sample_ids: List[str], output_prefix: str, bgen_type: str) -> List[Path]:
     """
     Wrapper similar to generate_generic_masks, but for SNP and GENE masks, creating output inputs for various tools.
@@ -58,11 +59,11 @@ def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: D
     matrix_list = []
 
     for bgen_prefix, variant_index in genes.items():
-        current_matrix = genotype_index[bgen_prefix]
+        current_matrix, _ = genotype_index[bgen_prefix]
         # Collect the variant index DataFrame
         final_variant_index_list.append(variant_index)
         # Collect the sparse matrix for later concatenation
-        matrix_list.append(current_matrix[0])
+        matrix_list.append(current_matrix)
 
     # 2. Concatenate all variant indices
     final_variant_index = pd.concat(final_variant_index_list)

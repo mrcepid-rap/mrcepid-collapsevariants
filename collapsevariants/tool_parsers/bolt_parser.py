@@ -8,6 +8,7 @@ from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
+from utilities.collapse_utils import GenotypeInfo
 
 LOGGER = MRCLogger(__name__).get_logger()
 
@@ -25,7 +26,7 @@ class BOLTParser(ToolParser):
     :param output_prefix: A string representing the prefix to use for the output files.
     """
 
-    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
+    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]], sample_ids: List[str],
                  output_prefix: str):
         super().__init__(genes=genes, genotype_index=genotype_index, output_prefix=output_prefix, sample_ids=sample_ids,
                          tool_name='BOLT')

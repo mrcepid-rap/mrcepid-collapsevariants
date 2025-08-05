@@ -1,9 +1,10 @@
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Tuple, Dict, List, TypedDict
 
 import numpy as np
 import pandas as pd
 from general_utilities.mrc_logger import MRCLogger
+from scipy.sparse import csr_matrix
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 
@@ -26,7 +27,23 @@ def get_sample_ids(sample_path: Path) -> List[str]:
     return sample_ids
 
 
-def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
+class GenotypeInfo(TypedDict):
+    """
+    TypedDict to hold information about the genotype matrix and summary statistics.
+
+    :attr allele_count: The total number of alleles in the matrix.
+    :attr n_variants: The total number of variants in the matrix.
+    :attr n_columns: The total number of columns representing this gene (may not == n_variants if collapsing the matrix).
+    :attr gene_index: A list of indices corresponding to the variants in the matrix.
+    """
+
+    allele_count: int
+    n_variants: int
+    n_columns: int
+    gene_index: List[int]
+
+
+def check_matrix_stats(genotypes: Tuple[csr_matrix, Dict[str, GenotypeInfo]], variant_list: pd.DataFrame) -> Tuple[
     np.ndarray, np.ndarray, Dict[str, int]]:
     """
     Get information relating to included variants in csr_matrix format.
@@ -67,7 +84,7 @@ def check_matrix_stats(genotypes: tuple, variant_list: pd.DataFrame) -> Tuple[
         gene_sums = np.where(sample_sums > 0., 1., 0.)
 
         # Record the total number of variants for the current gene
-        gene_totals[ENST] = summary_dict[ENST]['variants_per_gene']
+        gene_totals[ENST] = summary_dict[ENST]['n_variants']
 
         # Update the allele count table with per-sample totals
         ac_table = np.add(ac_table, sample_sums)
