@@ -1,11 +1,12 @@
 import csv
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 
 class REGENIEParser(ToolParser):
@@ -21,8 +22,8 @@ class REGENIEParser(ToolParser):
     :param output_prefix: A string representing the prefix to use for the output files.
     """
 
-    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
-                 output_prefix: str):
+    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+                 sample_ids: List[str], output_prefix: str):
         super().__init__(genes=genes, genotype_index=genotype_index, output_prefix=output_prefix, sample_ids=sample_ids,
                          tool_name='REGENIE')
 

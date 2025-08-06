@@ -1,17 +1,18 @@
 import csv
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 from scipy.sparse import csr_matrix
 
 from collapsevariants.tool_parsers.tool_parser import ToolParser
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 
 class STAARParser(ToolParser):
 
-    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, csr_matrix], sample_ids: List[str],
-                 output_prefix: str):
+    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+                 sample_ids: List[str], output_prefix: str):
         """Generate files used by STAAR for association testing. Implements the abstract class ToolParser.
 
         This class is used to generate files that can be used by STAAR to perform association testing. STAAR
