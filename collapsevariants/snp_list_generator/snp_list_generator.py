@@ -3,13 +3,13 @@ from typing import Dict, Optional
 
 import pandas as pd
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
+from general_utilities.import_utils.import_lib import BGENInformation
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 
 from collapsevariants.snp_list_generator.filtering_mode import FilteringMode
 from collapsevariants.snp_list_generator.stat_dictionary import StatDictionary
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
-from collapsevariants.utilities.ingest_data import BGENIndex
 
 
 class SNPListGenerator:
@@ -26,15 +26,15 @@ class SNPListGenerator:
         Unlike the previous two methods, this approach DOES NOT use a filtering expression and relies on the user to
         filter SNPs.
 
-    :param bgen_dict: A dict that contains the bgen file prefixes as keys and a BGENIndex describing the bgen file
-        as values. BGENIndex includes all information about the bgen file, including the vep file to use for annotation.
+    :param bgen_dict: A dict that contains the bgen file prefixes as keys and a BGENInformation describing the bgen file
+        as values. BGENInformation includes all information about the bgen file, including the vep file to use for annotation.
     :param filtering_expression: A pandas.query() compatible expression to filter variants on, 'None' if not provided.
     :param gene_list_handler: A InputFileHandler to a list of genes to filter against.
     :param snp_list_handler: A InputFileHandler to a list of SNPs to filter against.
     :param log_file: A class of CollapseLOGGER to store information on variant filtering
     """
 
-    def __init__(self, bgen_dict: Dict[str, BGENIndex], filtering_expression: str,
+    def __init__(self, bgen_dict: Dict[str, BGENInformation], filtering_expression: str,
                  gene_list_handler: Optional[InputFileHandler], snp_list_handler: Optional[InputFileHandler],
                  log_file: CollapseLOGGER):
 
