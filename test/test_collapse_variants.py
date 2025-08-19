@@ -5,6 +5,7 @@ from typing import Tuple
 import pandas as pd
 import pytest
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
+from general_utilities.import_utils.import_lib import BGENInformation
 from scipy.io import mmread
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
@@ -12,7 +13,6 @@ from collapsevariants.utilities.collapse_utils import get_sample_ids
 from collapsevariants.utilities.parallelization_wrappers import generate_genotype_matrix
 from collapsevariants.tool_parsers.mask_generators import generate_generic_masks, generate_snp_or_gene_masks
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
-from utilities.ingest_data import BGENIndex
 
 # Set this flag to True if you want to keep (copy) the temporary output files
 KEEP_TEMP = False
@@ -71,22 +71,22 @@ gene_enst_handler = InputFileHandler(test_data_dir / 'gene_list.ENST.txt')
 gene_symbol_handler = InputFileHandler(test_data_dir / 'gene_list.SYMBOL.txt')
 
 # Variant information
-# gts isn't a valid key for a BGENIndex, but going to force it for expediency.
-bgen_dict = {'chr1_chunk1': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk1.gts')),
-             'chr1_chunk2': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk2.gts')),
-             'chr1_chunk3': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk3.gts'))}
+# gts isn't a valid key for a BGENInformation, but going to force it for expediency.
+bgen_dict = {'chr1_chunk1': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk1.gts')),
+             'chr1_chunk2': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk2.gts')),
+             'chr1_chunk3': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk3.gts'))}
 
 
 # ======================================================================

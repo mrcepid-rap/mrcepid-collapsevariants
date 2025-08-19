@@ -10,6 +10,7 @@ from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
+from general_utilities.import_utils.import_lib import BGENInformation
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix, hstack
@@ -18,13 +19,13 @@ from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.utilities.collapse_utils import check_matrix_stats, \
     stat_writer
 from general_utilities.bgen_utilities.genotype_matrix import generate_csr_matrix_from_bgen, make_variant_list
-from collapsevariants.utilities.ingest_data import BGENIndex, download_bgen
+from collapsevariants.utilities.ingest_data import download_bgen
 from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 LOGGER = MRCLogger(__name__).get_logger()
 
 
-def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENIndex]) -> Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]]:
+def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENInformation]) -> Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]]:
     """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
 
     This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
@@ -47,7 +48,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     return genotype_index
 
 
-def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
+def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation,
                              variant_list: pd.DataFrame, delete_on_complete: bool = True) -> Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
@@ -57,7 +58,7 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENIndex,
     be separated out and allow for unit testing of :func:`generate_csr_matrix_from_bgen` detached from DNANexus.
 
     :param bgen_prefix: A string representing the prefix of the BGEN file to run in this current thread.
-    :param chrom_bgen_index: A BGENIndex object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
+    :param chrom_bgen_index: A BGENInformation object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
     :param variant_list: A pandas.DataFrame containing the variants to collapse on.
     :param delete_on_complete: If True, delete the BGEN, index, and sample files after processing. Required for testing purposes.
         Default is True.

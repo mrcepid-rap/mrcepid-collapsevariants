@@ -5,13 +5,13 @@ import numpy as np
 import pandas as pd
 import pytest
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
+from general_utilities.import_utils.import_lib import BGENInformation
 from scipy.sparse import csr_matrix
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.utilities.collapse_utils import get_sample_ids, check_matrix_stats
 from collapsevariants.utilities.parallelization_wrappers import stat_writer, generate_genotype_matrix
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
-from utilities.ingest_data import BGENIndex
 
 # Validated test data:
 test_dir = Path(__file__).parent
@@ -22,21 +22,21 @@ snp_path = InputFileHandler(test_data_dir / 'snp_list.v2.txt')
 gene_enst_path = InputFileHandler(test_data_dir / 'gene_list.ENST.txt')
 
 # Variant information
-bgen_dict = {'chr1_chunk1': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk1.gts')),
-             'chr1_chunk2': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk2.gts')),
-             'chr1_chunk3': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk3.gts'))}
+bgen_dict = {'chr1_chunk1': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk1.gts')),
+             'chr1_chunk2': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk2.gts')),
+             'chr1_chunk3': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk3.gts'))}
 
 
 def generate_expected_counts(test_data: Path, gene_list: InputFileHandler = None, snp_list: InputFileHandler = None) -> np.ndarray:
