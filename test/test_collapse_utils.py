@@ -119,6 +119,7 @@ def test_csr_matrix_generation(tmp_path: Path, filtering_expression: str, gene_l
             bgen_prefix,
             bgen_dict[bgen_prefix],
             variant_list,
+            should_collapse=False if snp_list_handler or gene_list_handler else True,
             delete_on_complete=False  # Make sure we keep the files for testing
         )
 
@@ -220,6 +221,7 @@ def test_stat_writer(tmp_path: Path, bgen_prefix, bgen_info, name: str, filterin
             bgen_prefix,
             bgen_dict[bgen_prefix],
             variant_list,
+            should_collapse=False if snp_list_handler or gene_list_handler else True,
             delete_on_complete=False  # Make sure we keep the files for testing
         )
 

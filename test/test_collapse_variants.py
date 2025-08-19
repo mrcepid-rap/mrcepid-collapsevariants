@@ -96,12 +96,9 @@ bgen_dict = {'chr1_chunk1': BGENInformation(index= InputFileHandler(test_data_di
     "filtering_expression, gene_list_handler, snp_list_handler, expected_matrix, expected_samples, expected_variants,"
     "output_prefix",
     [
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None,
-         (10000, 13592), (10000, 2), (13592, 5), 'HC_PTV-MAF_001'),
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_handler, None,
-         (10000, 4), (10000, 2), (34, 5), 'HC_PTV-MAF_001'),
-        (None, None, snp_handler,
-         (10000, 826), (10000, 2), (826, 5), "HC_PTV-MAF_001")
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, (10000, 13592), (10000, 2), (13592, 5), 'HC_PTV-MAF_001'),
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_handler, None, (10000, 34), (10000, 2), (34, 5), 'HC_PTV-MAF_001'),
+        (None, None, snp_handler, (10000, 826), (10000, 2), (826, 5), "HC_PTV-MAF_001")
     ]
 )
 def test_snp_and_gene_masks(tmp_path, pipeline_data: pytest.fixture, filtering_expression: str,
@@ -112,7 +109,7 @@ def test_snp_and_gene_masks(tmp_path, pipeline_data: pytest.fixture, filtering_e
     Test the generation of SNP and gene masks by checking that the output files
     exist and have the correct shape.
     """
-    log_path = tmp_path / 'HC_PTV-MAF_01.log'
+    log_path = tmp_path / 'HC_PTV-MAF_001.log'
     output_prefix = str(tmp_path.absolute() / output_prefix)  # Make sure we drop outputs in our temporary directory
     test_log = CollapseLOGGER(log_path)
 
@@ -132,6 +129,7 @@ def test_snp_and_gene_masks(tmp_path, pipeline_data: pytest.fixture, filtering_e
             bgen_prefix,
             bgen_dict[bgen_prefix],
             variant_list,
+            should_collapse=False if snp_list_handler or gene_list_handler else True,
             delete_on_complete=False  # Make sure we keep the files for testing
         )
         genotype_index[bgen_prefix] = (geno_matrix[1], geno_matrix[2])

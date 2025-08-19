@@ -25,7 +25,7 @@ from collapsevariants.utilities.collapse_utils import GenotypeInfo
 LOGGER = MRCLogger(__name__).get_logger()
 
 
-def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENInformation]) -> Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]]:
+def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENInformation], should_collapse=True) -> Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]]:
     """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
 
     This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
@@ -33,6 +33,10 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
     Note that this method is un-tested as it wraps a method that requires DNA Nexus to run.
 
+    :param genes: A dictionary containing the genes to collapse with keys of the BGEN file prefixes and values of
+        a Pandas DataFrame containing per-variant information.
+    :param bgen_index: A dictionary containing BGENInformation objects for each BGEN file prefix.
+    :param should_collapse: If True, collapse the matrix to remove redundant columns. Default is True.
     :return: A pandas.DataFrame containing per-sample and per-ENST totals for log reporting purposes.
     """
 
@@ -42,14 +46,15 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
         thread_utility.launch_job(generate_genotype_matrix,
                                   bgen_prefix=bgen_prefix,
                                   chrom_bgen_index=bgen_index[bgen_prefix],
-                                  variant_list=genes[bgen_prefix])
+                                  variant_list=genes[bgen_prefix],
+                                  should_collapse=should_collapse)
     genotype_index = {bgen_prefix: (geno_matrix, summary_dict) for bgen_prefix, geno_matrix, summary_dict in
                       thread_utility}
     return genotype_index
 
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation,
-                             variant_list: pd.DataFrame, delete_on_complete: bool = True) -> Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
+                             variant_list: pd.DataFrame, should_collapse=True, delete_on_complete: bool = True) -> Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
@@ -60,6 +65,7 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation
     :param bgen_prefix: A string representing the prefix of the BGEN file to run in this current thread.
     :param chrom_bgen_index: A BGENInformation object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
     :param variant_list: A pandas.DataFrame containing the variants to collapse on.
+    :param should_collapse: If True, collapse the matrix to remove redundant columns. Default is True.
     :param delete_on_complete: If True, delete the BGEN, index, and sample files after processing. Required for testing purposes.
         Default is True.
     :return: A tuple containing the BGEN file prefix (for thread tracking) and the csr_matrix generated from the
@@ -82,7 +88,7 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation
                                                                           chromosome=gene_information['chrom'],
                                                                           start=gene_information['min'],
                                                                           end=gene_information['max'],
-                                                                          should_collapse_matrix=True)
+                                                                          should_collapse_matrix=should_collapse)
 
         # Build the genotype matrix
         genotypes.append(gene_genotypes)

@@ -62,7 +62,8 @@ def main(filtering_expression: str, snplist: dict, genelist: dict, output_prefix
 
     # 3. Generate genotype matrices for each bgen file:
     LOGGER.info('Generating genotype matrices for each bgen file...')
-    genotype_index = generate_genotype_matrices(snp_list_generator.genes, ingested_data.bgen_dict)
+    genotype_index = generate_genotype_matrices(snp_list_generator.genes, ingested_data.bgen_dict,
+                                                should_collapse=False if ingested_data.snp_list_handler or ingested_data.gene_list_handler else True)
 
     # 4. Write information about collapsing to the log file
     LOGGER.info('Updating log file with per-sample and per-ENST totals...')
