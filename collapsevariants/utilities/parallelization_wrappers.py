@@ -149,5 +149,3 @@ def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tu
         gene_totals.update(result[2])
 
     stat_writer(ac_table, gene_ac_table, gene_totals, expected_total_sites, stat_logger)
-
-

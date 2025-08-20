@@ -5,6 +5,7 @@ from typing import Tuple
 import pandas as pd
 import pytest
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
+from general_utilities.import_utils.import_lib import BGENInformation
 from scipy.io import mmread
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
@@ -12,7 +13,6 @@ from collapsevariants.utilities.collapse_utils import get_sample_ids
 from collapsevariants.utilities.parallelization_wrappers import generate_genotype_matrix
 from collapsevariants.tool_parsers.mask_generators import generate_generic_masks, generate_snp_or_gene_masks
 from collapsevariants.snp_list_generator.snp_list_generator import SNPListGenerator
-from collapsevariants.utilities.ingest_data import BGENIndex
 
 # Set this flag to True if you want to keep (copy) the temporary output files
 KEEP_TEMP = False
@@ -71,22 +71,22 @@ gene_enst_handler = InputFileHandler(test_data_dir / 'gene_list.ENST.txt')
 gene_symbol_handler = InputFileHandler(test_data_dir / 'gene_list.SYMBOL.txt')
 
 # Variant information
-# gts isn't a valid key for a BGENIndex, but going to force it for expediency.
-bgen_dict = {'chr1_chunk1': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk1.gts')),
-             'chr1_chunk2': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk2.gts')),
-             'chr1_chunk3': BGENIndex(index= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
-                                      bgen= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
-                                      sample= InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
-                                      vep= InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
-                                      gts= InputFileHandler(test_data_dir / 'chr1_chunk3.gts'))}
+# gts isn't a valid key for a BGENInformation, but going to force it for expediency.
+bgen_dict = {'chr1_chunk1': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk1.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk1.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk1.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk1.gts')),
+             'chr1_chunk2': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk2.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk2.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk2.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk2.gts')),
+             'chr1_chunk3': BGENInformation(index= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen.bgi'),
+                                            bgen= InputFileHandler(test_data_dir / 'chr1_chunk3.bgen'),
+                                            sample= InputFileHandler(test_data_dir / 'chr1_chunk3.sample'),
+                                            vep= InputFileHandler(test_data_dir / 'chr1_chunk3.vep.tsv.gz'),
+                                            gts= InputFileHandler(test_data_dir / 'chr1_chunk3.gts'))}
 
 
 # ======================================================================
@@ -96,12 +96,9 @@ bgen_dict = {'chr1_chunk1': BGENIndex(index= InputFileHandler(test_data_dir / 'c
     "filtering_expression, gene_list_handler, snp_list_handler, expected_matrix, expected_samples, expected_variants,"
     "output_prefix",
     [
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None,
-         (10000, 13592), (10000, 2), (13592, 5), 'HC_PTV-MAF_001'),
-        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_handler, None,
-         (10000, 4), (10000, 2), (34, 5), 'HC_PTV-MAF_001'),
-        (None, None, snp_handler,
-         (10000, 826), (10000, 2), (826, 5), "HC_PTV-MAF_001")
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', None, None, (10000, 13592), (10000, 2), (13592, 5), 'HC_PTV-MAF_001'),
+        ('PARSED_CSQ=="PTV" & LOFTEE=="HC" & MAF < 0.001', gene_enst_handler, None, (10000, 34), (10000, 2), (34, 5), 'HC_PTV-MAF_001'),
+        (None, None, snp_handler, (10000, 826), (10000, 2), (826, 5), "HC_PTV-MAF_001")
     ]
 )
 def test_snp_and_gene_masks(tmp_path, pipeline_data: pytest.fixture, filtering_expression: str,
@@ -112,7 +109,7 @@ def test_snp_and_gene_masks(tmp_path, pipeline_data: pytest.fixture, filtering_e
     Test the generation of SNP and gene masks by checking that the output files
     exist and have the correct shape.
     """
-    log_path = tmp_path / 'HC_PTV-MAF_01.log'
+    log_path = tmp_path / 'HC_PTV-MAF_001.log'
     output_prefix = str(tmp_path.absolute() / output_prefix)  # Make sure we drop outputs in our temporary directory
     test_log = CollapseLOGGER(log_path)
 
@@ -132,6 +129,7 @@ def test_snp_and_gene_masks(tmp_path, pipeline_data: pytest.fixture, filtering_e
             bgen_prefix,
             bgen_dict[bgen_prefix],
             variant_list,
+            should_collapse=False if snp_list_handler or gene_list_handler else True,
             delete_on_complete=False  # Make sure we keep the files for testing
         )
         genotype_index[bgen_prefix] = (geno_matrix[1], geno_matrix[2])
