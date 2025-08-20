@@ -3,7 +3,7 @@
   "title": "CollapseVariants",
   "summary": "Generates dummy input files for various association testing software",
   "dxapi": "1.0.0",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "inputSpec": [
     {
       "name": "filtering_expression",
@@ -98,7 +98,7 @@
         "name": "mrcepid-collapsevariants",
         "package_manager": "git",
         "url": "https://github.com/mrcepid-rap/mrcepid-collapsevariants.git",
-        "tag": "bugfix/gene_collapsing_fix",
+        "tag": "v2.1.1",
         "build_commands": "uv pip install --system ."
       }
     ]
