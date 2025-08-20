@@ -1,6 +1,6 @@
 [project]
 name = "mrcepid-collapsevariants"
-version = "2.2.1"
+version = "2.2.2"
 description = "Generates dummy input files for various association testing software"
 readme = "Readme.md"
 authors = [
@@ -19,7 +19,7 @@ dependencies = [
 ]
 
 [tool.uv.sources]
-general-utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", branch = "v1.6.0" }
+general-utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", branch = "v1.6.1" }
 
 [tool.coverage.run]
 omit = [
