@@ -64,9 +64,16 @@ class SNPListGenerator:
             print(prefix)
             print(bgen_info)
             print(self._bgen_dict.items())
-            thread_utility.launch_job(self._query_variant_index,
-                                      vep_handle=bgen_info['vep'],
-                                      prefix=prefix)
+            thread_utility.launch_job(function=self._query_variant_index,
+                                      inputs={
+                                          'self': self,
+                                          'vep_handle': bgen_info['vep'],
+                                          'prefix': prefix
+                                      },
+                                      outputs=[
+                                          'variant_index', 'prefix', 'vars_found'
+                                      ]
+                                      )
         thread_utility.submit_and_monitor()
 
         # Next we want to take the filtered result and process into a dictionary with keys of chromosomes and values of
@@ -74,7 +81,6 @@ class SNPListGenerator:
         self.genes = dict()
         for result_dict in thread_utility:
             if result_dict['vars_found']:
-
                 self.genes[result_dict['prefix']] = self._make_gene_dict(result_dict['variant_index'])
 
         # Check the stats of the bgen files
