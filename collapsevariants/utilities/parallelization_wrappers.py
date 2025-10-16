@@ -55,8 +55,20 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
                                   ['bgen_prefix', 'genotypes', 'summary_dict']
                                   )
     thread_utility.submit_and_monitor()
-    genotype_index = {bgen_prefix: (geno_matrix, summary_dict) for bgen_prefix, geno_matrix, summary_dict in
-                      thread_utility}
+
+    genotype_index = {}
+
+    for result in thread_utility:
+        bgen_prefix = result['bgen_prefix']
+        geno_matrix = result['genotypes']
+        summary_dict = result['summary_dict']
+
+        print(bgen_prefix)
+        print(geno_matrix)
+        print(summary_dict)
+
+        genotype_index[bgen_prefix] = (geno_matrix, summary_dict)
+
     return genotype_index
 
 
