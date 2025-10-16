@@ -145,8 +145,8 @@ def update_log_file(genes: Dict[str, pd.DataFrame],
     thread_utility = ThreadUtility(incrementor=10)
     for bgen_prefix in genes.keys():
         print(bgen_prefix)
-        print(genotype_index[bgen_prefix])
-        print(genes[bgen_prefix])
+        print(genotype_index)
+        print(genes)
         thread_utility.launch_job(function=check_matrix_stats,
                                   inputs={
                                       'genotypes': genotype_index[bgen_prefix],
