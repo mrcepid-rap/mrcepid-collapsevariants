@@ -81,15 +81,17 @@ class ToolParser(ABC):
         # Note that iteration MUST be keyed on self._genes!!! This is because genes tracks which input bgen files
         # actually had found variants based on requested filtering.
         for bgen_prefix in self._genes.keys():
-            thread_utility.launch_job(function=self._make_output_files,
-                                      inputs={
-                                          'bgen_prefix': bgen_prefix
-                                      }
-                                      )
+            thread_utility.launch_job(
+                function=self._make_output_files,
+                inputs={'bgen_prefix': bgen_prefix},
+                outputs=['output_list']
+            )
+
         thread_utility.submit_and_monitor()
+
         output_files = []
         for result in thread_utility:
-            output_files.extend(result)
+            output_files.extend(result['output_list'])
 
         return output_files
 
