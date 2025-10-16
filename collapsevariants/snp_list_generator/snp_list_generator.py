@@ -65,7 +65,7 @@ class SNPListGenerator:
             print(bgen_info)
             print(self._bgen_dict.items())
             thread_utility.launch_job(self._query_variant_index,
-                                      vep_handle=bgen_info['vep_dxid'],
+                                      vep_handle=bgen_info['vep'],
                                       prefix=prefix)
         thread_utility.submit_and_monitor()
 
@@ -144,6 +144,8 @@ class SNPListGenerator:
                                   index_col='varID',
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
                                          'AA': str, 'AApos': str})
+
+        print(current_vep)
 
         return current_vep
 
