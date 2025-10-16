@@ -64,9 +64,9 @@ class SNPListGenerator:
             print(prefix)
             print(bgen_info)
             print(self._bgen_dict.items())
+            print(bgen_info['vep'])
             thread_utility.launch_job(function=self._query_variant_index,
                                       inputs={
-                                          'self': self,
                                           'vep_handle': bgen_info['vep'],
                                           'prefix': prefix
                                       },
