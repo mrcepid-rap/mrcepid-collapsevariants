@@ -146,6 +146,10 @@ def update_log_file(genes: Dict[str, pd.DataFrame],
     print(genes)
     print(genes.keys())
     print(genes.values())
+    print('genotype index')
+    print(genotype_index)
+    print(genotype_index.keys())
+    print(genotype_index.values())
     for bgen_prefix in genes.keys():
         print(bgen_prefix)
         print(genotype_index)
