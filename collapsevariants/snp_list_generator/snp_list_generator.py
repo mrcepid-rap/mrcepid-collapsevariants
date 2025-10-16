@@ -172,6 +172,7 @@ class SNPListGenerator:
             input parameters 2) The prefix of the file loaded 3) The chromosome of all variants found 4) A boolean
             indicating if any variants were found after filtering 5) The minimum position of the entire bgen file.
         """
+        print(vep_handle)
 
         variant_index = self._load_variant_index(vep_handle)
 
