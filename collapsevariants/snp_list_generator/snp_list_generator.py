@@ -62,7 +62,7 @@ class SNPListGenerator:
         thread_utility = ThreadUtility()
         for prefix, bgen_info in self._bgen_dict.items():
             thread_utility.launch_job(self._query_variant_index,
-                                      vep_handle=bgen_info['vep'],
+                                      vep_handle=bgen_info['vep_dxid'],
                                       prefix=prefix)
         thread_utility.submit_and_monitor()
 
@@ -164,6 +164,8 @@ class SNPListGenerator:
 
         variant_index = self._load_variant_index(vep_handle)
 
+        print(variant_index)
+
         # 1. Filtering expression + Gene List
         if self._filtering_mode == FilteringMode.GENE_LIST:
             variant_index = self._query_gene_list(variant_index)
@@ -171,6 +173,7 @@ class SNPListGenerator:
         # 2. Filtering expression
         elif self._filtering_mode == FilteringMode.FILTERING_EXPRESSION:
             variant_index = self._query_filtering_expression(variant_index)
+            print(variant_index)
             if variant_index['CHROM'].nunique() > 1:
                 raise ValueError(f'More than one chromosome found in bgen {prefix}!')
 
