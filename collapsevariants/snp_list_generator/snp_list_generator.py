@@ -61,6 +61,9 @@ class SNPListGenerator:
         # Iterate through all possible bgens in parallel and filter them
         thread_utility = ThreadUtility()
         for prefix, bgen_info in self._bgen_dict.items():
+            print(prefix)
+            print(bgen_info)
+            print(self._bgen_dict.items())
             thread_utility.launch_job(self._query_variant_index,
                                       vep_handle=bgen_info['vep_dxid'],
                                       prefix=prefix)
