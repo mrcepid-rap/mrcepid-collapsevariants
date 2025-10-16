@@ -139,6 +139,12 @@ class SNPListGenerator:
         :param vep_handle: Pre-opened IO to a vep index file
         :return: A pandas.DataFrame containing variants loaded from all provided chromosomes
         """
+        pd.set_option('display.max_columns', None)
+        print(vep_handle)
+        vep = vep_handle.get_file_handle()
+        print(vep)
+        test_vep = pd.read_csv(vep, sep='\t', header=0, index_col=0)
+        print(test_vep)
 
         current_vep = pd.read_csv(gzip.open(vep_handle.get_file_handle(), mode='rt'), sep="\t",
                                   index_col='varID',
