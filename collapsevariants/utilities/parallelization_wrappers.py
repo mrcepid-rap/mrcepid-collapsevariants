@@ -41,13 +41,18 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     """
 
     # Generate genotype matrices for each BGEN file
-    thread_utility = ThreadUtility(error_message='Error in generation genotype arrays', incrementor=10)
+    thread_utility = ThreadUtility(incrementor=10)
     for bgen_prefix in genes.keys():
-        thread_utility.launch_job(generate_genotype_matrix,
-                                  bgen_prefix=bgen_prefix,
-                                  chrom_bgen_index=bgen_index[bgen_prefix],
-                                  variant_list=genes[bgen_prefix],
-                                  should_collapse=should_collapse)
+        thread_utility.launch_job(function=generate_genotype_matrix,
+                                  inputs={
+                                  'bgen_prefix':bgen_prefix,
+                                  'chrom_bgen_index':bgen_index[bgen_prefix],
+                                  'variant_list':genes[bgen_prefix],
+                                  'should_collapse':should_collapse
+                                  },
+                                  outputs=
+                                  ['bgen_prefix', 'genotypes', 'summary_dict']
+                                  )
     thread_utility.submit_and_monitor()
     genotype_index = {bgen_prefix: (geno_matrix, summary_dict) for bgen_prefix, geno_matrix, summary_dict in
                       thread_utility}
