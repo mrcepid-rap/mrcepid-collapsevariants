@@ -10,22 +10,23 @@ from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd
+from general_utilities.bgen_utilities.genotype_matrix import generate_csr_matrix_from_bgen, make_variant_list
 from general_utilities.import_utils.import_lib import BGENInformation
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix, hstack
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
+from collapsevariants.utilities.collapse_utils import GenotypeInfo
 from collapsevariants.utilities.collapse_utils import check_matrix_stats, \
     stat_writer
-from general_utilities.bgen_utilities.genotype_matrix import generate_csr_matrix_from_bgen, make_variant_list
 from collapsevariants.utilities.ingest_data import download_bgen
-from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 LOGGER = MRCLogger(__name__).get_logger()
 
 
-def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENInformation], should_collapse=True) -> Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]]:
+def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[str, BGENInformation],
+                               should_collapse=True) -> Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]]:
     """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
 
     This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
@@ -45,10 +46,10 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     for bgen_prefix in genes.keys():
         thread_utility.launch_job(function=generate_genotype_matrix,
                                   inputs={
-                                  'bgen_prefix':bgen_prefix,
-                                  'chrom_bgen_index':bgen_index[bgen_prefix],
-                                  'variant_list':genes[bgen_prefix],
-                                  'should_collapse':should_collapse
+                                      'bgen_prefix': bgen_prefix,
+                                      'chrom_bgen_index': bgen_index[bgen_prefix],
+                                      'variant_list': genes[bgen_prefix],
+                                      'should_collapse': should_collapse
                                   },
                                   outputs=
                                   ['bgen_prefix', 'genotypes', 'summary_dict']
@@ -60,7 +61,8 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
 
 def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation,
-                             variant_list: pd.DataFrame, should_collapse=True, delete_on_complete: bool = True) -> Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
+                             variant_list: pd.DataFrame, should_collapse=True, delete_on_complete: bool = True) -> \
+        Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
@@ -110,7 +112,6 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation
         current_start = current_end
 
     if delete_on_complete:
-
         bgen_path.unlink()
         index_path.unlink()
         sample_path.unlink()
@@ -121,7 +122,8 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation
     return bgen_prefix, genotypes, summary_dict
 
 
-def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+def update_log_file(genes: Dict[str, pd.DataFrame],
+                    genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
                     n_samples: int, expected_total_sites: int, stat_logger: CollapseLOGGER) -> None:
     """Update the CollapseLOGGER with per-sample and per-ENST totals across all BGEN files.
 
@@ -140,19 +142,25 @@ def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tu
     """
 
     # Check stats for each genotype matrix
-    thread_utility = ThreadUtility(error_message='Error in generation of per-bgen totals', incrementor=10)
+    thread_utility = ThreadUtility(incrementor=10)
     for bgen_prefix in genes.keys():
-        thread_utility.launch_job(check_matrix_stats,
-                                  genotypes=genotype_index[bgen_prefix],
-                                  variant_list=genes[bgen_prefix])
-    thread_utility.submit_and_monitor()
+        thread_utility.launch_job(function=check_matrix_stats,
+                                  inputs={
+                                      'genotypes': genotype_index[bgen_prefix],
+                                      'variant_list': genes[bgen_prefix],
+                                  },
+                                  outputs=[
+                                      'ac_table', 'gene_ac_table', 'gene_totals'
+                                      ]
+                                  )
+        thread_utility.submit_and_monitor()
 
-    ac_table = np.zeros(n_samples)
-    gene_ac_table = np.zeros(n_samples)
-    gene_totals = dict()
-    for result in thread_utility:
-        ac_table = np.add(ac_table, result[0])
+        ac_table = np.zeros(n_samples)
+        gene_ac_table = np.zeros(n_samples)
+        gene_totals = dict()
+        for result in thread_utility:
+            ac_table = np.add(ac_table, result[0])
         gene_ac_table = np.add(gene_ac_table, result[1])
         gene_totals.update(result[2])
 
-    stat_writer(ac_table, gene_ac_table, gene_totals, expected_total_sites, stat_logger)
+        stat_writer(ac_table, gene_ac_table, gene_totals, expected_total_sites, stat_logger)
