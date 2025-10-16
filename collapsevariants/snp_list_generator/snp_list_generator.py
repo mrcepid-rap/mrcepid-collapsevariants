@@ -61,10 +61,6 @@ class SNPListGenerator:
         # Iterate through all possible bgens in parallel and filter them
         thread_utility = ThreadUtility()
         for prefix, bgen_info in self._bgen_dict.items():
-            print(prefix)
-            print(bgen_info)
-            print(self._bgen_dict.items())
-            print(bgen_info['vep'])
             thread_utility.launch_job(function=self._query_variant_index,
                                       inputs={
                                           'vep_handle': bgen_info['vep'],
@@ -145,19 +141,10 @@ class SNPListGenerator:
         :param vep_handle: Pre-opened IO to a vep index file
         :return: A pandas.DataFrame containing variants loaded from all provided chromosomes
         """
-        pd.set_option('display.max_columns', None)
-        print(vep_handle)
-        vep = vep_handle.get_file_handle()
-        print(vep)
-        test_vep = pd.read_csv(vep, sep='\t', header=0, index_col=0)
-        print(test_vep)
-
         current_vep = pd.read_csv(gzip.open(vep_handle.get_file_handle(), mode='rt'), sep="\t",
                                   index_col='varID',
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,
                                          'AA': str, 'AApos': str})
-
-        print(current_vep)
 
         return current_vep
 
@@ -178,11 +165,8 @@ class SNPListGenerator:
             input parameters 2) The prefix of the file loaded 3) The chromosome of all variants found 4) A boolean
             indicating if any variants were found after filtering 5) The minimum position of the entire bgen file.
         """
-        print(vep_handle)
 
         variant_index = self._load_variant_index(vep_handle)
-
-        print(variant_index)
 
         # 1. Filtering expression + Gene List
         if self._filtering_mode == FilteringMode.GENE_LIST:
@@ -191,7 +175,6 @@ class SNPListGenerator:
         # 2. Filtering expression
         elif self._filtering_mode == FilteringMode.FILTERING_EXPRESSION:
             variant_index = self._query_filtering_expression(variant_index)
-            print(variant_index)
             if variant_index['CHROM'].nunique() > 1:
                 raise ValueError(f'More than one chromosome found in bgen {prefix}!')
 

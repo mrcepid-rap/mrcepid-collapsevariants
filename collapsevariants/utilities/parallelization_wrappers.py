@@ -63,10 +63,6 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
         geno_matrix = result['genotypes']
         summary_dict = result['summary_dict']
 
-        print(bgen_prefix)
-        print(geno_matrix)
-        print(summary_dict)
-
         genotype_index[bgen_prefix] = (geno_matrix, summary_dict)
 
     return genotype_index
@@ -155,17 +151,7 @@ def update_log_file(genes: Dict[str, pd.DataFrame],
 
     # Check stats for each genotype matrix
     thread_utility = ThreadUtility(incrementor=10)
-    print(genes)
-    print(genes.keys())
-    print(genes.values())
-    print('genotype index')
-    print(genotype_index)
-    print(genotype_index.keys())
-    print(genotype_index.values())
     for bgen_prefix in genes.keys():
-        print(bgen_prefix)
-        print(genotype_index)
-        print(genes)
         thread_utility.launch_job(function=check_matrix_stats,
                                   inputs={
                                       'genotypes': genotype_index[bgen_prefix],
