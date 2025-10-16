@@ -64,6 +64,7 @@ class SNPListGenerator:
             thread_utility.launch_job(self._query_variant_index,
                                       vep_handle=bgen_info['vep'],
                                       prefix=prefix)
+        thread_utility.submit_and_monitor()
 
         # Next we want to take the filtered result and process into a dictionary with keys of chromosomes and values of
         # genes. Genes will also be a dictionary containing SNPs and positions for later filtering.

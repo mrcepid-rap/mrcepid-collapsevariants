@@ -82,6 +82,7 @@ class ToolParser(ABC):
         for bgen_prefix in self._genes.keys():
             thread_utility.launch_job(self._make_output_files,
                                       bgen_prefix=bgen_prefix)
+        thread_utility.submit_and_monitor()
         output_files = []
         for result in thread_utility:
             output_files.extend(result)

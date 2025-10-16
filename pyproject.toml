@@ -10,16 +10,13 @@ requires-python = "~=3.8.10"
 dependencies = [
     "bgen==1.9.0",
     "dxpy==0.346.0",
-    "general-utilities",
+    "general-utilities @ git+https://github.com/mrcepid-rap/general_utilities.git@bugfix/add_crrent_directory_as_mount_tested",
     "numpy==1.23.2",
     "pandas==1.5.2",
     "pytest==7.4.4",
     "pytest-cov~=5.0",
     "scipy==1.10.1",
 ]
-
-[tool.uv.sources]
-general-utilities = { git = "https://github.com/mrcepid-rap/general_utilities.git", branch = "v1.6.1" }
 
 [tool.coverage.run]
 omit = [

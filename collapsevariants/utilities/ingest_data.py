@@ -59,10 +59,10 @@ class IngestData:
 
             for batch in bgen_index_csv:
 
-                bgen_dict[batch['prefix']] = {'index': InputFileHandler(batch['bgen_index_id']),
-                                              'sample': InputFileHandler(batch['sample_id']),
-                                              'bgen': InputFileHandler(batch['bgen_id']),
-                                              'vep': InputFileHandler(batch['vep_id'])}
+                bgen_dict[batch['prefix']] = {'index': InputFileHandler(batch['bgen_index_dxid']),
+                                              'sample': InputFileHandler(batch['sample_dxid']),
+                                              'bgen': InputFileHandler(batch['bgen_dxid']),
+                                              'vep': InputFileHandler(batch['vep_dxid'])}
 
                 # Collect sample IDs from the 1st bgen encountered. This is done on the premise that all bgen files
                 # have the same sample IDs...

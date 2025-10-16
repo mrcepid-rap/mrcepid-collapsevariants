@@ -48,6 +48,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
                                   chrom_bgen_index=bgen_index[bgen_prefix],
                                   variant_list=genes[bgen_prefix],
                                   should_collapse=should_collapse)
+    thread_utility.submit_and_monitor()
     genotype_index = {bgen_prefix: (geno_matrix, summary_dict) for bgen_prefix, geno_matrix, summary_dict in
                       thread_utility}
     return genotype_index
@@ -139,6 +140,7 @@ def update_log_file(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tu
         thread_utility.launch_job(check_matrix_stats,
                                   genotypes=genotype_index[bgen_prefix],
                                   variant_list=genes[bgen_prefix])
+    thread_utility.submit_and_monitor()
 
     ac_table = np.zeros(n_samples)
     gene_ac_table = np.zeros(n_samples)
