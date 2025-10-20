@@ -8,10 +8,14 @@
 
 from typing import Dict, Tuple
 
+import dxpy
 import numpy as np
 import pandas as pd
 from general_utilities.bgen_utilities.genotype_matrix import generate_csr_matrix_from_bgen, make_variant_list
+from general_utilities.import_utils.file_handlers.export_file_handler import ExportFileHandler
+from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from general_utilities.import_utils.import_lib import BGENInformation
+from general_utilities.job_management.joblauncher_factory import joblauncher_factory
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
 from scipy.sparse import csr_matrix, hstack
@@ -41,24 +45,42 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     :return: A pandas.DataFrame containing per-sample and per-ENST totals for log reporting purposes.
     """
 
-    # Generate genotype matrices for each BGEN file
-    thread_utility = ThreadUtility(incrementor=10)
+    # Generate genotype matrices for each BGEN file in parallel
+
+    # set the launcher
+    launcher = joblauncher_factory()
+
+    # set the exporter
+    exporter = ExportFileHandler(delete_on_upload=False)
+
     for bgen_prefix in genes.keys():
-        thread_utility.launch_job(function=generate_genotype_matrix,
-                                  inputs={
-                                      'bgen_prefix': bgen_prefix,
-                                      'chrom_bgen_index': bgen_index[bgen_prefix],
-                                      'variant_list': genes[bgen_prefix],
-                                      'should_collapse': should_collapse
-                                  },
-                                  outputs=
-                                  ['bgen_prefix', 'genotypes', 'summary_dict']
-                                  )
-    thread_utility.submit_and_monitor()
+
+        # bgen prefix is a string
+        # bgen_index is a dict of BGENInformation objects that we need to split
+        bgen = exporter.export_files(genes[bgen_prefix]['bgen'])
+        index = exporter.export_files(genes[bgen_prefix]['index'])
+        sample = exporter.export_files(genes[bgen_prefix]['sample'])
+        # variant list is a df that we need to export and upload
+        genes[bgen_prefix].to_csv(f"{bgen_prefix}.tsv", sep='\t', index=False)
+        variant_list = exporter.export_files(f"{bgen_prefix}.tsv")
+
+        launcher.launch_job(function=generate_genotype_matrix,
+                            inputs={
+                                'bgen_prefix': bgen_prefix,
+                                'bgen': bgen,
+                                'index': index,
+                                'sample': sample,
+                                'variant_list': variant_list,
+                                'should_collapse': should_collapse
+                            },
+                            outputs=
+                            ['bgen_prefix', 'genotypes', 'summary_dict']
+                            )
+    launcher.submit_and_monitor()
 
     genotype_index = {}
 
-    for result in thread_utility:
+    for result in launcher:
         bgen_prefix = result['bgen_prefix']
         geno_matrix = result['genotypes']
         summary_dict = result['summary_dict']
@@ -68,8 +90,9 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     return genotype_index
 
 
-def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation,
-                             variant_list: pd.DataFrame, should_collapse=True, delete_on_complete: bool = True) -> \
+@dxpy.entry_point('generate_genotype_matrix')
+def generate_genotype_matrix(bgen_prefix: str, bgen: dict, index: dict, sample: dict,
+                             variant_list: dict, should_collapse=True, delete_on_complete: bool = True) -> \
         Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
@@ -79,17 +102,22 @@ def generate_genotype_matrix(bgen_prefix: str, chrom_bgen_index: BGENInformation
     be separated out and allow for unit testing of :func:`generate_csr_matrix_from_bgen` detached from DNANexus.
 
     :param bgen_prefix: A string representing the prefix of the BGEN file to run in this current thread.
-    :param chrom_bgen_index: A BGENInformation object containing the paths to the BGEN file, BGEN index file, and BGEN sample file.
-    :param variant_list: A pandas.DataFrame containing the variants to collapse on.
+    :param bgen: dxlink to download the bgen file.
+    :param index: dxlink to download the bgen index file.
+    :param sample: dxlink to download the sample file.
+    :param variant_list: A dxlink to a pandas.DataFrame containing the variants to collapse on.
     :param should_collapse: If True, collapse the matrix to remove redundant columns. Default is True.
     :param delete_on_complete: If True, delete the BGEN, index, and sample files after processing. Required for testing purposes.
         Default is True.
     :return: A tuple containing the BGEN file prefix (for thread tracking) and the csr_matrix generated from the
         BGEN file.
     """
-    # Note that index is required but is not explicitly taken as input by BgenReader. It MUST have the same
-    # name as the bgen file, but with a .bgi suffix.
-    bgen_path, index_path, sample_path = download_bgen(chrom_bgen_index)
+
+    # download the files needed to run the subjob
+    bgen_path = InputFileHandler(bgen, download_now=True).get_file_handle()
+    index_path = InputFileHandler(index, download_now=True).get_file_handle()
+    sample_path = InputFileHandler(sample, download_now=True).get_file_handle()
+    variant_list = pd.read_csv(InputFileHandler(variant_list, download_now=True).get_file_handle(), sep='\t')
 
     variant_list = make_variant_list(variant_list)
 
@@ -159,7 +187,7 @@ def update_log_file(genes: Dict[str, pd.DataFrame],
                                   },
                                   outputs=[
                                       'ac_table', 'gene_ac_table', 'gene_totals'
-                                      ]
+                                  ]
                                   )
         thread_utility.submit_and_monitor()
 

@@ -21,17 +21,17 @@ def bgen_file(tmpdir) -> Path:
     bgen_tsv = tmpdir / 'bgen_index.tsv'
 
     with bgen_tsv.open('w') as bgen_writer:
-        bgen_csv = csv.DictWriter(bgen_writer, fieldnames=['prefix', 'bgen_id', 'bgen_index_id', 'sample_id', 'vep_id'], delimiter="\t")
+        bgen_csv = csv.DictWriter(bgen_writer, fieldnames=['prefix', 'bgen_dxid', 'bgen_index_dxid', 'sample_dxid', 'vep_dxid'], delimiter="\t")
         bgen_csv.writeheader()
 
         for i in range(1,4):
             prefix = f'chr1_chunk{i}'
             bgen_csv.writerow({
                 'prefix': prefix,
-                'bgen_id': f'{test_data_dir}/{prefix}.bgen',
-                'bgen_index_id': f'{test_data_dir}/{prefix}.bgen.bgi',
-                'sample_id': f'{test_data_dir}/{prefix}.sample',
-                'vep_id': f'{test_data_dir}/{prefix}.vep.tsv.gz',
+                'bgen_dxid': f'{test_data_dir}/{prefix}.bgen',
+                'bgen_index_dxid': f'{test_data_dir}/{prefix}.bgen.bgi',
+                'sample_dxid': f'{test_data_dir}/{prefix}.sample',
+                'vep_dxid': f'{test_data_dir}/{prefix}.vep.tsv.gz',
             })
 
     return Path(bgen_tsv)
