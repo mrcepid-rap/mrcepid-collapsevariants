@@ -5,7 +5,7 @@
 #
 # This means that these methods are not unit tested.
 ########################################################################################################################
-
+import pickle
 from typing import Dict, Tuple
 
 import dxpy
@@ -24,7 +24,6 @@ from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.utilities.collapse_utils import GenotypeInfo
 from collapsevariants.utilities.collapse_utils import check_matrix_stats, \
     stat_writer
-from collapsevariants.utilities.ingest_data import download_bgen
 
 LOGGER = MRCLogger(__name__).get_logger()
 
@@ -54,7 +53,6 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     exporter = ExportFileHandler(delete_on_upload=False)
 
     for bgen_prefix in genes.keys():
-
         LOGGER.info(f'Getting files ready for {bgen_prefix}')
 
         # variant list is a df that we need to export and upload
@@ -80,7 +78,9 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     for result in launcher:
         bgen_prefix = result['bgen_prefix']
         geno_matrix = load_npz(result['genotypes'])
-        summary_dict = result['summary_dict']
+        pickle_file = result['summary_dict']
+        with open(pickle_file, "rb") as f:
+            summary_dict = pickle.load(f)
 
         genotype_index[bgen_prefix] = (geno_matrix, summary_dict)
 
@@ -161,9 +161,14 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     # Finalise matrix creation
     genotypes = hstack(genotypes)
 
-    # save to file
+    # Save matrix to file
     output_path = f"{bgen_prefix}_genotypes.npz"
     save_npz(output_path, genotypes)
+
+    # Save summary_dict locally
+    summary_file = Path(f"{bgen_prefix}_summary.pkl")
+    with summary_file.open("wb") as f:
+        pickle.dump(summary_dict, f)
 
     print('here6')
 
@@ -174,7 +179,7 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     return {
         'bgen_prefix': bgen_prefix,
         'genotypes': output_path,
-        'summary_dict': summary_dict
+        'summary_dict': summary_file
     }
 
 
