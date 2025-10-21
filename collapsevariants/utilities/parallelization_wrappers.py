@@ -167,6 +167,10 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
 
     print('here6')
 
+    print(bgen_prefix)
+    print(output_path)
+    print(summary_dict)
+
     return {
         'bgen_prefix': bgen_prefix,
         'genotypes': output_path,
