@@ -88,7 +88,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
 
 @dxpy.entry_point('generate_genotype_matrix')
-def generate_genotype_matrix(bgen_prefix: str, bgen: dict, index: dict, sample: dict,
+def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: str,
                              variant_list: dict, should_collapse=True, delete_on_complete: bool = True) -> \
         Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
     """
@@ -114,7 +114,9 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: dict, index: dict, sample: 
     bgen_path = InputFileHandler(bgen, download_now=True).get_file_handle()
     index_path = InputFileHandler(index, download_now=True).get_file_handle()
     sample_path = InputFileHandler(sample, download_now=True).get_file_handle()
-    variant_list = pd.read_csv(InputFileHandler(variant_list, download_now=True).get_file_handle(), sep='\t')
+    variants_file = InputFileHandler(variant_list, download_now=True).get_file_handle()
+    variant_list = pd.read_csv(variants_file, sep='\t')
+    print(variant_list.head())
 
     variant_list = make_variant_list(variant_list)
 
