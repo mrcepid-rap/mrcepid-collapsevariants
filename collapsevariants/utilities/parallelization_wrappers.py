@@ -181,7 +181,7 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     exporter = ExportFileHandler()
 
     return {
-        'bgen_prefix': exporter.export_files(bgen_prefix),
+        'bgen_prefix': bgen_prefix,
         'genotypes': exporter.export_files(output_path),
         'summary_dict': exporter.export_files(summary_file)
     }
