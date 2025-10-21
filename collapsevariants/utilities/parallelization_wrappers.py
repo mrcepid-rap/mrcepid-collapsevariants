@@ -6,6 +6,7 @@
 # This means that these methods are not unit tested.
 ########################################################################################################################
 import pickle
+from pathlib import Path
 from typing import Dict, Tuple
 
 import dxpy
