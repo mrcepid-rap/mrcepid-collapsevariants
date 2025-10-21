@@ -18,7 +18,7 @@ from general_utilities.import_utils.import_lib import BGENInformation
 from general_utilities.job_management.joblauncher_factory import joblauncher_factory
 from general_utilities.job_management.thread_utility import ThreadUtility
 from general_utilities.mrc_logger import MRCLogger
-from scipy.sparse import csr_matrix, hstack
+from scipy.sparse import csr_matrix, hstack, save_npz, load_npz
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.utilities.collapse_utils import GenotypeInfo
@@ -79,7 +79,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
     for result in launcher:
         bgen_prefix = result['bgen_prefix']
-        geno_matrix = result['genotypes']
+        geno_matrix = load_npz(result['genotypes'])
         summary_dict = result['summary_dict']
 
         genotype_index[bgen_prefix] = (geno_matrix, summary_dict)
@@ -161,11 +161,15 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     # Finalise matrix creation
     genotypes = hstack(genotypes)
 
+    # save to file
+    output_path = f"{bgen_prefix}_genotypes.npz"
+    save_npz(output_path, genotypes)
+
     print('here6')
 
     return {
         'bgen_prefix': bgen_prefix,
-        'genotypes': genotypes,
+        'genotypes': output_path,
         'summary_dict': summary_dict
     }
 
