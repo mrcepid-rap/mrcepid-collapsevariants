@@ -57,11 +57,6 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
         LOGGER.info(f'Getting files ready for {bgen_prefix}')
 
-        # bgen prefix is a string
-        # bgen_index is a dict of BGENInformation objects that we need to split
-        bgen = exporter.export_files(bgen_index[bgen_prefix]['bgen'].get_input_str())
-        index = exporter.export_files(bgen_index[bgen_prefix]['index'].get_input_str())
-        sample = exporter.export_files(bgen_index[bgen_prefix]['sample'].get_input_str())
         # variant list is a df that we need to export and upload
         genes[bgen_prefix].to_csv(f"{bgen_prefix}.tsv", sep='\t', index=False)
         variant_list = exporter.export_files(f"{bgen_prefix}.tsv")
@@ -69,9 +64,9 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
         launcher.launch_job(function=generate_genotype_matrix,
                             inputs={
                                 'bgen_prefix': bgen_prefix,
-                                'bgen': bgen,
-                                'index': index,
-                                'sample': sample,
+                                'bgen': bgen_index[bgen_prefix]['bgen'].get_input_str(),
+                                'index': bgen_index[bgen_prefix]['index'].get_input_str(),
+                                'sample': bgen_index[bgen_prefix]['sample'].get_input_str(),
                                 'variant_list': variant_list,
                                 'should_collapse': should_collapse
                             },
