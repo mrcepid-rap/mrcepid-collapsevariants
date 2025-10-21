@@ -118,8 +118,10 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     variant_list = pd.read_csv(variants_file, sep='\t')
     print(variant_list.head())
 
+    print('here')
     variant_list = make_variant_list(variant_list)
 
+    print('here2')
     # Generate the CSR matrix from the BGEN file
     summary_dict = {}
     genotypes = []
@@ -132,6 +134,8 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
                                                                           start=gene_information['min'],
                                                                           end=gene_information['max'],
                                                                           should_collapse_matrix=should_collapse)
+
+        print('here3')
 
         # Build the genotype matrix
         genotypes.append(gene_genotypes)
