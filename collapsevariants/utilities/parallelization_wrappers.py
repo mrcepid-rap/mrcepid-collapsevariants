@@ -89,8 +89,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
 @dxpy.entry_point('generate_genotype_matrix')
 def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: str,
-                             variant_list: dict, should_collapse=True, delete_on_complete: bool = True) -> \
-        Tuple[str, csr_matrix, Dict[str, GenotypeInfo]]:
+                             variant_list: dict, should_collapse=True, delete_on_complete: bool = True) -> dict:
     """
     Helper method that wraps :func:`generate_csr_matrix_from_bgen` to generate a genotype matrix for a single BGEN file.
 
@@ -140,6 +139,8 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
         # Build the genotype matrix
         genotypes.append(gene_genotypes)
 
+        print('here4')
+
         # Build the summary dict
         current_end = current_start + gene_summary_dict['n_columns']
         summary_dict[gene] = GenotypeInfo(
@@ -150,6 +151,8 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
         )
         current_start = current_end
 
+        print('here5')
+
     if delete_on_complete:
         bgen_path.unlink()
         index_path.unlink()
@@ -158,7 +161,13 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     # Finalise matrix creation
     genotypes = hstack(genotypes)
 
-    return bgen_prefix, genotypes, summary_dict
+    print('here6')
+
+    return {
+        'bgen_prefix': bgen_prefix,
+        'genotypes': genotypes,
+        'summary_dict': summary_dict
+    }
 
 
 def update_log_file(genes: Dict[str, pd.DataFrame],
