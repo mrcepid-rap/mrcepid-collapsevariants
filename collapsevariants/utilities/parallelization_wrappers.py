@@ -78,8 +78,11 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
 
     for result in launcher:
         bgen_prefix = result['bgen_prefix']
-        geno_matrix = load_npz(result['genotypes'])
-        pickle_file = result['summary_dict']
+        # download the matrix
+        matrix_file = InputFileHandler(result['genotypes'], download_now=True).get_file_handle()
+        geno_matrix = load_npz(matrix_file)
+        # download the summary dict
+        pickle_file = InputFileHandler(result['summary_dict'], download_now=True).get_file_handle()
         with open(pickle_file, "rb") as f:
             summary_dict = pickle.load(f)
 
@@ -116,12 +119,9 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     sample_path = InputFileHandler(sample, download_now=True).get_file_handle()
     variants_file = InputFileHandler(variant_list, download_now=True).get_file_handle()
     variant_list = pd.read_csv(variants_file, sep='\t')
-    print(variant_list.head())
 
-    print('here')
     variant_list = make_variant_list(variant_list)
 
-    print('here2')
     # Generate the CSR matrix from the BGEN file
     summary_dict = {}
     genotypes = []
@@ -135,12 +135,8 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
                                                                           end=gene_information['max'],
                                                                           should_collapse_matrix=should_collapse)
 
-        print('here3')
-
         # Build the genotype matrix
         genotypes.append(gene_genotypes)
-
-        print('here4')
 
         # Build the summary dict
         current_end = current_start + gene_summary_dict['n_columns']
@@ -151,8 +147,6 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
             gene_index=[var_n for var_n in range(current_start, current_end)]
         )
         current_start = current_end
-
-        print('here5')
 
     if delete_on_complete:
         bgen_path.unlink()
@@ -170,12 +164,6 @@ def generate_genotype_matrix(bgen_prefix: str, bgen: str, index: str, sample: st
     summary_file = Path(f"{bgen_prefix}_summary.pkl")
     with summary_file.open("wb") as f:
         pickle.dump(summary_dict, f)
-
-    print('here6')
-
-    print(bgen_prefix)
-    print(output_path)
-    print(summary_file)
 
     # set the exporter
     exporter = ExportFileHandler()
