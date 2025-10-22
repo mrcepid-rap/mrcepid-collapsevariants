@@ -206,14 +206,14 @@ def update_log_file(genes: Dict[str, pd.DataFrame],
                                       'ac_table', 'gene_ac_table', 'gene_totals'
                                   ]
                                   )
-        thread_utility.submit_and_monitor()
+    thread_utility.submit_and_monitor()
 
-        ac_table = np.zeros(n_samples)
-        gene_ac_table = np.zeros(n_samples)
-        gene_totals = dict()
-        for result in thread_utility:
-            ac_table = np.add(ac_table, result["ac_table"])
-            gene_ac_table = np.add(gene_ac_table, result["gene_ac_table"])
-            gene_totals.update(result["gene_totals"])
+    ac_table = np.zeros(n_samples)
+    gene_ac_table = np.zeros(n_samples)
+    gene_totals = dict()
+    for result in thread_utility:
+        ac_table = np.add(ac_table, result["ac_table"])
+        gene_ac_table = np.add(gene_ac_table, result["gene_ac_table"])
+        gene_totals.update(result["gene_totals"])
 
         stat_writer(ac_table, gene_ac_table, gene_totals, expected_total_sites, stat_logger)
