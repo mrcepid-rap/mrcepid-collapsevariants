@@ -19,6 +19,7 @@ uv.lock
 # Python bytecode
 collapsevariants/tool_parsers/__pycache__/
 collapsevariants/__pycache__/
+collapsevariants/utilities/__pycache__/
 
 # IDE files
 .idea/
