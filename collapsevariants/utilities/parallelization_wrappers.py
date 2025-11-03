@@ -34,9 +34,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     """Helper method for parellelizing :func:`generate_genotype_matrix` across all BGEN files with at least one variant.
 
     This method generates csr_matrices for each BGEN file in the input dictionary of genes. It simply wraps the
-    :func:`generate_genotype_matrix` method in a ThreadUtility object to parallelize the process.
-
-    Note that this method is un-tested as it wraps a method that requires DNA Nexus to run.
+    :func:`generate_genotype_matrix` method in a subjob object to parallelize the process.
 
     :param genes: A dictionary containing the genes to collapse with keys of the BGEN file prefixes and values of
         a Pandas DataFrame containing per-variant information.
@@ -48,7 +46,7 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     # Generate genotype matrices for each BGEN file in parallel
 
     # set the launcher
-    launcher = joblauncher_factory()
+    launcher = joblauncher_factory(download_on_complete=True)
 
     # set the exporter
     exporter = ExportFileHandler(delete_on_upload=False)
@@ -79,11 +77,12 @@ def generate_genotype_matrices(genes: Dict[str, pd.DataFrame], bgen_index: Dict[
     for result in launcher:
         bgen_prefix = result['bgen_prefix']
         # download the matrix
-        matrix_file = InputFileHandler(result['genotypes'], download_now=True).get_file_handle()
+        matrix_file = InputFileHandler(result['genotypes']).get_file_handle()
         geno_matrix = load_npz(matrix_file)
         # download the summary dict
-        pickle_file = InputFileHandler(result['summary_dict'], download_now=True).get_file_handle()
-        with open(pickle_file, "rb") as f:
+        pickled_summary_dict = InputFileHandler(result['summary_dict']).get_file_handle()
+        # un-pickle the summary dict
+        with open(pickled_summary_dict, "rb") as f:
             summary_dict = pickle.load(f)
 
         genotype_index[bgen_prefix] = (geno_matrix, summary_dict)
