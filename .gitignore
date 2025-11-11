@@ -20,6 +20,7 @@ uv.lock
 collapsevariants/tool_parsers/__pycache__/
 collapsevariants/__pycache__/
 collapsevariants/utilities/__pycache__/
+collapsevariants/snp_list_generator/__pycache__/
 
 # IDE files
 .idea/
@@ -27,6 +28,8 @@ collapsevariants/utilities/__pycache__/
 # Test data
 !/test/test_data/expected_outputs
 /test/test_data/
+test/chr1_chunk*
+test/sample_list*
 
 /build/
 /mrcepid_collapsevariants.egg-info/
