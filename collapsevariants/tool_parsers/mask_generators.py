@@ -53,44 +53,49 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
 
     # set the launcher
     launcher = joblauncher_factory()
-
-    # set the exporter
-    exporter = ExportFileHandler(delete_on_upload=False)
+    exporter = ExportFileHandler(delete_on_upload=True)
+    output_files = []
 
     for chunk, df in genes.items():
-
-        # get the gene data for this key
-        gene_path = f"{chunk}.csv"
-        df.to_csv(gene_path, index=False)
+        # --- gene table (streamed + gzip compression for large files) ---
+        gene_path = Path(f"{chunk}.csv.gz")
+        df.to_csv(gene_path, index=False, compression="gzip")
         gene_path = exporter.export_files(gene_path)
-        # get the matrix for this key
-        mmwrite(f"{chunk}.mtx", genotype_index[chunk][0])
-        matrix_path = exporter.export_files(f"{chunk}.mtx")
-        # expor the summary dict
-        with open(f"{chunk}_summary_dict.pkl", "wb") as f:
-            pickle.dump(genotype_index[chunk][1], f)
-        summary_path = exporter.export_files(f"{chunk}_summary_dict.pkl")
-        # get the samples for this key
-        with open(f'sample_list_{chunk}.txt', 'w') as f:
-            for item in sample_ids:
-                f.write(f"{item}\n")
-        sample_path = exporter.export_files(f'sample_list_{chunk}.txt')
 
-        launcher.launch_job(function=multithread_generic_mask_generation,
-                            inputs={
-                                'chunk': chunk,
-                                'gene_path': gene_path,
-                                'matrix_path': matrix_path,
-                                'summary_path': summary_path,
-                                'sample_path': sample_path,
-                                'output_prefix': output_prefix
-                            },
-                            outputs=['output_files']
-                            )
+        # --- sparse matrix (Matrix Market format) ---
+        matrix_path = Path(f"{chunk}.mtx")
+        mmwrite(matrix_path, genotype_index[chunk][0])
+        matrix_path = exporter.export_files(matrix_path)
+
+        # --- summary dict (compact pickle) ---
+        summary_path = Path(f"{chunk}_summary_dict.pkl")
+        with open(summary_path, "wb") as f:
+            pickle.dump(genotype_index[chunk][1], f, protocol=pickle.HIGHEST_PROTOCOL)
+        summary_path = exporter.export_files(summary_path)
+
+        # --- sample list (single write operation) ---
+        sample_path = Path(f"sample_list_{chunk}.txt")
+        sample_path.write_text("\n".join(sample_ids))
+        sample_path = exporter.export_files(sample_path)
+
+        # --- launch job ---
+        launcher.launch_job(
+            function=multithread_generic_mask_generation,
+            inputs={
+                "chunk": chunk,
+                "gene_path": gene_path,
+                "matrix_path": matrix_path,
+                "summary_path": summary_path,
+                "sample_path": sample_path,
+                "output_prefix": output_prefix,
+            },
+            outputs=["output_files"],
+        )
+
+    # --- collect all outputs ---
     launcher.submit_and_monitor()
-    output_files = []
     for result in launcher:
-        output_files.extend(result['output_files'])
+        output_files.extend(result["output_files"])
 
     return output_files
 
