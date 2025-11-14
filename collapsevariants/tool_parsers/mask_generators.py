@@ -18,28 +18,6 @@ from collapsevariants.tool_parsers.staar_parser import STAARParser
 from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 
-# def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
-#                            sample_ids: List[str], output_prefix: str) -> List[Path]:
-#     """Wrapper to help generate output files for each tool.
-#
-#     :param genes: A dictionary containing the genes to collapse with keys of the BGEN file prefixes and values of
-#         a Pandas DataFrame containing per-variant information.
-#     :param genotype_index: A dictionary containing values of csr_matrix and keys of each BGEN file prefix.
-#     :param sample_ids: A list of sample IDs for processing this file.
-#     :param output_prefix: A string representing the prefix of the output files.
-#     :return: A list of Path objects representing the output files created by the implementing classes.
-#     """
-#
-#     # Generate output files for each tool
-#     output_files = []
-#     tool_methods = [BOLTParser, SAIGEParser, REGENIEParser, STAARParser]
-#     for tool in tool_methods:
-#
-#         tool_instance = tool(genes, genotype_index, sample_ids, output_prefix)
-#         output_files.extend(tool_instance.get_output_files())
-#
-#     return output_files
-
 def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
                            sample_ids: List[str], output_prefix: str) -> List[Path]:
     """Wrapper to help generate output files for each tool.
@@ -52,92 +30,119 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
     :return: A list of Path objects representing the output files created by the implementing classes.
     """
 
-    # set the launcher
-    launcher = joblauncher_factory()
-    exporter = ExportFileHandler(delete_on_upload=True)
+    # Generate output files for each tool
     output_files = []
-
-    for chunk, df in genes.items():
-        # --- gene table (streamed + gzip compression for large files) ---
-        gene_path = Path(f"{chunk}.csv.gz")
-        df.to_csv(gene_path, index=False, compression="gzip")
-        gene_path = exporter.export_files(gene_path)
-
-        # --- sparse matrix (Matrix Market format) ---
-        matrix_path = Path(f"{chunk}.mtx")
-        mmwrite(matrix_path, genotype_index[chunk][0])
-        matrix_path = exporter.export_files(matrix_path)
-
-        # --- summary dict (compact pickle) ---
-        summary_path = Path(f"{chunk}_summary_dict.pkl")
-        with open(summary_path, "wb") as f:
-            pickle.dump(genotype_index[chunk][1], f, protocol=pickle.HIGHEST_PROTOCOL)
-        summary_path = exporter.export_files(summary_path)
-
-        # --- sample list (single write operation) ---
-        sample_path = Path(f"sample_list_{chunk}.txt")
-        sample_path.write_text("\n".join(sample_ids))
-        sample_path = exporter.export_files(sample_path)
-
-        # --- launch job ---
-        launcher.launch_job(
-            function=multithread_generic_mask_generation,
-            inputs={
-                "chunk": chunk,
-                "gene_path": gene_path,
-                "matrix_path": matrix_path,
-                "summary_path": summary_path,
-                "sample_path": sample_path,
-                "output_prefix": output_prefix,
-            },
-            outputs=["output_files"],
-            instance_type='mem3_ssd1_v2_x16'
-        )
-
-    # --- collect all outputs ---
-    launcher.submit_and_monitor()
-    for result in launcher:
-        output_files.extend(result["output_files"])
-
-    return output_files
-
-
-@dxpy.entry_point('multithread_generic_mask_generation')
-def multithread_generic_mask_generation(chunk: str, gene_path, matrix_path, summary_path,
-                                        sample_path, output_prefix: str):
-    """Placeholder for future multithreading implementation of generic mask generation."""
-
-    # read out genes data in
-    genes = {}
-    gene_path = InputFileHandler(gene_path).get_file_handle()
-    df = pd.read_csv(gene_path)
-    genes[chunk] = df
-
-    # read the matrix data in
-    matrix_path = InputFileHandler(matrix_path).get_file_handle()
-    genotype_index = {}
-    matrix = mmread(matrix_path)
-    matrix = csr_matrix(matrix)  # Convert to subscriptable format
-    # Load summary_dict from file
-    summary_path = InputFileHandler(summary_path).get_file_handle()
-    with open(summary_path, "rb") as f:
-        summary_dict = pickle.load(f)
-    genotype_index[chunk] = (matrix, summary_dict)
-
-    # read the sample data in
-    sample_path = InputFileHandler(sample_path).get_file_handle()
-    with open(sample_path, 'r') as f:
-        loaded_lst = [line.strip() for line in f]
-
-    output_files = []
-    exporter = ExportFileHandler()
     tool_methods = [BOLTParser, SAIGEParser, REGENIEParser, STAARParser]
     for tool in tool_methods:
 
-        tool_instance = tool(genes, genotype_index, loaded_lst, output_prefix)
-        output_files.extend(exporter.export_files(f) for f in tool_instance.get_output_files())
+        tool_instance = tool(genes, genotype_index, sample_ids, output_prefix)
+        output_files.extend(tool_instance.get_output_files())
 
     return output_files
+
+# def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+#                            sample_ids: List[str], output_prefix: str) -> List[Path]:
+#     """Wrapper to help generate output files for each tool.
+#
+#     :param genes: A dictionary containing the genes to collapse with keys of the BGEN file prefixes and values of
+#         a Pandas DataFrame containing per-variant information.
+#     :param genotype_index: A dictionary containing values of csr_matrix and keys of each BGEN file prefix.
+#     :param sample_ids: A list of sample IDs for processing this file.
+#     :param output_prefix: A string representing the prefix of the output files.
+#     :return: A list of Path objects representing the output files created by the implementing classes.
+#     """
+#
+#     # set the launcher
+#     launcher = joblauncher_factory()
+#     exporter = ExportFileHandler(delete_on_upload=True)
+#     output_files = []
+#
+#     for chunk, df in genes.items():
+#         # --- gene table (streamed + gzip compression for large files) ---
+#         gene_path = Path(f"{chunk}.csv.gz")
+#         df.to_csv(gene_path, index=False, compression="gzip")
+#         gene_path = exporter.export_files(gene_path)
+#
+#         # --- sparse matrix (Matrix Market format) ---
+#         matrix_path = Path(f"{chunk}.mtx")
+#         mmwrite(matrix_path, genotype_index[chunk][0])
+#         matrix_path = exporter.export_files(matrix_path)
+#
+#         # --- summary dict (compact pickle) ---
+#         summary_path = Path(f"{chunk}_summary_dict.pkl")
+#         with open(summary_path, "wb") as f:
+#             pickle.dump(genotype_index[chunk][1], f, protocol=pickle.HIGHEST_PROTOCOL)
+#         summary_path = exporter.export_files(summary_path)
+#
+#         # --- sample list (single write operation) ---
+#         sample_path = Path(f"sample_list_{chunk}.txt")
+#         sample_path.write_text("\n".join(sample_ids))
+#         sample_path = exporter.export_files(sample_path)
+#
+#         # --- launch job ---
+#         launcher.launch_job(
+#             function=multithread_generic_mask_generation,
+#             inputs={
+#                 "chunk": chunk,
+#                 "gene_path": gene_path,
+#                 "matrix_path": matrix_path,
+#                 "summary_path": summary_path,
+#                 "sample_path": sample_path,
+#                 "output_prefix": output_prefix,
+#             },
+#             outputs=["output_files"],
+#             instance_type='mem3_ssd1_v2_x16'
+#         )
+#
+#     # --- collect all outputs ---
+#     launcher.submit_and_monitor()
+#     all_outputs = []
+#     for result in launcher:
+#         # result["output_files"] is already a list of exported dicts
+#         all_outputs.extend(result["output_files"])
+#
+#     return all_outputs
+#
+#
+# @dxpy.entry_point('multithread_generic_mask_generation')
+# def multithread_generic_mask_generation(chunk: str, gene_path, matrix_path, summary_path,
+#                                         sample_path, output_prefix: str):
+#     """Placeholder for future multithreading implementation of generic mask generation."""
+#
+#     # read out genes data in
+#     genes = {}
+#     gene_path = InputFileHandler(gene_path).get_file_handle()
+#     df = pd.read_csv(gene_path)
+#     genes[chunk] = df
+#
+#     # read the matrix data in
+#     matrix_path = InputFileHandler(matrix_path).get_file_handle()
+#     genotype_index = {}
+#     matrix = mmread(matrix_path)
+#     matrix = csr_matrix(matrix)  # Convert to subscriptable format
+#     # Load summary_dict from file
+#     summary_path = InputFileHandler(summary_path).get_file_handle()
+#     with open(summary_path, "rb") as f:
+#         summary_dict = pickle.load(f)
+#     genotype_index[chunk] = (matrix, summary_dict)
+#
+#     # read the sample data in
+#     sample_path = InputFileHandler(sample_path).get_file_handle()
+#     with open(sample_path, 'r') as f:
+#         loaded_lst = [line.strip() for line in f]
+#
+#     exporter = ExportFileHandler()
+#     output_files = []  # MUST be list of DX export dicts
+#
+#     tool_methods = [BOLTParser, SAIGEParser, REGENIEParser, STAARParser]
+#     for tool in tool_methods:
+#         tool_instance = tool(genes, genotype_index, loaded_lst, output_prefix)
+#         for f in tool_instance.get_output_files():
+#             # f is a Path on local, exporter returns a DX dict
+#             exported = exporter.export_files(f)
+#             output_files.append(exported)
+#
+#     return {"output_files": output_files}
 
 
 def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
