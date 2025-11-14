@@ -4,6 +4,7 @@ from typing import Dict, List, Tuple
 
 import dxpy
 import pandas as pd
+from dxpy.cli.parsers import instance_type_arg
 from general_utilities.import_utils.file_handlers.export_file_handler import ExportFileHandler
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from general_utilities.job_management.joblauncher_factory import joblauncher_factory
@@ -90,6 +91,7 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
                 "output_prefix": output_prefix,
             },
             outputs=["output_files"],
+            instance_type='mem3_ssd1_v2_x16'
         )
 
     # --- collect all outputs ---
@@ -128,11 +130,12 @@ def multithread_generic_mask_generation(chunk: str, gene_path, matrix_path, summ
         loaded_lst = [line.strip() for line in f]
 
     output_files = []
+    exporter = ExportFileHandler()
     tool_methods = [BOLTParser, SAIGEParser, REGENIEParser, STAARParser]
     for tool in tool_methods:
 
         tool_instance = tool(genes, genotype_index, loaded_lst, output_prefix)
-        output_files.extend(tool_instance.get_output_files())
+        output_files.extend(exporter.export_files(f) for f in tool_instance.get_output_files())
 
     return output_files
 
