@@ -1,12 +1,16 @@
+import pickle
 import shutil
 from pathlib import Path
 from typing import Tuple
 
+import numpy as np
 import pandas as pd
 import pytest
+from general_utilities.import_utils.file_handlers.export_file_handler import ExportFileHandler
 from general_utilities.import_utils.file_handlers.input_file_handler import InputFileHandler
 from general_utilities.import_utils.import_lib import BGENInformation
 from scipy.io import mmread
+from scipy.sparse import load_npz
 
 from collapsevariants.utilities.collapse_logger import CollapseLOGGER
 from collapsevariants.utilities.collapse_utils import get_sample_ids
@@ -122,17 +126,27 @@ def test_snp_and_gene_masks(tmp_path, pipeline_data: pytest.fixture, filtering_e
     )
 
     # Generate a sparse matrix for each BGEN file and store the results.
+    exporter = ExportFileHandler(delete_on_upload=False)
     genotype_index = {}
     for bgen_prefix, variant_list in snp_list_generator.genes.items():
         bgen_dict[bgen_prefix]['index'].get_file_handle()
+        variant_list.to_csv(f"{bgen_prefix}.tsv", sep='\t', index=False)
+        variant_list=exporter.export_files(f"{bgen_prefix}.tsv")
         geno_matrix = generate_genotype_matrix(
-            bgen_prefix,
-            bgen_dict[bgen_prefix],
-            variant_list,
+            bgen_prefix=bgen_prefix,
+            bgen=bgen_dict[bgen_prefix]['bgen'].get_file_handle(),
+            index= bgen_dict[bgen_prefix]['index'].get_file_handle(),
+            sample= bgen_dict[bgen_prefix]['sample'].get_file_handle(),
+            variant_list=variant_list,
             should_collapse=False if snp_list_handler or gene_list_handler else True,
             delete_on_complete=False  # Make sure we keep the files for testing
         )
-        genotype_index[bgen_prefix] = (geno_matrix[1], geno_matrix[2])
+
+        loaded_matrix = load_npz(geno_matrix['genotypes'])
+        pickled_summary_dict = InputFileHandler(geno_matrix['summary_dict']).get_file_handle()
+        with open(pickled_summary_dict, "rb") as f:
+            summary_dict = pickle.load(f)
+        genotype_index[bgen_prefix] = (loaded_matrix, summary_dict)
 
     # Get sample IDs (assume they are identical across BGEN files).
     sample_ids = get_sample_ids(list(bgen_dict.values())[0]['sample'].get_file_handle())

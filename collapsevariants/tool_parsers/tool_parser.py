@@ -36,7 +36,8 @@ class ToolParser(ABC):
     :param tool_name: A string representing the name of the tool of the implementing class.
     """
 
-    def __init__(self, genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+    def __init__(self, genes: Dict[str, pd.DataFrame],
+                 genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
                  sample_ids: List[str], output_prefix: str, tool_name: str):
 
         # Initialize the logger
@@ -75,16 +76,22 @@ class ToolParser(ABC):
 
         # Use the make_output_files helper class to parallelize the creating of tool-specific outputs.
         # This is mostly for readability and to avoid having to write a lot of boilerplate code to manage threads
-        thread_utility = ThreadUtility(error_message=f'Error in {self._tool_name} processing step')
+        thread_utility = ThreadUtility()
 
         # Note that iteration MUST be keyed on self._genes!!! This is because genes tracks which input bgen files
         # actually had found variants based on requested filtering.
         for bgen_prefix in self._genes.keys():
-            thread_utility.launch_job(self._make_output_files,
-                                      bgen_prefix=bgen_prefix)
+            thread_utility.launch_job(
+                function=self._make_output_files,
+                inputs={'bgen_prefix': bgen_prefix},
+                outputs=['output_list']
+            )
+
+        thread_utility.submit_and_monitor()
+
         output_files = []
         for result in thread_utility:
-            output_files.extend(result)
+            output_files.extend(result['output_list'])
 
         return output_files
 

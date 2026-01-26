@@ -61,16 +61,22 @@ class SNPListGenerator:
         # Iterate through all possible bgens in parallel and filter them
         thread_utility = ThreadUtility()
         for prefix, bgen_info in self._bgen_dict.items():
-            thread_utility.launch_job(self._query_variant_index,
-                                      vep_handle=bgen_info['vep'],
-                                      prefix=prefix)
+            thread_utility.launch_job(function=self._query_variant_index,
+                                      inputs={
+                                          'vep_handle': bgen_info['vep'],
+                                          'prefix': prefix
+                                      },
+                                      outputs=[
+                                          'variant_index', 'prefix', 'vars_found'
+                                      ]
+                                      )
+        thread_utility.submit_and_monitor()
 
         # Next we want to take the filtered result and process into a dictionary with keys of chromosomes and values of
         # genes. Genes will also be a dictionary containing SNPs and positions for later filtering.
         self.genes = dict()
         for result_dict in thread_utility:
             if result_dict['vars_found']:
-
                 self.genes[result_dict['prefix']] = self._make_gene_dict(result_dict['variant_index'])
 
         # Check the stats of the bgen files
@@ -135,7 +141,6 @@ class SNPListGenerator:
         :param vep_handle: Pre-opened IO to a vep index file
         :return: A pandas.DataFrame containing variants loaded from all provided chromosomes
         """
-
         current_vep = pd.read_csv(gzip.open(vep_handle.get_file_handle(), mode='rt'), sep="\t",
                                   index_col='varID',
                                   dtype={'SIFT': str, 'POLYPHEN': str, 'LOFTEE': str,

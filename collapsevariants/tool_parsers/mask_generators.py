@@ -12,7 +12,8 @@ from collapsevariants.tool_parsers.staar_parser import STAARParser
 from collapsevariants.utilities.collapse_utils import GenotypeInfo
 
 
-def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+def generate_generic_masks(genes: Dict[str, pd.DataFrame],
+                           genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
                            sample_ids: List[str], output_prefix: str) -> List[Path]:
     """Wrapper to help generate output files for each tool.
 
@@ -34,7 +35,8 @@ def generate_generic_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[
     return output_files
 
 
-def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame], genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
+def generate_snp_or_gene_masks(genes: Dict[str, pd.DataFrame],
+                               genotype_index: Dict[str, Tuple[csr_matrix, Dict[str, GenotypeInfo]]],
                                sample_ids: List[str], output_prefix: str, bgen_type: str) -> List[Path]:
     """
     Wrapper similar to generate_generic_masks, but for SNP and GENE masks, creating output inputs for various tools.
