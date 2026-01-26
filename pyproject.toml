@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mrcepid-collapsevariants"
-version = "2.3.0"
+version = "2.3.2"
 description = "Generates dummy input files for various association testing software"
 readme = "Readme.md"
 authors = [
